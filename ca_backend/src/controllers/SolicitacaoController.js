@@ -1,4 +1,5 @@
 const SolicitacaoModel = require('../models/SolicitacaoModel');
+const pool = require('../config/db'); // Importado para validações e atualizações dinâmicas
 
 const SolicitacaoController = {
     criarSolicitacao: async (req, res) => {
@@ -36,22 +37,44 @@ const SolicitacaoController = {
 
     atualizarStatus: async (req, res) => {
         try {
-            const profissional_id = req.usuarioLogado.id;
+            const profissionalLogadoId = req.usuarioLogado.id;
             const { id } = req.params; // ID do pedido que vem na URL
-            const { status } = req.body;
+            const { status, preco } = req.body; // Agora aceita o preço para o RF07
 
-            const atualizado = await SolicitacaoModel.atualizarStatus(id, profissional_id, status);
-            
-            if (!atualizado) {
-                return res.status(404).json({ erro: 'Pedido não encontrado ou você não tem permissão.' });
+            // ==========================================
+            // BLOCO DE SEGURANÇA E NEGOCIAÇÃO (RF07)
+            // ==========================================
+            const buscaServico = await pool.query(
+                'SELECT profissional_id FROM solicitacoes_orcamento WHERE id = $1', 
+                [id]
+            );
+
+            if (buscaServico.rows.length === 0) {
+                return res.status(404).json({ erro: 'Orçamento não encontrado.' });
             }
 
+            // Trava de Propriedade: Esse orçamento foi mandado para mim?
+            if (buscaServico.rows[0].profissional_id !== profissionalLogadoId) {
+                return res.status(403).json({ erro: 'Acesso negado: Este orçamento pertence a outro profissional.' });
+            }
+
+            // Se é o dono do orçamento, faz a atualização do status e/ou do preço
+            // O COALESCE garante que se o Flutter não mandar o preço, ele mantém o que já estava no banco
+            const queryUpdate = `
+                UPDATE solicitacoes_orcamento 
+                SET status = COALESCE($1, status), preco = COALESCE($2, preco) 
+                WHERE id = $3 
+                RETURNING *;
+            `;
+            const atualizado = await pool.query(queryUpdate, [status, preco, id]);
+            // ==========================================
+
             return res.status(200).json({ 
-                mensagem: 'Status atualizado com sucesso!', 
-                solicitacao: atualizado 
+                mensagem: 'Orçamento atualizado com sucesso!', 
+                solicitacao: atualizado.rows[0] 
             });
         } catch (erro) {
-            console.error('Erro ao atualizar status:', erro);
+            console.error('Erro ao atualizar status/preço:', erro);
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
         }
     }

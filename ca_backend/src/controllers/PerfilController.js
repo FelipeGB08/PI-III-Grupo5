@@ -4,6 +4,10 @@ const PerfilController = {
     // FUNÇÃO 1: CRIAR PERFIL
     criar: async (req, res) => {
         try {
+            if (req.usuarioLogado.tipo_usuario !== 'profissional') {
+                return res.status(403).json({ erro: 'Acesso negado: Apenas profissionais podem criar um Currículo Vivo.' });
+            }
+
             const usuario_id = req.usuarioLogado.id;
             const { bio, telefone_comercial, cidade, categoria } = req.body;
 
@@ -32,6 +36,11 @@ const PerfilController = {
     // FUNÇÃO 2: BUSCAR MEU PRÓPRIO PERFIL
     buscarMeuPerfil: async (req, res) => {
         try {
+            // Trava de segurança extra para evitar consumo desnecessário do banco
+            if (req.usuarioLogado.tipo_usuario !== 'profissional') {
+                return res.status(403).json({ erro: 'Acesso negado: Apenas profissionais possuem Currículo Vivo.' });
+            }
+
             const usuario_id = req.usuarioLogado.id;
             const perfil = await PerfilModel.buscarPorUsuarioId(usuario_id);
 
@@ -47,6 +56,8 @@ const PerfilController = {
     },
 
     // FUNÇÃO 3: LISTAR TODOS OS PROFISSIONAIS (BUSCA)
+    // Obs: Como criamos o ProfissionalController com GPS (Haversine), 
+    // esta função aqui pode servir como um backup de busca simples!
     listarProfissionais: async (req, res) => {
         try {
             const { categoria, cidade } = req.query; 
