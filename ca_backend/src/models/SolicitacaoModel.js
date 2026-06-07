@@ -24,7 +24,20 @@ const SolicitacaoModel = {
         return resultado.rows;
     },
 
-    // 3. Profissional aceita, recusa ou finaliza
+    // 3. Cidadão vê seus próprios chamados
+    buscarPorCidadao: async (cidadao_id) => {
+        const query = `
+            SELECT s.*, u.nome as profissional_nome
+            FROM solicitacoes_orcamento s
+            JOIN usuarios u ON s.profissional_id = u.id
+            WHERE s.cidadao_id = $1
+            ORDER BY s.data_solicitacao DESC;
+        `;
+        const resultado = await pool.query(query, [cidadao_id]);
+        return resultado.rows;
+    },
+
+    // 4. Profissional aceita, recusa ou finaliza
     atualizarStatus: async (id, profissional_id, status) => {
         const query = `
             UPDATE solicitacoes_orcamento SET status = $1

@@ -35,6 +35,17 @@ const SolicitacaoController = {
         }
     },
 
+    listarMinhasSolicitacoes: async (req, res) => {
+        try {
+            const cidadao_id = req.usuarioLogado.id;
+            const pedidos = await SolicitacaoModel.buscarPorCidadao(cidadao_id);
+            return res.status(200).json(pedidos);
+        } catch (erro) {
+            console.error('Erro ao buscar solicitações do cidadão:', erro);
+            return res.status(500).json({ erro: 'Erro interno no servidor.' });
+        }
+    },
+
     atualizarStatus: async (req, res) => {
         try {
             const profissionalLogadoId = req.usuarioLogado.id;
