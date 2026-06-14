@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../domain/entities/prestador.dart';
 import '../../providers/providers.dart';
 
@@ -19,8 +18,7 @@ class SolicitarServicoSheet extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<SolicitarServicoSheet> createState() =>
-      _SolicitarServicoSheetState();
+  ConsumerState<SolicitarServicoSheet> createState() => _SolicitarServicoSheetState();
 }
 
 class _SolicitarServicoSheetState extends ConsumerState<SolicitarServicoSheet> {
@@ -45,14 +43,15 @@ class _SolicitarServicoSheetState extends ConsumerState<SolicitarServicoSheet> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Chamado enviado! O prestador será notificado.'),
+            content: Text('Chamado enviado com sucesso!'),
+            backgroundColor: Color(0xFF10B981),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro: $e')),
+          SnackBar(content: Text('Erro ao enviar: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -62,48 +61,56 @@ class _SolicitarServicoSheetState extends ConsumerState<SolicitarServicoSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Container(
       padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        left: 24, right: 24, top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 32,
       ),
-      decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1E293B), // Fundo Dark dos Sheets
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Solicitar Serviço',
-            style: theme.textTheme.headlineLarge?.copyWith(fontSize: 22),
+          Container(
+            width: 40, height: 4, margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(2)),
           ),
-          const SizedBox(height: 4),
-          Text('Para ${widget.prestador.nome}',
-              style: theme.textTheme.bodyMedium),
-          const SizedBox(height: 20),
+          const Text(
+            'Solicitar Serviço',
+            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Detalhe o serviço para ${widget.prestador.nome}',
+            style: const TextStyle(color: Colors.white54, fontSize: 14),
+          ),
+          const SizedBox(height: 24),
           TextField(
             controller: _descricaoController,
             maxLines: 4,
-            decoration: const InputDecoration(
-              hintText: 'Descreva o serviço necessário...',
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'Ex: Troca de chuveiro, instalação de tomadas...',
+              hintStyle: const TextStyle(color: Colors.white30),
+              filled: true,
+              fillColor: const Color(0xFF0F172A),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           ElevatedButton(
             onPressed: _enviando ? null : _enviar,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF3B82F6),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
             child: _enviando
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Enviar Chamado'),
+                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Confirmar Solicitação', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),

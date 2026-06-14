@@ -10,14 +10,20 @@ import '../../models/chamado_model.dart';
 import '../../models/prestador_model.dart';
 import '../../models/user_model.dart';
 
-/// Serviço centralizado de API REST — mapeia regras de negócio aos endpoints do backend.
+/// [ApiService]
+/// Responsável pela comunicação direta com o backend.
+/// Todas as requisições utilizam o cliente Dio configurado.
+/// 
+/// Padrão: Métodos assíncronos que retornam o objeto de modelo (Model) 
+/// ou lançam uma exceção tratada pelo [DioClient].
 class ApiService {
   ApiService(this._dio);
 
   final Dio _dio;
 
-  // ─── Auth ───────────────────────────────────────────────────────────────
+  // ─── AUTH ───────────────────────────────────────────────────────────────
 
+  /// Autentica o usuário no sistema.
   Future<AuthResponseModel> login({
     required String email,
     required String senha,
@@ -29,6 +35,7 @@ class ApiService {
     return AuthResponseModel.fromJson(response.data as Map<String, dynamic>);
   }
 
+  /// Realiza o registro de um novo usuário.
   Future<Map<String, dynamic>> register(RegisterParams params) async {
     final response = await _dio.post(
       ApiConfig.authRegister,
@@ -42,6 +49,7 @@ class ApiService {
     return response.data as Map<String, dynamic>;
   }
 
+  /// Cria o perfil de prestador/profissional do usuário.
   Future<void> criarPerfilProfissional({
     required String bio,
     required String telefoneComercial,
@@ -59,24 +67,23 @@ class ApiService {
     );
   }
 
-  // ─── Prestadores ────────────────────────────────────────────────────────
+  // ─── PRESTADORES ────────────────────────────────────────────────────────
 
+  /// Lista prestadores baseando-se na geolocalização.
   Future<List<PrestadorModel>> listarPrestadoresPorGps({
     required double lat,
     required double lng,
   }) async {
     final response = await _dio.get(
       ApiConfig.prestadores,
-      queryParameters: {
-        'lat': lat,
-        'lng': lng,
-      },
+      queryParameters: {'lat': lat, 'lng': lng},
     );
     return (response.data as List<dynamic>)
         .map((e) => PrestadorModel.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
+  /// Busca prestadores por filtros de cidade ou categoria.
   Future<List<PrestadorModel>> buscarPrestadores({
     String? cidade,
     String? categoria,
@@ -93,8 +100,15 @@ class ApiService {
         .toList();
   }
 
-  // ─── Chamados / Solicitações ────────────────────────────────────────────
+  /// Busca um prestador único pelo ID.
+  Future<PrestadorModel> buscarPrestadorPorId(int id) async {
+    final response = await _dio.get('${ApiConfig.prestadores}/$id');
+    return PrestadorModel.fromJson(response.data as Map<String, dynamic>);
+  }
 
+  // ─── CHAMADOS / SOLICITAÇÕES ────────────────────────────────────────────
+
+  /// Cria um novo chamado (solicitação de serviço).
   Future<ChamadoModel> criarChamado({
     required int profissionalId,
     required String descricao,
@@ -114,20 +128,33 @@ class ApiService {
     );
   }
 
-  Future<List<ChamadoModel>> listarChamadosPrestador() async {
-    final response = await _dio.get(ApiConfig.chamadosMeus);
+  /// Lista chamados do Prestador. Opcionalmente filtra por status (pendente, aceito, etc).
+  Future<List<ChamadoModel>> listarChamadosPrestador({String? status}) async {
+    final response = await _dio.get(
+      ApiConfig.chamadosMeus,
+      queryParameters: {
+        if (status != null) 'status': status,
+      },
+    );
     return (response.data as List<dynamic>)
         .map((e) => ChamadoModel.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
-  Future<List<ChamadoModel>> listarChamadosCliente() async {
-    final response = await _dio.get(ApiConfig.chamadosCliente);
+  /// Lista chamados do Cliente. Opcionalmente filtra por status.
+  Future<List<ChamadoModel>> listarChamadosCliente({String? status}) async {
+    final response = await _dio.get(
+      ApiConfig.chamadosCliente,
+      queryParameters: {
+        if (status != null) 'status': status,
+      },
+    );
     return (response.data as List<dynamic>)
         .map((e) => ChamadoModel.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
+  /// Atualiza o status de um chamado. Pode incluir preço opcional.
   Future<ChamadoModel> atualizarStatusChamado({
     required int chamadoId,
     required ChamadoStatus status,
@@ -148,8 +175,9 @@ class ApiService {
     );
   }
 
-  // ─── Avaliações ─────────────────────────────────────────────────────────
+  // ─── AVALIAÇÕES ─────────────────────────────────────────────────────────
 
+  /// Envia uma nova avaliação para um serviço concluído.
   Future<void> criarAvaliacao({
     required int solicitacaoId,
     required int profissionalId,
@@ -171,13 +199,16 @@ class ApiService {
     );
   }
 
+  /// Busca resumo das avaliações de um prestador.
   Future<AvaliacoesResumoModel> listarAvaliacoesProfissional(int id) async {
     final response = await _dio.get(ApiConfig.avaliacoesProfissional(id));
-    return AvaliacoesResumoModel.fromJson(response.data as Map<String, dynamic>);
+    return AvaliacoesResumoModel.fromJson(
+        response.data as Map<String, dynamic>);
   }
 
-  // ─── Health ─────────────────────────────────────────────────────────────
+  // ─── UTILS & HEALTH ─────────────────────────────────────────────────────
 
+  /// Verifica se a API está online.
   Future<bool> checkHealth() async {
     try {
       await _dio.get(ApiConfig.status);
@@ -187,5 +218,6 @@ class ApiService {
     }
   }
 
+  /// Desembrulha erros do Dio para facilitar a leitura no nível da UI.
   static Object unwrap(Object error) => DioClient.unwrapError(error);
 }

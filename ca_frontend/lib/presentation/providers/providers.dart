@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/network/api_error_formatter.dart';
 import '../../core/network/dio_client.dart';
 import '../../core/network/session_events.dart';
+import '../../domain/entities/avaliacao.dart';
 import '../../domain/entities/chamado.dart';
 import '../../domain/entities/prestador.dart';
 import '../../data/datasources/local/token_storage.dart';
@@ -59,6 +61,12 @@ final chamadoRepositoryProvider = Provider<ChamadoRepository>((ref) {
 
 final avaliacaoRepositoryProvider = Provider<AvaliacaoRepository>((ref) {
   return AvaliacaoRepositoryImpl(ref.watch(apiServiceProvider));
+});
+
+// ─── Providers Extras ───────────────────────────────────────────────────────
+
+final avaliacoesProvider = FutureProvider.family<AvaliacoesResumo, int>((ref, prestadorId) {
+  return ref.watch(avaliacaoRepositoryProvider).listarDoProfissional(prestadorId);
 });
 
 // ─── Auth State ─────────────────────────────────────────────────────────────
@@ -194,11 +202,18 @@ class PrestadoresNotifier extends StateNotifier<PrestadoresState> {
         lat: lat,
         lng: lng,
       );
+
+      debugPrint("DEBUG: API retornou ${result.length} prestadores.");
+      for (var p in result) {
+        debugPrint("DEBUG: Carregado -> ${p.nome} (ID: ${p.id})");
+      }
+
       state = state.copyWith(
-        prestadores: result,
+        prestadores: result, 
         isLoading: false,
       );
     } catch (e) {
+      debugPrint("DEBUG ERRO API: $e");
       state = state.copyWith(
         prestadores: const [],
         isLoading: false,

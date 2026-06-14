@@ -38,4 +38,9 @@ class AppColors {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
+
+  // --- COMPATIBILIDADE (Não remova, isso evita os erros de "undefined_getter") ---
+  static const Color background = darkBackground;
+  static const Color surface = darkSurface;
+  static const Color card = darkCard;
 }

@@ -15,7 +15,8 @@ class PrestadorRepositoryImpl implements PrestadorRepository {
     double? lat,
     double? lng,
   }) async {
-    final categoriaFiltro = AmaucConstants.categoriaNomePorId(categoria) ?? categoria;
+    final categoriaFiltro =
+        AmaucConstants.categoriaNomePorId(categoria) ?? categoria;
 
     if (cidade != null) {
       final porCidade = await _api.buscarPrestadores(
@@ -33,14 +34,17 @@ class PrestadorRepositoryImpl implements PrestadorRepository {
 
   @override
   Future<Prestador?> buscarPorId(int id) async {
-    final todos = await listar(cidade: AmaucConstants.cidades.first);
-    for (final p in todos) {
-      if (p.id == id) return p;
+    try {
+      // Agora chamamos o novo método do ApiService que busca direto pelo ID no servidor
+      return await _api.buscarPrestadorPorId(id);
+    } catch (e) {
+      // Se a busca direta falhar (ex: erro de rede ou rota não encontrada),
+      // fazemos o fallback para listar tudo e buscar na lista (caso de uso anterior)
+      final todos = await listar(cidade: AmaucConstants.cidades.first);
+      return todos.cast<Prestador?>().firstWhere(
+            (p) => p?.id == id,
+            orElse: () => null,
+          );
     }
-    final gps = await listar();
-    return gps.cast<Prestador?>().firstWhere(
-          (p) => p?.id == id,
-          orElse: () => null,
-        );
   }
 }
