@@ -1,7 +1,17 @@
 -- Schema do Conecta AMAUC (PostgreSQL)
 -- Execute: npm run db:migrate
 
-CREATE TABLE IF NOT EXISTS usuarios (
+-- 1. Limpeza forçada: Destrói as tabelas velhas para aplicar a estrutura nova
+DROP TABLE IF EXISTS avaliacoes CASCADE;
+DROP TABLE IF EXISTS solicitacoes_orcamento CASCADE;
+DROP TABLE IF EXISTS profissional_categorias CASCADE;
+DROP TABLE IF EXISTS curriculos CASCADE;
+DROP TABLE IF EXISTS perfil_profissional CASCADE;
+DROP TABLE IF EXISTS categorias CASCADE;
+DROP TABLE IF EXISTS usuarios CASCADE;
+
+-- 2. Criação das tabelas atualizadas
+CREATE TABLE usuarios (
     id SERIAL PRIMARY KEY,
     nome VARCHAR(150) NOT NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
@@ -13,13 +23,13 @@ CREATE TABLE IF NOT EXISTS usuarios (
     criado_em TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS categorias (
+CREATE TABLE categorias (
     id SERIAL PRIMARY KEY,
     nome VARCHAR(100) NOT NULL UNIQUE,
     descricao TEXT
 );
 
-CREATE TABLE IF NOT EXISTS perfil_profissional (
+CREATE TABLE perfil_profissional (
     id SERIAL PRIMARY KEY,
     usuario_id INTEGER NOT NULL UNIQUE REFERENCES usuarios(id) ON DELETE CASCADE,
     bio TEXT NOT NULL,
@@ -29,20 +39,20 @@ CREATE TABLE IF NOT EXISTS perfil_profissional (
     criado_em TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS curriculos (
+CREATE TABLE curriculos (
     id SERIAL PRIMARY KEY,
     profissional_id INTEGER NOT NULL UNIQUE REFERENCES usuarios(id) ON DELETE CASCADE,
     biografia TEXT,
     anos_experiencia INTEGER DEFAULT 0
 );
 
-CREATE TABLE IF NOT EXISTS profissional_categorias (
+CREATE TABLE profissional_categorias (
     profissional_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     categoria_id INTEGER NOT NULL REFERENCES categorias(id) ON DELETE CASCADE,
     PRIMARY KEY (profissional_id, categoria_id)
 );
 
-CREATE TABLE IF NOT EXISTS solicitacoes_orcamento (
+CREATE TABLE solicitacoes_orcamento (
     id SERIAL PRIMARY KEY,
     cidadao_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     profissional_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -53,7 +63,7 @@ CREATE TABLE IF NOT EXISTS solicitacoes_orcamento (
     data_solicitacao TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS avaliacoes (
+CREATE TABLE avaliacoes (
     id SERIAL PRIMARY KEY,
     solicitacao_id INTEGER NOT NULL REFERENCES solicitacoes_orcamento(id) ON DELETE CASCADE,
     cidadao_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -64,6 +74,7 @@ CREATE TABLE IF NOT EXISTS avaliacoes (
     UNIQUE (solicitacao_id, cidadao_id)
 );
 
+-- 3. Carga inicial de categorias fixas
 INSERT INTO categorias (nome, descricao) VALUES
     ('Hidráulica', 'Serviços de encanamento e hidráulica'),
     ('Elétrica', 'Instalações e reparos elétricos'),

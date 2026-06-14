@@ -11,18 +11,19 @@ const pool = require('../src/config/db');
 
 const SENHA = 'sim123456';
 
+// Cidades 100% atualizadas para a região AMAUC com suas coordenadas reais
 const CIDADES_COORDS = {
   'Concórdia': { lat: -27.2342, lng: -52.0277 },
-  'Xanxerê': { lat: -26.8744, lng: -52.4036 },
-  'São Miguel do Oeste': { lat: -26.7244, lng: -53.5169 },
-  'Maravilha': { lat: -26.7678, lng: -53.1772 },
-  'Palmitos': { lat: -27.1667, lng: -53.1611 },
+  'Seara': { lat: -27.1481, lng: -52.3025 },
+  'Itá': { lat: -27.2882, lng: -52.3242 },
+  'Irani': { lat: -27.0250, lng: -51.7619 },
+  'Piratuba': { lat: -27.4217, lng: -51.7744 },
 };
 
 const CLIENTES = [
   { nome: 'Ana Contratante', email: 'ana.contratante@amauc.com', cidade: 'Concórdia' },
-  { nome: 'Pedro Contratante', email: 'pedro.contratante@amauc.com', cidade: 'Xanxerê' },
-  { nome: 'Lúcia Contratante', email: 'lucia.contratante@amauc.com', cidade: 'Maravilha' },
+  { nome: 'Pedro Contratante', email: 'pedro.contratante@amauc.com', cidade: 'Seara' },
+  { nome: 'Lúcia Contratante', email: 'lucia.contratante@amauc.com', cidade: 'Irani' },
 ];
 
 const PRESTADORES = [
@@ -38,7 +39,7 @@ const PRESTADORES = [
   {
     nome: 'Maria Elétrica',
     email: 'maria.eletrica@amauc.com',
-    cidade: 'Xanxerê',
+    cidade: 'Seara',
     categoria: 'Elétrica',
     bio: 'Eletricista certificada NR-10, residencial e comercial.',
     telefone: '(49) 99902-0002',
@@ -47,7 +48,7 @@ const PRESTADORES = [
   {
     nome: 'Carlos Construção',
     email: 'carlos.construcao@amauc.com',
-    cidade: 'São Miguel do Oeste',
+    cidade: 'Itá',
     categoria: 'Construção',
     bio: 'Pedreiro e mestre de obras para reformas e construções.',
     telefone: '(49) 99903-0003',
@@ -56,7 +57,7 @@ const PRESTADORES = [
   {
     nome: 'Fernanda Limpeza',
     email: 'fernanda.limpeza@amauc.com',
-    cidade: 'Maravilha',
+    cidade: 'Irani',
     categoria: 'Limpeza',
     bio: 'Limpeza residencial, pós-obra e comercial.',
     telefone: '(49) 99904-0004',
@@ -65,7 +66,7 @@ const PRESTADORES = [
   {
     nome: 'Ricardo TI',
     email: 'ricardo.ti@amauc.com',
-    cidade: 'Palmitos',
+    cidade: 'Piratuba',
     categoria: 'TI',
     bio: 'Suporte técnico, redes e manutenção de computadores.',
     telefone: '(49) 99905-0005',
