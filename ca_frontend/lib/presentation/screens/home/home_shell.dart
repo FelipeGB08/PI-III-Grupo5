@@ -7,21 +7,28 @@ import '../../providers/providers.dart';
 import '../auth/welcome_auth_screen.dart';
 import '../chamados/chamados_screen.dart';
 import '../cliente/cliente_dashboard_screen.dart';
+import '../conta/minha_conta_screen.dart';
 
 class HomeShell extends ConsumerWidget {
   const HomeShell({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(authStateProvider).user;
+    final auth = ref.watch(authStateProvider);
 
-    if (user == null) {
+    if (auth.isInitializing) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
+    }
+
+    if (auth.user == null) {
       return const WelcomeAuthScreen();
     }
 
-    final isPrestador = user.tipo.isPrestador;
-
-    return _MainNavigation(isPrestador: isPrestador);
+    return _MainNavigation(isPrestador: auth.user!.tipo.isPrestador);
   }
 }
 
@@ -40,16 +47,16 @@ class _MainNavigationState extends State<_MainNavigation> {
   @override
   Widget build(BuildContext context) {
     final pages = widget.isPrestador
-        ? const [ChamadosScreen(), _PrestadorPlaceholder()]
-        : const [ClienteDashboardScreen(), ChamadosScreen()];
+        ? const [ChamadosScreen(), MinhaContaScreen()]
+        : const [ClienteDashboardScreen(), ChamadosScreen(), MinhaContaScreen()];
 
     final labels = widget.isPrestador
-        ? ['Chamados', 'Meu Perfil']
-        : ['Descobrir', 'Chamados'];
+        ? ['Chamados', 'Conta']
+        : ['Descobrir', 'Chamados', 'Conta'];
 
-  final icons = widget.isPrestador
+    final icons = widget.isPrestador
         ? [Icons.inbox_rounded, Icons.person_rounded]
-        : [Icons.explore_rounded, Icons.assignment_rounded];
+        : [Icons.explore_rounded, Icons.assignment_rounded, Icons.person_rounded];
 
     return Scaffold(
       body: SafeArea(child: pages[_index]),
@@ -76,6 +83,7 @@ class _MainNavigationState extends State<_MainNavigation> {
             elevation: 0,
             selectedItemColor: AppColors.primary,
             unselectedItemColor: AppColors.muted,
+            type: BottomNavigationBarType.fixed,
             items: List.generate(labels.length, (i) {
               return BottomNavigationBarItem(
                 icon: Icon(icons[i]),
@@ -85,46 +93,6 @@ class _MainNavigationState extends State<_MainNavigation> {
             }),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _PrestadorPlaceholder extends ConsumerWidget {
-  const _PrestadorPlaceholder();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(authStateProvider).user;
-
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          const SizedBox(height: 40),
-          CircleAvatar(
-            radius: 40,
-            backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-            child: Text(
-              user?.nome.isNotEmpty == true ? user!.nome[0] : '?',
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.w900,
-                color: AppColors.primary,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(user?.nome ?? '', style: Theme.of(context).textTheme.headlineLarge?.copyWith(fontSize: 22)),
-          const SizedBox(height: 8),
-          Text('Prestador AMAUC', style: Theme.of(context).textTheme.bodyMedium),
-          const Spacer(),
-          OutlinedButton.icon(
-            onPressed: () => ref.read(authStateProvider.notifier).logout(),
-            icon: const Icon(Icons.logout),
-            label: const Text('Sair da Conta'),
-          ),
-        ],
       ),
     );
   }

@@ -4,7 +4,8 @@ const RelatorioController = {
     gerarRelatorio: async (req, res) => {
         try {
             // Trava de segurança: apenas admin passa!
-            if (req.usuarioLogado.tipo_usuario !== 'admin') {
+            const perfil = req.usuarioLogado.perfil_tipo || req.usuarioLogado.tipo_usuario;
+            if (perfil !== 'admin') {
                 return res.status(403).json({ erro: 'Acesso negado. Apenas administradores podem ver os relatórios.' });
             }
 

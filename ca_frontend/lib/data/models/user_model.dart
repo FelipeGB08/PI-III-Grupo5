@@ -6,6 +6,9 @@ class UserModel extends User {
     required super.nome,
     required super.email,
     required super.tipo,
+    super.telefone,
+    super.cidadeAmauc,
+    super.fotoUrl,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -13,7 +16,26 @@ class UserModel extends User {
       id: _parseInt(json['id']),
       nome: json['nome']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
-      tipo: UserTipoX.fromApi(json['tipo_usuario']?.toString() ?? 'cidadao'),
+      tipo: UserTipoX.fromApi(
+        json['perfil_tipo']?.toString() ??
+            json['tipo_usuario']?.toString() ??
+            'cidadao',
+      ),
+      telefone: json['telefone']?.toString(),
+      cidadeAmauc: json['cidade_amauc']?.toString(),
+      fotoUrl: json['foto_url']?.toString(),
+    );
+  }
+
+  factory UserModel.fromUser(User user) {
+    return UserModel(
+      id: user.id,
+      nome: user.nome,
+      email: user.email,
+      tipo: user.tipo,
+      telefone: user.telefone,
+      cidadeAmauc: user.cidadeAmauc,
+      fotoUrl: user.fotoUrl,
     );
   }
 
@@ -21,7 +43,11 @@ class UserModel extends User {
         'id': id,
         'nome': nome,
         'email': email,
+        'perfil_tipo': tipo.apiValue,
         'tipo_usuario': tipo.apiValue,
+        if (telefone != null) 'telefone': telefone,
+        if (cidadeAmauc != null) 'cidade_amauc': cidadeAmauc,
+        if (fotoUrl != null) 'foto_url': fotoUrl,
       };
 
   static int _parseInt(dynamic value) {

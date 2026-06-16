@@ -11,19 +11,10 @@ const pool = require('../src/config/db');
 
 const SENHA = 'sim123456';
 
-// Cidades 100% atualizadas para a região AMAUC com suas coordenadas reais
-const CIDADES_COORDS = {
-  'Concórdia': { lat: -27.2342, lng: -52.0277 },
-  'Seara': { lat: -27.1481, lng: -52.3025 },
-  'Itá': { lat: -27.2882, lng: -52.3242 },
-  'Irani': { lat: -27.0250, lng: -51.7619 },
-  'Piratuba': { lat: -27.4217, lng: -51.7744 },
-};
-
 const CLIENTES = [
-  { nome: 'Ana Contratante', email: 'ana.contratante@amauc.com', cidade: 'Concórdia' },
-  { nome: 'Pedro Contratante', email: 'pedro.contratante@amauc.com', cidade: 'Seara' },
-  { nome: 'Lúcia Contratante', email: 'lucia.contratante@amauc.com', cidade: 'Irani' },
+  { nome: 'Ana Contratante', email: 'ana.contratante@amauc.com', cidade: 'Concórdia', telefone: '(49) 98801-0001' },
+  { nome: 'Pedro Contratante', email: 'pedro.contratante@amauc.com', cidade: 'Seara', telefone: '(49) 98802-0002' },
+  { nome: 'Lúcia Contratante', email: 'lucia.contratante@amauc.com', cidade: 'Irani', telefone: '(49) 98803-0003' },
 ];
 
 const PRESTADORES = [
@@ -32,7 +23,7 @@ const PRESTADORES = [
     email: 'joao.hidraulica@amauc.com',
     cidade: 'Concórdia',
     categoria: 'Hidráulica',
-    bio: 'Encanador com 12 anos de experiência na região AMAUC.',
+    biografia: 'Encanador com 12 anos de experiência na região AMAUC.',
     telefone: '(49) 99901-0001',
     anos: 12,
   },
@@ -41,7 +32,7 @@ const PRESTADORES = [
     email: 'maria.eletrica@amauc.com',
     cidade: 'Seara',
     categoria: 'Elétrica',
-    bio: 'Eletricista certificada NR-10, residencial e comercial.',
+    biografia: 'Eletricista certificada NR-10, residencial e comercial.',
     telefone: '(49) 99902-0002',
     anos: 8,
   },
@@ -50,7 +41,7 @@ const PRESTADORES = [
     email: 'carlos.construcao@amauc.com',
     cidade: 'Itá',
     categoria: 'Construção',
-    bio: 'Pedreiro e mestre de obras para reformas e construções.',
+    biografia: 'Pedreiro e mestre de obras para reformas e construções.',
     telefone: '(49) 99903-0003',
     anos: 15,
   },
@@ -59,7 +50,7 @@ const PRESTADORES = [
     email: 'fernanda.limpeza@amauc.com',
     cidade: 'Irani',
     categoria: 'Limpeza',
-    bio: 'Limpeza residencial, pós-obra e comercial.',
+    biografia: 'Limpeza residencial, pós-obra e comercial.',
     telefone: '(49) 99904-0004',
     anos: 6,
   },
@@ -68,7 +59,7 @@ const PRESTADORES = [
     email: 'ricardo.ti@amauc.com',
     cidade: 'Piratuba',
     categoria: 'TI',
-    bio: 'Suporte técnico, redes e manutenção de computadores.',
+    biografia: 'Suporte técnico, redes e manutenção de computadores.',
     telefone: '(49) 99905-0005',
     anos: 10,
   },
@@ -77,22 +68,20 @@ const PRESTADORES = [
 async function limparDadosSimulacao() {
   await pool.query(`
     DELETE FROM avaliacoes;
-    DELETE FROM solicitacoes_orcamento;
+    DELETE FROM servicos_solicitados;
     DELETE FROM profissional_categorias;
-    DELETE FROM curriculos;
-    DELETE FROM perfil_profissional;
+    DELETE FROM perfis_profissionais;
     DELETE FROM usuarios WHERE email LIKE '%@amauc.com';
   `);
 }
 
-async function criarUsuario({ nome, email, tipo, cidade }) {
-  const coords = CIDADES_COORDS[cidade] || CIDADES_COORDS['Concórdia'];
+async function criarUsuario({ nome, email, perfilTipo, cidade, telefone }) {
   const hash = await bcrypt.hash(SENHA, 10);
   const result = await pool.query(
-    `INSERT INTO usuarios (nome, email, senha, tipo_usuario, cidade, latitude, longitude)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO usuarios (nome, email, senha_hash, telefone, cidade_amauc, perfil_tipo)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING id`,
-    [nome, email, hash, tipo, cidade, coords.lat, coords.lng]
+    [nome, email, hash, telefone, cidade, perfilTipo]
   );
   return result.rows[0].id;
 }
@@ -101,20 +90,15 @@ async function criarPrestadorCompleto(p, mapaCategorias) {
   const userId = await criarUsuario({
     nome: p.nome,
     email: p.email,
-    tipo: 'profissional',
+    perfilTipo: 'profissional',
     cidade: p.cidade,
+    telefone: p.telefone,
   });
 
   await pool.query(
-    `INSERT INTO perfil_profissional (usuario_id, bio, telefone_comercial, cidade, categoria)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [userId, p.bio, p.telefone, p.cidade, p.categoria]
-  );
-
-  await pool.query(
-    `INSERT INTO curriculos (profissional_id, biografia, anos_experiencia)
-     VALUES ($1, $2, $3)`,
-    [userId, p.bio, p.anos]
+    `INSERT INTO perfis_profissionais (usuario_id, biografia, anos_experiencia, verificado)
+     VALUES ($1, $2, $3, TRUE)`,
+    [userId, p.biografia, p.anos]
   );
 
   const catId = mapaCategorias[p.categoria];
@@ -132,13 +116,13 @@ async function seed() {
   console.log('Limpando dados de simulação anteriores...');
   await limparDadosSimulacao();
 
-  const cats = await pool.query('SELECT id, nome FROM categorias');
-  const mapaCategorias = Object.fromEntries(cats.rows.map((c) => [c.nome, c.id]));
+  const cats = await pool.query('SELECT id, nome_servico FROM categorias');
+  const mapaCategorias = Object.fromEntries(cats.rows.map((c) => [c.nome_servico, c.id]));
 
   console.log('Criando clientes...');
   const clienteIds = {};
   for (const c of CLIENTES) {
-    clienteIds[c.email] = await criarUsuario({ ...c, tipo: 'cidadao' });
+    clienteIds[c.email] = await criarUsuario({ ...c, perfilTipo: 'cidadao' });
   }
 
   console.log('Criando prestadores...');
@@ -147,7 +131,7 @@ async function seed() {
     prestadorIds[p.email] = await criarPrestadorCompleto(p, mapaCategorias);
   }
 
-  console.log('Criando chamados de simulação...');
+  console.log('Criando serviços de simulação...');
   const chamados = [
     {
       cidadao: 'ana.contratante@amauc.com',
@@ -159,7 +143,7 @@ async function seed() {
       cidadao: 'pedro.contratante@amauc.com',
       profissional: 'maria.eletrica@amauc.com',
       descricao: 'Troca de disjuntores no quadro elétrico',
-      status: 'em_andamento',
+      status: 'aceito',
       preco: 280.0,
     },
     {
@@ -186,7 +170,7 @@ async function seed() {
   let concluidoId = null;
   for (const ch of chamados) {
     const res = await pool.query(
-      `INSERT INTO solicitacoes_orcamento (cidadao_id, profissional_id, descricao, status, preco)
+      `INSERT INTO servicos_solicitados (cidadao_id, prof_id, descricao, status, preco)
        VALUES ($1, $2, $3, $4, $5) RETURNING id`,
       [
         clienteIds[ch.cidadao],
@@ -201,12 +185,10 @@ async function seed() {
 
   if (concluidoId) {
     await pool.query(
-      `INSERT INTO avaliacoes (solicitacao_id, cidadao_id, profissional_id, nota, comentario)
-       VALUES ($1, $2, $3, 5, $4)`,
+      `INSERT INTO avaliacoes (servico_id, nota_estrelas, comentario)
+       VALUES ($1, 5, $2)`,
       [
         concluidoId,
-        clienteIds['lucia.contratante@amauc.com'],
-        prestadorIds['carlos.construcao@amauc.com'],
         'Excelente trabalho, telhado impecável! Recomendo na região AMAUC.',
       ]
     );
@@ -217,9 +199,9 @@ async function seed() {
   CLIENTES.forEach((c) => console.log(`  ${c.email}`));
   console.log('\n── PRESTADORES ──');
   PRESTADORES.forEach((p) => console.log(`  ${p.email}  (${p.categoria} — ${p.cidade})`));
-  console.log('\n── CHAMADOS ──');
+  console.log('\n── SERVIÇOS ──');
   console.log('  1 pendente  → Ana → João (hidráulica)');
-  console.log('  1 em_andamento → Pedro → Maria (elétrica)');
+  console.log('  1 aceito → Pedro → Maria (elétrica)');
   console.log('  1 concluido + avaliação → Lúcia → Carlos (construção)');
   console.log('  2 pendentes extras → Ana/Pedro\n');
 

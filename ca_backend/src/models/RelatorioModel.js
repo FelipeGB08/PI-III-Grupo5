@@ -2,17 +2,16 @@ const pool = require('../config/db');
 
 const RelatorioModel = {
     obterEstatisticas: async () => {
-        // Agora vai funcionar, pois a coluna 'cidade' existe no banco!
         const queryDemandasPorCidade = `
-            SELECT u.cidade AS municipio, COUNT(s.id) AS total_demandas
-            FROM solicitacoes_orcamento s
-            JOIN usuarios u ON s.profissional_id = u.id
-            GROUP BY u.cidade;
+            SELECT u.cidade_amauc AS municipio, COUNT(s.id) AS total_demandas
+            FROM servicos_solicitados s
+            JOIN usuarios u ON s.prof_id = u.id
+            GROUP BY u.cidade_amauc;
         `;
 
         const queryStatus = `
             SELECT status, COUNT(id) AS quantidade
-            FROM solicitacoes_orcamento
+            FROM servicos_solicitados
             GROUP BY status;
         `;
 
@@ -21,9 +20,9 @@ const RelatorioModel = {
 
         return {
             demandas_por_municipio: demandas.rows,
-            resumo_status: status.rows
+            resumo_status: status.rows,
         };
-    }
+    },
 };
 
 module.exports = RelatorioModel;

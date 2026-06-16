@@ -1,24 +1,45 @@
 const pool = require('../config/db');
 
 const UserModel = {
-    // Função para buscar um usuário pelo email (verificar se o email já existe)
     buscarPorEmail: async (email) => {
         const query = 'SELECT * FROM usuarios WHERE email = $1';
         const result = await pool.query(query, [email]);
         return result.rows[0];
     },
 
-    // Função para criar um novo usuário no banco
-    criarUsuario: async (nome, email, senhaCriptografada, tipo_usuario) => {
+    buscarPorId: async (id) => {
         const query = `
-            INSERT INTO usuarios (nome, email, senha, tipo_usuario) 
-            VALUES ($1, $2, $3, $4) 
-            RETURNING id, nome, email, tipo_usuario, criado_em;
+            SELECT id, nome, email, telefone, cidade_amauc, perfil_tipo, foto_url, criado_em
+            FROM usuarios WHERE id = $1
         `;
-        const values = [nome, email, senhaCriptografada, tipo_usuario];
+        const result = await pool.query(query, [id]);
+        return result.rows[0];
+    },
+
+    atualizarPerfil: async (id, { nome, telefone, foto_url }) => {
+        const query = `
+            UPDATE usuarios
+            SET
+                nome = COALESCE($2, nome),
+                telefone = COALESCE($3, telefone),
+                foto_url = COALESCE($4, foto_url)
+            WHERE id = $1
+            RETURNING id, nome, email, telefone, cidade_amauc, perfil_tipo, foto_url, criado_em
+        `;
+        const result = await pool.query(query, [id, nome, telefone, foto_url]);
+        return result.rows[0];
+    },
+
+    criarUsuario: async (nome, email, senhaHash, telefone, cidadeAmauc, perfilTipo) => {
+        const query = `
+            INSERT INTO usuarios (nome, email, senha_hash, telefone, cidade_amauc, perfil_tipo)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id, nome, email, telefone, cidade_amauc, perfil_tipo, criado_em;
+        `;
+        const values = [nome, email, senhaHash, telefone || null, cidadeAmauc, perfilTipo];
         const result = await pool.query(query, values);
-        return result.rows[0]; // Retorna os dados do usuário recém-criado (sem a senha)
-    }
+        return result.rows[0];
+    },
 };
 
 module.exports = UserModel;

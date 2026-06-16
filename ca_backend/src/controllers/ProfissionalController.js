@@ -3,22 +3,32 @@ const ProfissionalModel = require('../models/ProfissionalModel');
 const ProfissionalController = {
     listar: async (req, res) => {
         try {
-            const latCidadao = req.query.lat;
-            const lngCidadao = req.query.lng;
-            const categoriaId = req.query.categoria; // Captura o ofício
+            const cidade = req.query.cidade || null;
+            const categoria = req.query.categoria || null;
 
-            if (!latCidadao || !lngCidadao) {
-                return res.status(400).json({ erro: 'As coordenadas de GPS (lat e lng) são obrigatórias.' });
-            }
-
-            const profissionais = await ProfissionalModel.buscarPorProximidade(latCidadao, lngCidadao, categoriaId);
+            const profissionais = await ProfissionalModel.buscarPorFiltros(cidade, categoria);
             return res.status(200).json(profissionais);
-
         } catch (erro) {
-            console.error('Erro na geolocalização:', erro);
+            console.error('Erro ao buscar profissionais:', erro);
             return res.status(500).json({ erro: 'Erro interno ao buscar profissionais.' });
         }
-    }
+    },
+
+    buscarPorId: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const profissional = await ProfissionalModel.buscarPorId(id);
+
+            if (!profissional) {
+                return res.status(404).json({ erro: 'Profissional não encontrado.' });
+            }
+
+            return res.status(200).json(profissional);
+        } catch (erro) {
+            console.error('Erro ao buscar profissional:', erro);
+            return res.status(500).json({ erro: 'Erro interno ao buscar profissional.' });
+        }
+    },
 };
 
 module.exports = ProfissionalController;

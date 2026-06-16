@@ -12,7 +12,7 @@ class AvaliacaoModel extends Avaliacao {
   factory AvaliacaoModel.fromJson(Map<String, dynamic> json) {
     return AvaliacaoModel(
       id: _parseInt(json['id']),
-      nota: _parseInt(json['nota']),
+      nota: _parseInt(json['nota_estrelas'] ?? json['nota']),
       comentario: json['comentario']?.toString(),
       cidadaoNome: json['cidadao_nome']?.toString(),
       dataCriacao: json['criado_em']?.toString() ?? json['data']?.toString(),
@@ -26,8 +26,9 @@ class AvaliacaoModel extends Avaliacao {
     String? comentario,
   }) =>
       {
+        'servico_id': solicitacaoId,
         'solicitacao_id': solicitacaoId,
-        'profissional_id': profissionalId,
+        'nota_estrelas': nota,
         'nota': nota,
         if (comentario != null && comentario.isNotEmpty) 'comentario': comentario,
       };

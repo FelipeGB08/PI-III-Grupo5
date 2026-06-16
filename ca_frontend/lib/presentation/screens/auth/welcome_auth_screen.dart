@@ -7,7 +7,6 @@ import '../../../core/config/amauc_constants.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/repositories/auth_repository.dart'; 
 import '../../providers/providers.dart';
-import '../home/home_shell.dart';
 
 class WelcomeAuthScreen extends ConsumerStatefulWidget {
   const WelcomeAuthScreen({super.key});
@@ -63,8 +62,8 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
           _loginSenha.text,
         );
     if (ok && mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeShell()),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Login realizado com sucesso!')),
       );
     } else if (mounted) {
       _showError(ref.read(authStateProvider).error);
@@ -95,8 +94,8 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
         );
 
     if (ok && mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeShell()),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Conta criada com sucesso!')),
       );
     } else if (mounted) {
       _showError(ref.read(authStateProvider).error);

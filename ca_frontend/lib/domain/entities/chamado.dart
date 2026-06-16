@@ -17,6 +17,7 @@ extension ChamadoStatusX on ChamadoStatus {
     switch (value?.toLowerCase()) {
       case 'em_andamento':
       case 'em andamento':
+      case 'aceito':
         return ChamadoStatus.emAndamento;
       case 'concluido':
       case 'concluído':

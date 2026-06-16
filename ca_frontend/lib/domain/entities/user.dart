@@ -23,10 +23,32 @@ class User {
     required this.nome,
     required this.email,
     required this.tipo,
+    this.telefone,
+    this.cidadeAmauc,
+    this.fotoUrl,
   });
 
   final int id;
   final String nome;
   final String email;
   final UserTipo tipo;
+  final String? telefone;
+  final String? cidadeAmauc;
+  final String? fotoUrl;
+
+  User copyWith({
+    String? nome,
+    String? telefone,
+    String? fotoUrl,
+  }) {
+    return User(
+      id: id,
+      nome: nome ?? this.nome,
+      email: email,
+      tipo: tipo,
+      telefone: telefone ?? this.telefone,
+      cidadeAmauc: cidadeAmauc,
+      fotoUrl: fotoUrl ?? this.fotoUrl,
+    );
+  }
 }

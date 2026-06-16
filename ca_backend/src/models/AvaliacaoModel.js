@@ -1,35 +1,45 @@
 const pool = require('../config/db');
 
 const AvaliacaoModel = {
-    // 1. Salva a nota e o comentário no banco
-    criar: async (solicitacao_id, cidadao_id, profissional_id, nota, comentario) => {
+    criar: async (servicoId, notaEstrelas, comentario) => {
         const query = `
-            INSERT INTO avaliacoes (solicitacao_id, cidadao_id, profissional_id, nota, comentario)
-            VALUES ($1, $2, $3, $4, $5) RETURNING *;
+            INSERT INTO avaliacoes (servico_id, nota_estrelas, comentario)
+            VALUES ($1, $2, $3)
+            RETURNING *;
         `;
-        const resultado = await pool.query(query, [solicitacao_id, cidadao_id, profissional_id, nota, comentario]);
+        const resultado = await pool.query(query, [servicoId, notaEstrelas, comentario || null]);
         return resultado.rows[0];
     },
-    
-    // 2. Busca todos os comentários do profissional para exibir no perfil
-    buscarPorProfissional: async (profissional_id) => {
+
+    buscarPorServico: async (servicoId) => {
+        const query = 'SELECT * FROM avaliacoes WHERE servico_id = $1';
+        const resultado = await pool.query(query, [servicoId]);
+        return resultado.rows[0];
+    },
+
+    buscarPorProfissional: async (profissionalId) => {
         const query = `
-            SELECT a.*, u.nome as cidadao_nome
+            SELECT a.*, s.descricao AS servico_descricao, u.nome AS cidadao_nome
             FROM avaliacoes a
-            JOIN usuarios u ON a.cidadao_id = u.id
-            WHERE a.profissional_id = $1
+            INNER JOIN servicos_solicitados s ON s.id = a.servico_id
+            INNER JOIN usuarios u ON u.id = s.cidadao_id
+            WHERE s.prof_id = $1
             ORDER BY a.criado_em DESC;
         `;
-        const resultado = await pool.query(query, [profissional_id]);
+        const resultado = await pool.query(query, [profissionalId]);
         return resultado.rows;
     },
 
-    // 3. O banco de dados calcula a média de estrelas automaticamente!
-    calcularMedia: async (profissional_id) => {
-        const query = `SELECT ROUND(AVG(nota), 1) as media FROM avaliacoes WHERE profissional_id = $1;`;
-        const resultado = await pool.query(query, [profissional_id]);
+    calcularMedia: async (profissionalId) => {
+        const query = `
+            SELECT ROUND(AVG(a.nota_estrelas), 1) AS media
+            FROM avaliacoes a
+            INNER JOIN servicos_solicitados s ON s.id = a.servico_id
+            WHERE s.prof_id = $1;
+        `;
+        const resultado = await pool.query(query, [profissionalId]);
         return resultado.rows[0].media;
-    }
+    },
 };
 
 module.exports = AvaliacaoModel;

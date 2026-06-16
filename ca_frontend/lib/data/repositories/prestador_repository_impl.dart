@@ -18,17 +18,9 @@ class PrestadorRepositoryImpl implements PrestadorRepository {
     final categoriaFiltro =
         AmaucConstants.categoriaNomePorId(categoria) ?? categoria;
 
-    if (cidade != null) {
-      final porCidade = await _api.buscarPrestadores(
-        cidade: cidade,
-        categoria: categoriaFiltro,
-      );
-      if (porCidade.isNotEmpty) return porCidade;
-    }
-
-    return _api.listarPrestadoresPorGps(
-      lat: lat ?? AmaucConstants.defaultLat,
-      lng: lng ?? AmaucConstants.defaultLng,
+    return _api.buscarPrestadores(
+      cidade: cidade,
+      categoria: categoriaFiltro,
     );
   }
 

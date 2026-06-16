@@ -1,52 +1,83 @@
 const pool = require('../config/db');
 
 const PerfilModel = {
-    criarPerfil: async (usuario_id, bio, telefone_comercial, cidade, categoria) => {
+    criarPerfil: async (usuarioId, biografia, anosExperiencia) => {
         const query = `
-            INSERT INTO perfil_profissional (usuario_id, bio, telefone_comercial, cidade, categoria)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO perfis_profissionais (usuario_id, biografia, anos_experiencia, verificado)
+            VALUES ($1, $2, $3, FALSE)
             RETURNING *;
         `;
-        const values = [usuario_id, bio, telefone_comercial, cidade, categoria];
+        const values = [usuarioId, biografia, anosExperiencia || 0];
         const resultado = await pool.query(query, values);
         return resultado.rows[0];
     },
 
-    buscarPorUsuarioId: async (usuario_id) => {
-        const query = 'SELECT * FROM perfil_profissional WHERE usuario_id = $1';
-        const resultado = await pool.query(query, [usuario_id]);
-        return resultado.rows[0];
-    }, // <-- Não esqueça desta vírgula!
+    vincularCategoria: async (profissionalId, categoriaId) => {
+        const query = `
+            INSERT INTO profissional_categorias (profissional_id, categoria_id)
+            VALUES ($1, $2)
+            ON CONFLICT DO NOTHING;
+        `;
+        await pool.query(query, [profissionalId, categoriaId]);
+    },
 
-    // NOVA FUNÇÃO: Listar profissionais com filtros
+    buscarPorUsuarioId: async (usuarioId) => {
+        const query = `
+            SELECT pp.*, u.nome, u.email, u.telefone, u.cidade_amauc
+            FROM perfis_profissionais pp
+            JOIN usuarios u ON u.id = pp.usuario_id
+            WHERE pp.usuario_id = $1;
+        `;
+        const resultado = await pool.query(query, [usuarioId]);
+        return resultado.rows[0];
+    },
+
     listarTodos: async (filtros) => {
-        // Usamos um JOIN para pegar os dados do perfil E o nome do usuário na mesma tacada
         let query = `
-            SELECT p.*, u.nome, u.email 
-            FROM perfil_profissional p
-            JOIN usuarios u ON p.usuario_id = u.id
-            WHERE 1=1
+            SELECT
+                u.id,
+                u.nome,
+                u.email,
+                u.telefone,
+                u.cidade_amauc,
+                pp.biografia,
+                pp.anos_experiencia,
+                pp.verificado,
+                COALESCE(
+                    json_agg(DISTINCT c.nome_servico) FILTER (WHERE c.nome_servico IS NOT NULL),
+                    '[]'
+                ) AS categorias
+            FROM perfis_profissionais pp
+            JOIN usuarios u ON pp.usuario_id = u.id
+            LEFT JOIN profissional_categorias pc ON pc.profissional_id = u.id
+            LEFT JOIN categorias c ON c.id = pc.categoria_id
+            WHERE u.perfil_tipo = 'profissional'
         `;
         const values = [];
         let contador = 1;
 
-        // Se o cliente filtrou por categoria...
         if (filtros.categoria) {
-            query += ` AND p.categoria = $${contador}`;
-            values.push(filtros.categoria);
+            const categoriaNumerica = Number(filtros.categoria);
+            if (!Number.isNaN(categoriaNumerica)) {
+                query += ` AND pc.categoria_id = $${contador}`;
+                values.push(categoriaNumerica);
+            } else {
+                query += ` AND c.nome_servico ILIKE $${contador}`;
+                values.push(filtros.categoria);
+            }
             contador++;
         }
 
-        // Se o cliente filtrou por cidade...
         if (filtros.cidade) {
-            query += ` AND p.cidade = $${contador}`;
+            query += ` AND u.cidade_amauc = $${contador}`;
             values.push(filtros.cidade);
             contador++;
         }
 
+        query += ' GROUP BY u.id, pp.id ORDER BY u.nome ASC;';
         const resultado = await pool.query(query, values);
         return resultado.rows;
-    }
+    },
 };
 
 module.exports = PerfilModel;

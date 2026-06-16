@@ -18,12 +18,13 @@ class ChamadoModel extends Chamado {
       id: _parseInt(json['id']),
       descricao: json['descricao']?.toString() ?? '',
       status: ChamadoStatusX.fromApi(json['status']?.toString()),
-      profissionalId: _parseInt(json['profissional_id']),
+      profissionalId: _parseInt(json['profissional_id'] ?? json['prof_id']),
       profissionalNome: json['profissional_nome']?.toString(),
       cidadaoId: _parseIntNullable(json['cidadao_id']),
       cidadaoNome: json['cidadao_nome']?.toString(),
       preco: _parseDoubleNullable(json['preco']),
-      dataSolicitacao: json['data_solicitacao']?.toString(),
+      dataSolicitacao:
+          json['data_solicitacao']?.toString() ?? json['criado_em']?.toString(),
     );
   }
 

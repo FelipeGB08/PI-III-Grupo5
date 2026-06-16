@@ -19,21 +19,26 @@ class PrestadorModel extends Prestador {
   });
 
   factory PrestadorModel.fromJson(Map<String, dynamic> json) {
-    final categoria = json['categoria']?.toString();
+    final categoriasLista = _parseCategorias(json, null);
+    final categoria = json['categoria']?.toString() ??
+        (categoriasLista.isNotEmpty ? categoriasLista.first : null);
     return PrestadorModel(
       id: _parseInt(json['id'] ?? json['usuario_id']),
       nome: json['nome']?.toString() ?? 'Profissional',
-      cidade: json['cidade']?.toString() ?? '',
+      cidade: json['cidade_amauc']?.toString() ??
+          json['cidade']?.toString() ??
+          '',
       bio: json['bio']?.toString() ?? json['biografia']?.toString(),
       categoria: categoria,
-      categorias: categoria != null ? [categoria] : const [],
+      categorias: _parseCategorias(json, categoria),
       mediaAvaliacao: _parseDouble(json['media_avaliacao'] ?? json['media']),
       totalServicos: _parseInt(json['total_servicos'] ?? json['servicos']),
       disponivel: json['disponivel'] != false,
       fotoUrl: json['foto_url']?.toString(),
       portfolioUrls: _parseStringList(json['portfolio']),
       distanciaKm: _parseDoubleNullable(json['distancia_km']),
-      telefone: json['telefone_comercial']?.toString(),
+      telefone: json['telefone']?.toString() ??
+          json['telefone_comercial']?.toString(),
       anosExperiencia: _parseIntNullable(json['anos_experiencia']),
     );
   }
@@ -49,6 +54,18 @@ class PrestadorModel extends Prestador {
 
   static double? _parseDoubleNullable(dynamic v) =>
       v == null ? null : _parseDouble(v);
+
+  static List<String> _parseCategorias(
+    Map<String, dynamic> json,
+    String? categoria,
+  ) {
+    final raw = json['categorias'];
+    if (raw is List) {
+      return raw.map((e) => e.toString()).toList();
+    }
+    if (categoria != null) return [categoria];
+    return const [];
+  }
 
   static List<String> _parseStringList(dynamic v) {
     if (v is List) return v.map((e) => e.toString()).toList();

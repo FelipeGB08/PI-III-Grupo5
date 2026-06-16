@@ -72,27 +72,42 @@ final avaliacoesProvider = FutureProvider.family<AvaliacoesResumo, int>((ref, pr
 // ─── Auth State ─────────────────────────────────────────────────────────────
 
 class AuthState {
-  const AuthState({this.user, this.isLoading = false, this.error});
+  const AuthState({
+    this.user,
+    this.isLoading = false,
+    this.isInitializing = false,
+    this.error,
+  });
 
   final User? user;
   final bool isLoading;
+  final bool isInitializing;
   final String? error;
 
   bool get isAuthenticated => user != null;
 
-  AuthState copyWith({User? user, bool? isLoading, String? error}) {
+  AuthState copyWith({
+    User? user,
+    bool? isLoading,
+    bool? isInitializing,
+    String? error,
+  }) {
     return AuthState(
       user: user,
       isLoading: isLoading ?? this.isLoading,
+      isInitializing: isInitializing ?? this.isInitializing,
       error: error,
     );
   }
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier(this._repo) : super(const AuthState()) {
+  AuthNotifier(this._repo, {AuthState? initialState})
+      : super(initialState ?? const AuthState(isInitializing: true)) {
     SessionEvents.addListener(_onUnauthorized);
-    _loadSession();
+    if (initialState == null) {
+      _loadSession();
+    }
   }
 
   final AuthRepository _repo;
@@ -100,10 +115,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
   void _onUnauthorized() => logout();
 
   Future<void> _loadSession() async {
+    final token = await _repo.getToken();
     final user = await _repo.getCurrentUser();
-    if (user != null) {
+
+    if (token != null && token.isNotEmpty && user != null) {
       state = AuthState(user: user);
+      return;
     }
+
+    if (token != null || user != null) {
+      await _repo.logout();
+    }
+    state = const AuthState();
   }
 
   Future<bool> login(String email, String senha) async {
@@ -135,6 +158,46 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = const AuthState();
   }
 
+  Future<User?> refreshProfile() async {
+    try {
+      final user = await _repo.refreshProfile();
+      state = AuthState(user: user);
+      return user;
+    } catch (e) {
+      state = state.copyWith(error: formatApiError(e));
+      return null;
+    }
+  }
+
+  Future<bool> updateProfile({
+    String? nome,
+    String? telefone,
+    String? fotoUrl,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final user = await _repo.updateProfile(
+        nome: nome,
+        telefone: telefone,
+        fotoUrl: fotoUrl,
+      );
+      state = AuthState(user: user);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: formatApiError(e));
+      return false;
+    }
+  }
+
+  Future<String?> uploadAvatar(String filePath) async {
+    try {
+      return await _repo.uploadAvatar(filePath);
+    } catch (e) {
+      state = state.copyWith(error: formatApiError(e));
+      return null;
+    }
+  }
+
   @override
   void dispose() {
     SessionEvents.removeListener(_onUnauthorized);
@@ -146,6 +209,16 @@ final authStateProvider =
     StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier(ref.watch(authRepositoryProvider));
 });
+
+/// Provider auxiliar para restaurar sessão antes do primeiro frame.
+AuthState? buildInitialAuthState(TokenStorage storage) {
+  final token = storage.getToken();
+  final user = storage.getUser();
+  if (token != null && token.isNotEmpty && user != null) {
+    return AuthState(user: user);
+  }
+  return null;
+}
 
 // ─── Prestadores ────────────────────────────────────────────────────────────
 

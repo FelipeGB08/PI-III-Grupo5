@@ -36,4 +36,12 @@ abstract class AuthRepository {
   Future<String?> getToken();
   Future<User?> getCurrentUser();
   Future<void> saveSession(AuthResult result);
+  Future<User> refreshProfile();
+  Future<User> updateProfile({
+    String? nome,
+    String? telefone,
+    String? fotoUrl,
+  });
+  Future<String> uploadAvatar(String filePath);
+  Future<void> persistUser(User user);
 }

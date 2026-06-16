@@ -1,92 +1,180 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const UserModel = require('../models/UserModel');
+const { cidadePermitida, CIDADES_AMAUC } = require('../config/amaucCidades');
+
+function normalizarPerfilTipo(valor) {
+    if (!valor) return null;
+    const mapa = {
+        cidadao: 'cidadao',
+        cidadão: 'cidadao',
+        profissional: 'profissional',
+        admin: 'admin',
+    };
+    return mapa[String(valor).toLowerCase()] || null;
+}
+
+function montarPayloadJwt(usuario) {
+    return {
+        id: usuario.id,
+        perfil_tipo: usuario.perfil_tipo,
+        tipo_usuario: usuario.perfil_tipo,
+    };
+}
+
+function montarRespostaUsuario(usuario) {
+    return {
+        id: usuario.id,
+        nome: usuario.nome,
+        email: usuario.email,
+        telefone: usuario.telefone,
+        cidade_amauc: usuario.cidade_amauc,
+        perfil_tipo: usuario.perfil_tipo,
+        tipo_usuario: usuario.perfil_tipo,
+        foto_url: usuario.foto_url || null,
+    };
+}
 
 const UserController = {
-    // FUNÇÃO 1: REGISTRO
     registrarUsuario: async (req, res) => {
         try {
-            console.log(" 1. Recebeu o pedido de REGISTRO no servidor!");
-            const { nome, email, senha, tipo_usuario } = req.body;
+            const {
+                nome,
+                email,
+                senha,
+                telefone,
+                cidade_amauc,
+                cidade,
+                perfil_tipo,
+                tipo_usuario,
+            } = req.body;
 
-            console.log(" 2. Dados recebidos:", email, tipo_usuario);
-            
-            if (!nome || !email || !senha || !tipo_usuario) {
-                return res.status(400).json({ erro: 'Todos os campos são obrigatórios!' });
+            const cidadeInformada = cidade_amauc || cidade;
+            const perfilInformado = normalizarPerfilTipo(perfil_tipo || tipo_usuario);
+
+            if (!nome || !email || !senha || !cidadeInformada || !perfilInformado) {
+                return res.status(400).json({
+                    erro: 'Campos obrigatórios: nome, email, senha, cidade_amauc e perfil_tipo.',
+                });
             }
 
-            console.log(" 3. Indo verificar no Model se o email existe...");
+            if (!['cidadao', 'profissional'].includes(perfilInformado)) {
+                return res.status(400).json({
+                    erro: 'perfil_tipo deve ser "cidadao" ou "profissional".',
+                });
+            }
+
+            const cidadeValidada = cidadePermitida(cidadeInformada);
+            if (!cidadeValidada) {
+                return res.status(403).json({
+                    erro: 'RF01 — Cadastro restrito à região AMAUC. Cidade informada não é permitida.',
+                    cidades_permitidas: CIDADES_AMAUC,
+                });
+            }
+
             const usuarioExistente = await UserModel.buscarPorEmail(email);
-            
             if (usuarioExistente) {
                 return res.status(400).json({ erro: 'Este email já está em uso.' });
             }
-            console.log(" 4. Passou pela verificação do banco! Criptografando senha...");
 
             const salt = await bcrypt.genSalt(10);
-            const senhaCriptografada = await bcrypt.hash(senha, salt);
+            const senhaHash = await bcrypt.hash(senha, salt);
 
-            console.log(" 5. Salvando no banco de dados...");
-            const novoUsuario = await UserModel.criarUsuario(nome, email, senhaCriptografada, tipo_usuario);
+            const novoUsuario = await UserModel.criarUsuario(
+                nome,
+                email,
+                senhaHash,
+                telefone,
+                cidadeValidada,
+                perfilInformado
+            );
 
-            console.log(" 6. Usuário salvo com sucesso!");
             return res.status(201).json({
                 mensagem: 'Usuário cadastrado com sucesso!',
-                usuario: novoUsuario
+                usuario: montarRespostaUsuario(novoUsuario),
             });
-
         } catch (erro) {
-            console.error(' Erro no cadastro:', erro);
+            console.error('Erro no cadastro:', erro);
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
         }
-    }, // <-- Essa vírgula separa as duas funções!
+    },
 
-    // FUNÇÃO 2: LOGIN
+    buscarMeuPerfil: async (req, res) => {
+        try {
+            const usuario = await UserModel.buscarPorId(req.usuarioLogado.id);
+            if (!usuario) {
+                return res.status(404).json({ erro: 'Usuário não encontrado.' });
+            }
+            return res.status(200).json(montarRespostaUsuario(usuario));
+        } catch (erro) {
+            console.error('Erro ao buscar perfil:', erro);
+            return res.status(500).json({ erro: 'Erro interno no servidor.' });
+        }
+    },
+
+    atualizarMeuPerfil: async (req, res) => {
+        try {
+            const { nome, telefone, foto_url } = req.body;
+            const nomeTrim = typeof nome === 'string' ? nome.trim() : undefined;
+            if (nomeTrim !== undefined && nomeTrim.length < 2) {
+                return res.status(400).json({ erro: 'Nome deve ter ao menos 2 caracteres.' });
+            }
+
+            const usuarioAtualizado = await UserModel.atualizarPerfil(req.usuarioLogado.id, {
+                nome: nomeTrim,
+                telefone: telefone !== undefined ? telefone : undefined,
+                foto_url: foto_url !== undefined ? foto_url : undefined,
+            });
+
+            return res.status(200).json({
+                mensagem: 'Perfil atualizado com sucesso!',
+                usuario: montarRespostaUsuario(usuarioAtualizado),
+            });
+        } catch (erro) {
+            console.error('Erro ao atualizar perfil:', erro);
+            return res.status(500).json({ erro: 'Erro interno no servidor.' });
+        }
+    },
+
     loginUsuario: async (req, res) => {
         try {
-            console.log(" 1. Recebeu o pedido de LOGIN no servidor!");
             const { email, senha } = req.body;
 
             if (!email || !senha) {
                 return res.status(400).json({ erro: 'Email e senha são obrigatórios!' });
             }
 
-            console.log(" 2. Buscando usuário no banco...");
             const usuario = await UserModel.buscarPorEmail(email);
             if (!usuario) {
-                return res.status(401).json({ erro: 'Email ou senha incorretos.' }); 
-            }
-
-            console.log(" 3. Conferindo a senha...");
-            const senhaValida = await bcrypt.compare(senha, usuario.senha);
-            if (!senhaValida) {
                 return res.status(401).json({ erro: 'Email ou senha incorretos.' });
             }
 
-            console.log(" 4. Gerando Token JWT...");
+            const senhaHash = usuario.senha_hash;
+            if (!senhaHash) {
+                return res.status(401).json({ erro: 'Email ou senha incorretos.' });
+            }
+
+            const isMatch = await bcrypt.compare(senha, senhaHash);
+            if (!isMatch) { 
+                return res.status(401).json({ erro: 'Email ou senha incorretos.' });
+            }
+
             const token = jwt.sign(
-                { id: usuario.id, tipo_usuario: usuario.tipo_usuario },
+                montarPayloadJwt(usuario),
                 process.env.JWT_SECRET,
-                { expiresIn: '7d' } 
+                { expiresIn: '7d' }
             );
 
-            console.log("✅ 5. Login aprovado!");
             return res.status(200).json({
                 mensagem: 'Login realizado com sucesso!',
-                token: token,
-                usuario: {
-                    id: usuario.id,
-                    nome: usuario.nome,
-                    email: usuario.email,
-                    tipo_usuario: usuario.tipo_usuario
-                }
+                token,
+                usuario: montarRespostaUsuario(usuario),
             });
-
         } catch (erro) {
-            console.error(' Erro no login:', erro);
+            console.error('Erro no login:', erro);
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
         }
-    }
+    },
 };
 
 module.exports = UserController;

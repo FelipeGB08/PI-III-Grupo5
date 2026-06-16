@@ -66,11 +66,50 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> saveSession(AuthResult result) async {
     await _storage.saveToken(result.token);
-    await _storage.saveUser(UserModel(
-      id: result.user.id,
-      nome: result.user.nome,
-      email: result.user.email,
-      tipo: result.user.tipo,
-    ));
+    await persistUser(result.user);
+  }
+
+  @override
+  Future<void> persistUser(User user) async {
+    await _storage.saveUser(UserModel.fromUser(user));
+  }
+
+  @override
+  Future<User> refreshProfile() async {
+    try {
+      final user = await _api.buscarMeuPerfil();
+      await persistUser(user);
+      return user;
+    } on DioException catch (e) {
+      throw DioClient.unwrapError(e);
+    }
+  }
+
+  @override
+  Future<User> updateProfile({
+    String? nome,
+    String? telefone,
+    String? fotoUrl,
+  }) async {
+    try {
+      final user = await _api.atualizarMeuPerfil(
+        nome: nome,
+        telefone: telefone,
+        fotoUrl: fotoUrl,
+      );
+      await persistUser(user);
+      return user;
+    } on DioException catch (e) {
+      throw DioClient.unwrapError(e);
+    }
+  }
+
+  @override
+  Future<String> uploadAvatar(String filePath) async {
+    try {
+      return await _api.uploadFotoPerfil(filePath);
+    } on DioException catch (e) {
+      throw DioClient.unwrapError(e);
+    }
   }
 }

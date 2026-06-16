@@ -43,7 +43,11 @@ class ApiService {
         'nome': params.nome,
         'email': params.email,
         'senha': params.senha,
+        'perfil_tipo': params.tipo.apiValue,
         'tipo_usuario': params.tipo.apiValue,
+        if (params.cidades.isNotEmpty) 'cidade_amauc': params.cidades.first,
+        if (params.telefoneComercial != null)
+          'telefone': params.telefoneComercial,
       },
     );
     return response.data as Map<String, dynamic>;
@@ -59,12 +63,55 @@ class ApiService {
     await _dio.post(
       ApiConfig.perfil,
       data: {
+        'biografia': bio,
         'bio': bio,
-        'telefone_comercial': telefoneComercial,
-        'cidade': cidade,
+        'anos_experiencia': 0,
         'categoria': categoria,
+        'cidade_amauc': cidade,
       },
     );
+  }
+
+  /// Busca os dados completos do usuário logado.
+  Future<UserModel> buscarMeuPerfil() async {
+    final response = await _dio.get(ApiConfig.usuariosMe);
+    final data = response.data as Map<String, dynamic>;
+    return UserModel.fromJson(
+      (data['usuario'] as Map<String, dynamic>?) ?? data,
+    );
+  }
+
+  /// Atualiza nome, telefone e foto do usuário logado.
+  Future<UserModel> atualizarMeuPerfil({
+    String? nome,
+    String? telefone,
+    String? fotoUrl,
+  }) async {
+    final response = await _dio.patch(
+      ApiConfig.usuariosMe,
+      data: {
+        if (nome != null) 'nome': nome,
+        if (telefone != null) 'telefone': telefone,
+        if (fotoUrl != null) 'foto_url': fotoUrl,
+      },
+    );
+    final data = response.data as Map<String, dynamic>;
+    return UserModel.fromJson(
+      (data['usuario'] as Map<String, dynamic>?) ?? data,
+    );
+  }
+
+  /// Envia foto de perfil para o servidor.
+  Future<String> uploadFotoPerfil(String filePath) async {
+    final formData = FormData.fromMap({
+      'foto': await MultipartFile.fromFile(
+        filePath,
+        filename: filePath.split(RegExp(r'[/\\]')).last,
+      ),
+    });
+    final response = await _dio.post(ApiConfig.upload, data: formData);
+    final data = response.data as Map<String, dynamic>;
+    return data['foto_url']?.toString() ?? '';
   }
 
   // ─── PRESTADORES ────────────────────────────────────────────────────────
@@ -89,7 +136,7 @@ class ApiService {
     String? categoria,
   }) async {
     final response = await _dio.get(
-      ApiConfig.prestadoresBusca,
+      ApiConfig.prestadores,
       queryParameters: {
         if (cidade != null) 'cidade': cidade,
         if (categoria != null) 'categoria': categoria,

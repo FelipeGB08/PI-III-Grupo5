@@ -7,12 +7,9 @@ const router = express.Router();
 router.post('/registro', UserController.registrarUsuario);
 router.post('/login', UserController.loginUsuario);
 
-router.get('/perfil', verificarToken, (req, res) => {
+router.get('/me', verificarToken, UserController.buscarMeuPerfil);
+router.patch('/me', verificarToken, UserController.atualizarMeuPerfil);
 
-    res.status(200).json({
-        mensagem: 'Bem-vindo à área VIP!',
-        dados_do_token: req.usuarioLogado
-    });
-});
+router.get('/perfil', verificarToken, UserController.buscarMeuPerfil);
 
 module.exports = router;
