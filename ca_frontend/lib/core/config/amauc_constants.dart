@@ -6,6 +6,7 @@ class AmaucConstants {
   AmaucConstants._();
 
  static const List<String> cidades = [
+  'Alto Bela Vista'
   'Arabutã',
   'Arvoredo',
   'Concórdia',
