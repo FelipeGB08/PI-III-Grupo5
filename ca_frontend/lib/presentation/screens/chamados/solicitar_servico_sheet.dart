@@ -18,7 +18,8 @@ class SolicitarServicoSheet extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<SolicitarServicoSheet> createState() => _SolicitarServicoSheetState();
+  ConsumerState<SolicitarServicoSheet> createState() =>
+      _SolicitarServicoSheetState();
 }
 
 class _SolicitarServicoSheetState extends ConsumerState<SolicitarServicoSheet> {
@@ -51,7 +52,8 @@ class _SolicitarServicoSheetState extends ConsumerState<SolicitarServicoSheet> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao enviar: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Erro ao enviar: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -63,7 +65,9 @@ class _SolicitarServicoSheetState extends ConsumerState<SolicitarServicoSheet> {
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.only(
-        left: 24, right: 24, top: 24,
+        left: 24,
+        right: 24,
+        top: 24,
         bottom: MediaQuery.of(context).viewInsets.bottom + 32,
       ),
       decoration: const BoxDecoration(
@@ -75,12 +79,16 @@ class _SolicitarServicoSheetState extends ConsumerState<SolicitarServicoSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            width: 40, height: 4, margin: const EdgeInsets.only(bottom: 20),
-            decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(2)),
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+                color: Colors.white10, borderRadius: BorderRadius.circular(2)),
           ),
           const Text(
             'Solicitar Serviço',
-            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+            style: TextStyle(
+                color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
@@ -97,7 +105,9 @@ class _SolicitarServicoSheetState extends ConsumerState<SolicitarServicoSheet> {
               hintStyle: const TextStyle(color: Colors.white30),
               filled: true,
               fillColor: const Color(0xFF0F172A),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none),
             ),
           ),
           const SizedBox(height: 24),
@@ -106,11 +116,18 @@ class _SolicitarServicoSheetState extends ConsumerState<SolicitarServicoSheet> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF3B82F6),
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
             ),
             child: _enviando
-                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Text('Confirmar Solicitação', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : const Text('Confirmar Solicitação',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),

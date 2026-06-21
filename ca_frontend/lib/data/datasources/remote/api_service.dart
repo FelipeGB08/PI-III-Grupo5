@@ -3,7 +3,6 @@ import 'package:dio/dio.dart';
 import '../../../core/config/api_config.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../domain/entities/chamado.dart';
-import '../../../domain/entities/user.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import '../../models/avaliacao_model.dart';
 import '../../models/chamado_model.dart';
@@ -13,8 +12,8 @@ import '../../models/user_model.dart';
 /// [ApiService]
 /// Responsável pela comunicação direta com o backend.
 /// Todas as requisições utilizam o cliente Dio configurado.
-/// 
-/// Padrão: Métodos assíncronos que retornam o objeto de modelo (Model) 
+///
+/// Padrão: Métodos assíncronos que retornam o objeto de modelo (Model)
 /// ou lançam uma exceção tratada pelo [DioClient].
 class ApiService {
   ApiService(this._dio);
@@ -43,11 +42,9 @@ class ApiService {
         'nome': params.nome,
         'email': params.email,
         'senha': params.senha,
-        'perfil_tipo': params.tipo.apiValue,
-        'tipo_usuario': params.tipo.apiValue,
-        if (params.cidades.isNotEmpty) 'cidade_amauc': params.cidades.first,
-        if (params.telefoneComercial != null)
-          'telefone': params.telefoneComercial,
+        'telefone': params.telefoneComercial ?? '',
+        'cidade_amauc': params.cidades.isNotEmpty ? params.cidades.first : '',
+        'perfil_tipo': params.tipo.name,
       },
     );
     return response.data as Map<String, dynamic>;
@@ -81,6 +78,36 @@ class ApiService {
   }
 
   /// Busca os dados completos do usuário logado.
+  Future<Map<String, dynamic>> buscarMeuPerfilProfissional() async {
+    final response = await _dio.get(ApiConfig.perfilMeu);
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> salvarCurriculoProfissional({
+    required String biografia,
+    required int anosExperiencia,
+    String? curriculoTexto,
+    String? portfolioUrl,
+  }) async {
+    final data = {
+      'biografia': biografia,
+      'anos_experiencia': anosExperiencia,
+      'curriculo_texto': curriculoTexto ?? '',
+      'portfolio_url': portfolioUrl ?? '',
+    };
+
+    try {
+      final response = await _dio.patch(ApiConfig.perfil, data: data);
+      final payload = response.data as Map<String, dynamic>;
+      return (payload['perfil'] as Map<String, dynamic>?) ?? payload;
+    } on DioException catch (e) {
+      if (e.response?.statusCode != 404) rethrow;
+      final response = await _dio.post(ApiConfig.perfil, data: data);
+      final payload = response.data as Map<String, dynamic>;
+      return (payload['perfil'] as Map<String, dynamic>?) ?? payload;
+    }
+  }
+
   Future<UserModel> buscarMeuPerfil() async {
     final response = await _dio.get(ApiConfig.usuariosMe);
     final data = response.data as Map<String, dynamic>;
@@ -264,6 +291,31 @@ class ApiService {
   // ─── UTILS & HEALTH ─────────────────────────────────────────────────────
 
   /// Verifica se a API está online.
+  Future<List<Map<String, dynamic>>> listarCategorias() async {
+    final response = await _dio.get(ApiConfig.categorias);
+    return (response.data as List<dynamic>)
+        .map((e) => e as Map<String, dynamic>)
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> criarCategoria(String nome) async {
+    final response = await _dio.post(
+      ApiConfig.adminCategorias,
+      data: {'nome_servico': nome},
+    );
+    final data = response.data as Map<String, dynamic>;
+    return (data['categoria'] as Map<String, dynamic>?) ?? data;
+  }
+
+  Future<void> deletarCategoria(int id) async {
+    await _dio.delete('${ApiConfig.adminCategorias}/$id');
+  }
+
+  Future<Map<String, dynamic>> buscarRelatorioAdmin() async {
+    final response = await _dio.get(ApiConfig.adminRelatorios);
+    return response.data as Map<String, dynamic>;
+  }
+
   Future<bool> checkHealth() async {
     try {
       await _dio.get(ApiConfig.status);

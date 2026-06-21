@@ -5,23 +5,22 @@ import 'package:flutter/material.dart';
 class AmaucConstants {
   AmaucConstants._();
 
- static const List<String> cidades = [
-  'Alto Bela Vista'
-  'Arabutã',
-  'Arvoredo',
-  'Concórdia',
-  'Ipira',
-  'Ipumirim',
-  'Irani',
-  'Itá',
-  'Lindóia do Sul',
-  'Paial',
-  'Peritiba',
-  'Piratuba',
-  'Presidente Castello Branco',
-  'Seara',
-  'Xavantina',
-];
+  static const List<String> cidades = [
+    'Arabutã',
+    'Arvoredo',
+    'Concórdia',
+    'Ipira',
+    'Ipumirim',
+    'Irani',
+    'Itá',
+    'Lindóia do Sul',
+    'Paial',
+    'Peritiba',
+    'Piratuba',
+    'Presidente Castello Branco',
+    'Seara',
+    'Xavantina',
+  ];
 
   static const List<ServicoCategoria> categorias = [
     ServicoCategoria(

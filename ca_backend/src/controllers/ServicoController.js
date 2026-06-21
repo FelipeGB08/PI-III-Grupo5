@@ -77,16 +77,34 @@ const ServicoController = {
                 ? Number(req.body.preco)
                 : null;
 
-            const statusPermitidos = ['aceito', 'recusado', 'concluido', 'pendente'];
+            const statusPermitidos = ['aceito', 'recusado', 'concluido'];
             if (!status || !statusPermitidos.includes(status)) {
                 return res.status(400).json({
-                    erro: 'Status inválido. Use: aceito, recusado ou concluido (com preco ao aceitar).',
+                    erro: 'Status invalido. Use: aceito, recusado ou concluido.',
                 });
             }
 
-            if (status === 'aceito' && (preco === null || Number.isNaN(preco) || preco <= 0)) {
+            if (preco !== null && (Number.isNaN(preco) || preco <= 0)) {
                 return res.status(400).json({
-                    erro: 'Ao aceitar o serviço, informe o preco proposto.',
+                    erro: 'O preco proposto deve ser maior que zero.',
+                });
+            }
+
+            const servicoAtual = await ServicoModel.buscarPorId(id);
+            if (!servicoAtual || Number(servicoAtual.prof_id) !== profId) {
+                return res.status(404).json({ erro: 'ServiÃ§o nÃ£o encontrado ou acesso negado.' });
+            }
+
+            const transicoesPermitidas = {
+                pendente: ['aceito', 'recusado'],
+                aceito: ['concluido'],
+                recusado: [],
+                concluido: [],
+            };
+
+            if (!transicoesPermitidas[servicoAtual.status]?.includes(status)) {
+                return res.status(400).json({
+                    erro: `TransiÃ§Ã£o invÃ¡lida: serviÃ§o ${servicoAtual.status} nÃ£o pode ir para ${status}.`,
                 });
             }
 

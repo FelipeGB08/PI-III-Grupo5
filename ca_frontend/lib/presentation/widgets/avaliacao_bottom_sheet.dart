@@ -44,6 +44,7 @@ class _AvaliacaoBottomSheetState extends ConsumerState<AvaliacaoBottomSheet> {
             comentario: _comentarioController.text,
           );
       ref.read(chamadosProvider.notifier).clearPendingReview();
+      await ref.read(chamadosProvider.notifier).carregar();
       if (mounted) Navigator.pop(context);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -110,7 +111,9 @@ class _AvaliacaoBottomSheetState extends ConsumerState<AvaliacaoBottomSheet> {
               return IconButton(
                 onPressed: () => setState(() => _nota = star),
                 icon: Icon(
-                  star <= _nota ? Icons.star_rounded : Icons.star_outline_rounded,
+                  star <= _nota
+                      ? Icons.star_rounded
+                      : Icons.star_outline_rounded,
                   color: Colors.amber,
                   size: 36,
                 ),

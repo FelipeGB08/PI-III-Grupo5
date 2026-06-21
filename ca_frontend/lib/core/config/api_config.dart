@@ -39,10 +39,12 @@ class ApiConfig {
   static const String servicos = '$apiPrefix/servicos';
   static const String chamados = '$apiPrefix/solicitacoes';
   static const String chamadosMeus = '$apiPrefix/solicitacoes/meus-pedidos';
-  static const String chamadosCliente = '$apiPrefix/solicitacoes/minhas-solicitacoes';
+  static const String chamadosCliente =
+      '$apiPrefix/solicitacoes/minhas-solicitacoes';
   static const String avaliacoes = '$apiPrefix/avaliacoes';
   static const String categorias = '$apiPrefix/categorias';
   static const String adminCategorias = '$apiPrefix/admin/categorias';
+  static const String adminRelatorios = '$apiPrefix/admin/relatorios';
   static const String status = '$apiPrefix/status';
 
   static String servicoStatus(int id) => '$servicos/$id/status';

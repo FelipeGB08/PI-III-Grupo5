@@ -4,7 +4,7 @@ import 'package:ca_frontend/presentation/providers/providers.dart';
 
 class RoleGuard extends ConsumerWidget {
   final Widget child;
-  final String requiredRole; 
+  final String requiredRole;
 
   const RoleGuard({required this.child, required this.requiredRole, super.key});
 

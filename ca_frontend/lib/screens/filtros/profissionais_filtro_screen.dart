@@ -5,7 +5,6 @@ import '../../core/config/amauc_constants.dart';
 import '../../core/network/api_error_formatter.dart';
 import '../../domain/entities/prestador.dart';
 import '../../presentation/widgets/prestador_card.dart';
-import '../../services/profissionais_service.dart';
 import '../../presentation/providers/providers.dart';
 import '../orcamentos/solicitar_orcamento_screen.dart';
 
@@ -38,8 +37,7 @@ class _ProfissionaisFiltroScreenState
     });
 
     try {
-      final service =
-          ProfissionaisService(ref.read(dioClientProvider).instance);
+      final service = ref.read(profissionaisServiceProvider);
       final lista = await service.listar(
         cidade: _cidade,
         categoria: _categoriaId,
@@ -69,7 +67,7 @@ class _ProfissionaisFiltroScreenState
             child: Column(
               children: [
                 DropdownButtonFormField<String>(
-                  value: _cidade,
+                  initialValue: _cidade,
                   decoration: const InputDecoration(
                     labelText: 'Cidade AMAUC',
                     border: OutlineInputBorder(),
@@ -85,7 +83,7 @@ class _ProfissionaisFiltroScreenState
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String?>(
-                  value: _categoriaId,
+                  initialValue: _categoriaId,
                   decoration: const InputDecoration(
                     labelText: 'Categoria / Ofício',
                     border: OutlineInputBorder(),
@@ -116,7 +114,8 @@ class _ProfissionaisFiltroScreenState
             child: _carregando
                 ? const Center(child: CircularProgressIndicator())
                 : _profissionais.isEmpty
-                    ? const Center(child: Text('Nenhum profissional encontrado.'))
+                    ? const Center(
+                        child: Text('Nenhum profissional encontrado.'))
                     : ListView.separated(
                         padding: const EdgeInsets.all(16),
                         itemCount: _profissionais.length,

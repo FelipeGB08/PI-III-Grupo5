@@ -30,7 +30,8 @@ class AvaliacaoModel extends Avaliacao {
         'solicitacao_id': solicitacaoId,
         'nota_estrelas': nota,
         'nota': nota,
-        if (comentario != null && comentario.isNotEmpty) 'comentario': comentario,
+        if (comentario != null && comentario.isNotEmpty)
+          'comentario': comentario,
       };
 
   static int _parseInt(dynamic v) =>

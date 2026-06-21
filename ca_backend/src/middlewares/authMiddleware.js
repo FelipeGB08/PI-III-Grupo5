@@ -1,32 +1,33 @@
 const jwt = require('jsonwebtoken');
 
 const verificarToken = (req, res, next) => {
-    // 1. O Token geralmente vem no cabeçalho da requisição (Headers)
-    const authHeader = req.headers.authorization;
-
-    // 2. Se não mandou nada no cabeçalho, barra!
-    if (!authHeader) {
-        return res.status(401).json({ erro: 'Acesso negado. Token não fornecido.' });
+    if (!process.env.JWT_SECRET) {
+        return res.status(500).json({ erro: 'JWT_SECRET nao configurado no servidor.' });
     }
 
-    // 3. O padrão é enviar "Bearer [TOKEN_GIGANTE]". Vamos separar só a parte do código.
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).json({ erro: 'Acesso negado. Token nao fornecido.' });
+    }
+
     const partes = authHeader.split(' ');
     if (partes.length !== 2 || partes[0] !== 'Bearer') {
         return res.status(401).json({ erro: 'Token mal formatado.' });
     }
 
-    const token = partes[1];
-
     try {
-        // 4. Tenta abrir e verificar a validade do Token usando a nossa senha secreta
-        const usuarioDecodificado = jwt.verify(token, process.env.JWT_SECRET);
-        
-        // 5. Se deu certo, gruda as informações do usuário na requisição e deixa passar!
-        req.usuarioLogado = usuarioDecodificado; 
-        next(); // Esse "next" é o que diz: "Pode passar para o Controller!"
-
+        const usuarioDecodificado = jwt.verify(partes[1], process.env.JWT_SECRET);
+        req.usuarioLogado = {
+            id: usuarioDecodificado.id,
+            perfil_tipo: usuarioDecodificado.perfil_tipo,
+            tipo_usuario: usuarioDecodificado.perfil_tipo,
+        };
+        return next();
     } catch (erro) {
-        return res.status(401).json({ erro: 'Token inválido ou expirado.' });
+        if (erro instanceof jwt.TokenExpiredError) {
+            return res.status(401).json({ erro: 'Token expirado. Faca login novamente.' });
+        }
+        return res.status(403).json({ erro: 'Token invalido.' });
     }
 };
 

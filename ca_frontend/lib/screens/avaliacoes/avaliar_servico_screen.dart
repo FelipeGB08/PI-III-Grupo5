@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/api_error_formatter.dart';
 import '../../domain/entities/chamado.dart';
-import '../../services/avaliacoes_service.dart';
 import '../../presentation/providers/providers.dart';
 
 class AvaliarServicoScreen extends ConsumerStatefulWidget {
@@ -30,7 +29,7 @@ class _AvaliarServicoScreenState extends ConsumerState<AvaliarServicoScreen> {
   Future<void> _enviar() async {
     setState(() => _enviando = true);
     try {
-      final service = AvaliacoesService(ref.read(dioClientProvider).instance);
+      final service = ref.read(avaliacoesServiceProvider);
       await service.criar(
         servicoId: widget.chamado.id,
         notaEstrelas: _nota,

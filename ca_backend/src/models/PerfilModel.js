@@ -1,13 +1,42 @@
 const pool = require('../config/db');
 
 const PerfilModel = {
-    criarPerfil: async (usuarioId, biografia, anosExperiencia) => {
+    criarPerfil: async (usuarioId, biografia, anosExperiencia, curriculoTexto = null, portfolioUrl = null) => {
         const query = `
-            INSERT INTO perfis_profissionais (usuario_id, biografia, anos_experiencia, verificado)
-            VALUES ($1, $2, $3, FALSE)
+            INSERT INTO perfis_profissionais (
+                usuario_id,
+                biografia,
+                anos_experiencia,
+                curriculo_texto,
+                portfolio_url,
+                verificado
+            )
+            VALUES ($1, $2, $3, $4, $5, FALSE)
             RETURNING *;
         `;
-        const values = [usuarioId, biografia, anosExperiencia || 0];
+        const values = [usuarioId, biografia, anosExperiencia || 0, curriculoTexto, portfolioUrl];
+        const resultado = await pool.query(query, values);
+        return resultado.rows[0];
+    },
+
+    atualizarPerfil: async (usuarioId, dados) => {
+        const query = `
+            UPDATE perfis_profissionais
+            SET
+                biografia = COALESCE($2, biografia),
+                anos_experiencia = COALESCE($3, anos_experiencia),
+                curriculo_texto = COALESCE($4, curriculo_texto),
+                portfolio_url = COALESCE($5, portfolio_url)
+            WHERE usuario_id = $1
+            RETURNING *;
+        `;
+        const values = [
+            usuarioId,
+            dados.biografia,
+            dados.anos_experiencia,
+            dados.curriculo_texto,
+            dados.portfolio_url,
+        ];
         const resultado = await pool.query(query, values);
         return resultado.rows[0];
     },
@@ -41,6 +70,8 @@ const PerfilModel = {
                 u.telefone,
                 u.cidade_amauc,
                 pp.biografia,
+                pp.curriculo_texto,
+                pp.portfolio_url,
                 pp.anos_experiencia,
                 pp.verificado,
                 COALESCE(

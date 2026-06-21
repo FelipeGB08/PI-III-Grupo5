@@ -1,55 +1,184 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:ca_frontend/core/theme/app_colors.dart'; 
-import 'package:ca_frontend/domain/entities/prestador.dart';
-import 'package:ca_frontend/presentation/providers/providers.dart';
-import 'package:ca_frontend/presentation/screens/chamados/solicitar_servico_sheet.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../domain/entities/prestador.dart';
+import '../../providers/providers.dart';
+import '../chamados/solicitar_servico_sheet.dart';
 
-class PrestadorProfileScreen extends ConsumerStatefulWidget {
+class PrestadorProfileScreen extends ConsumerWidget {
   const PrestadorProfileScreen({super.key, required this.prestador});
+
   final Prestador prestador;
 
-  @override
-  ConsumerState<PrestadorProfileScreen> createState() => _PrestadorProfileScreenState();
-}
-
-class _PrestadorProfileScreenState extends ConsumerState<PrestadorProfileScreen> {
-
-  void _handleAgendarServico(Prestador p) {
-    final authState = ref.read(authStateProvider); 
+  void _solicitarServico(BuildContext context, WidgetRef ref) {
+    final authState = ref.read(authStateProvider);
     if (authState.user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Faça login para solicitar serviços.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Faca login para solicitar servicos.')),
+      );
       return;
     }
-    SolicitarServicoSheet.show(context, p);
+    SolicitarServicoSheet.show(context, prestador);
   }
 
   @override
-  Widget build(BuildContext context) {
-    final avaliacoesAsync = ref.watch(avaliacoesProvider(widget.prestador.id));
+  Widget build(BuildContext context, WidgetRef ref) {
+    final avaliacoesAsync = ref.watch(avaliacoesProvider(prestador.id));
+    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent, 
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+      appBar: AppBar(title: Text(prestador.nome)),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+        child: FilledButton.icon(
+          onPressed: () => _solicitarServico(context, ref),
+          icon: const Icon(Icons.assignment_add),
+          label: const Text('Solicitar servico'),
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+          ),
         ),
       ),
-      body: avaliacoesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => const Center(child: Text("Erro ao carregar", style: TextStyle(color: Colors.white))),
-        data: (resumo) => Center(child: Text("Perfil de ${widget.prestador.nome}", style: const TextStyle(color: Colors.white))),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 36,
+                backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+                child: Text(
+                  prestador.nome.isNotEmpty
+                      ? prestador.nome[0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      prestador.nome,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      prestador.cidade,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppColors.muted,
+                      ),
+                    ),
+                    if (prestador.anosExperiencia != null) ...[
+                      const SizedBox(height: 6),
+                      Text('${prestador.anosExperiencia} anos de experiencia'),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _Section(
+            title: 'Biografia',
+            child: Text(
+              prestador.bio?.isNotEmpty == true
+                  ? prestador.bio!
+                  : 'Profissional ainda nao cadastrou biografia.',
+            ),
+          ),
+          if (prestador.categorias.isNotEmpty)
+            _Section(
+              title: 'Categorias',
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: prestador.categorias
+                    .map((categoria) => Chip(label: Text(categoria)))
+                    .toList(),
+              ),
+            ),
+          if (prestador.curriculoTexto?.isNotEmpty == true)
+            _Section(
+              title: 'Curriculo Vivo',
+              child: Text(prestador.curriculoTexto!),
+            ),
+          if (prestador.portfolioUrl?.isNotEmpty == true)
+            _Section(
+              title: 'Portfolio',
+              child: SelectableText(prestador.portfolioUrl!),
+            ),
+          _Section(
+            title: 'Avaliacoes',
+            child: avaliacoesAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, _) => Text('Nao foi possivel carregar: $error'),
+              data: (resumo) {
+                if (resumo.avaliacoes.isEmpty) {
+                  return const Text(
+                      'Este profissional ainda nao recebeu avaliacoes.');
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Media: ${resumo.media.toStringAsFixed(1)} estrelas',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 12),
+                    ...resumo.avaliacoes.take(5).map(
+                          (a) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Text(
+                              '${a.nota} estrelas - ${a.comentario ?? 'Sem comentario'}',
+                            ),
+                          ),
+                        ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
       ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(20),
-        child: ElevatedButton(
-          onPressed: () => _handleAgendarServico(widget.prestador),
-          child: const Text('Agendar'),
-        ),
+    );
+  }
+}
+
+class _Section extends StatelessWidget {
+  const _Section({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 8),
+          child,
+        ],
       ),
     );
   }

@@ -40,7 +40,8 @@ class _AnimatedCounterState extends State<AnimatedCounter>
       _animation = Tween<double>(
         begin: oldWidget.value,
         end: widget.value,
-      ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+      ).animate(
+          CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
       _controller
         ..reset()
         ..forward();

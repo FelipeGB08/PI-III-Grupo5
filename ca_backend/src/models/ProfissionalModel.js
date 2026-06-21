@@ -10,6 +10,8 @@ const ProfissionalModel = {
                 u.telefone,
                 u.cidade_amauc,
                 pp.biografia,
+                pp.curriculo_texto,
+                pp.portfolio_url,
                 pp.anos_experiencia,
                 pp.verificado,
                 COALESCE(
@@ -61,6 +63,8 @@ const ProfissionalModel = {
                 u.telefone,
                 u.cidade_amauc,
                 pp.biografia,
+                pp.curriculo_texto,
+                pp.portfolio_url,
                 pp.anos_experiencia,
                 pp.verificado,
                 COALESCE(

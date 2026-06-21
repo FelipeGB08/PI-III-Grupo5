@@ -4,10 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/user.dart';
 import '../../providers/providers.dart';
+import '../admin/admin_dashboard_screen.dart';
 import '../auth/welcome_auth_screen.dart';
 import '../chamados/chamados_screen.dart';
 import '../cliente/cliente_dashboard_screen.dart';
 import '../conta/minha_conta_screen.dart';
+import '../prestador/curriculo_profissional_screen.dart';
 
 class HomeShell extends ConsumerWidget {
   const HomeShell({super.key});
@@ -28,14 +30,14 @@ class HomeShell extends ConsumerWidget {
       return const WelcomeAuthScreen();
     }
 
-    return _MainNavigation(isPrestador: auth.user!.tipo.isPrestador);
+    return _MainNavigation(tipo: auth.user!.tipo);
   }
 }
 
 class _MainNavigation extends StatefulWidget {
-  const _MainNavigation({required this.isPrestador});
+  const _MainNavigation({required this.tipo});
 
-  final bool isPrestador;
+  final UserTipo tipo;
 
   @override
   State<_MainNavigation> createState() => _MainNavigationState();
@@ -46,17 +48,39 @@ class _MainNavigationState extends State<_MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = widget.isPrestador
-        ? const [ChamadosScreen(), MinhaContaScreen()]
-        : const [ClienteDashboardScreen(), ChamadosScreen(), MinhaContaScreen()];
+    final pages = widget.tipo.isAdmin
+        ? const [AdminDashboardScreen(), MinhaContaScreen()]
+        : widget.tipo.isPrestador
+            ? const [
+                ChamadosScreen(),
+                CurriculoProfissionalScreen(),
+                MinhaContaScreen(),
+              ]
+            : const [
+                ClienteDashboardScreen(),
+                ChamadosScreen(),
+                MinhaContaScreen()
+              ];
 
-    final labels = widget.isPrestador
-        ? ['Chamados', 'Conta']
-        : ['Descobrir', 'Chamados', 'Conta'];
+    final labels = widget.tipo.isAdmin
+        ? ['Admin', 'Conta']
+        : widget.tipo.isPrestador
+            ? ['Chamados', 'Curriculo', 'Conta']
+            : ['Descobrir', 'Chamados', 'Conta'];
 
-    final icons = widget.isPrestador
-        ? [Icons.inbox_rounded, Icons.person_rounded]
-        : [Icons.explore_rounded, Icons.assignment_rounded, Icons.person_rounded];
+    final icons = widget.tipo.isAdmin
+        ? [Icons.admin_panel_settings_rounded, Icons.person_rounded]
+        : widget.tipo.isPrestador
+            ? [
+                Icons.inbox_rounded,
+                Icons.badge_rounded,
+                Icons.person_rounded,
+              ]
+            : [
+                Icons.explore_rounded,
+                Icons.assignment_rounded,
+                Icons.person_rounded
+              ];
 
     return Scaffold(
       body: SafeArea(child: pages[_index]),

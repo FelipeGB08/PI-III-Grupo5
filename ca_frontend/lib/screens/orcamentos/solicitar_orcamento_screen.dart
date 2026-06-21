@@ -6,7 +6,6 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../core/network/api_error_formatter.dart';
 import '../../domain/entities/prestador.dart';
-import '../../services/servicos_service.dart';
 import '../../presentation/providers/providers.dart';
 
 class SolicitarOrcamentoScreen extends ConsumerStatefulWidget {
@@ -47,14 +46,15 @@ class _SolicitarOrcamentoScreenState
     final descricao = _descricaoController.text.trim();
     if (descricao.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Descreva o problema para solicitar orçamento.')),
+        const SnackBar(
+            content: Text('Descreva o problema para solicitar orçamento.')),
       );
       return;
     }
 
     setState(() => _enviando = true);
     try {
-      final service = ServicosService(ref.read(dioClientProvider).instance);
+      final service = ref.read(servicosServiceProvider);
       await service.solicitarOrcamento(
         profId: widget.prestador.id,
         descricao: descricao,
@@ -112,7 +112,8 @@ class _SolicitarOrcamentoScreenState
             OutlinedButton.icon(
               onPressed: _selecionarFoto,
               icon: const Icon(Icons.photo_camera_rounded),
-              label: Text(_foto == null ? 'Anexar foto do problema' : 'Trocar foto'),
+              label: Text(
+                  _foto == null ? 'Anexar foto do problema' : 'Trocar foto'),
             ),
             if (_foto != null) ...[
               const SizedBox(height: 12),

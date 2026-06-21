@@ -26,7 +26,8 @@ class FormValidators {
     return null;
   }
 
-  static String? requiredField(String? value, {String fieldName = 'Este campo'}) {
+  static String? requiredField(String? value,
+      {String fieldName = 'Este campo'}) {
     if (value == null || value.trim().isEmpty) {
       return '$fieldName é obrigatório';
     }

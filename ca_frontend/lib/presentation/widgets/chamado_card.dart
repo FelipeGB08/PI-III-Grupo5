@@ -12,6 +12,7 @@ class ChamadoCard extends StatelessWidget {
     this.onAceitar,
     this.onRecusar,
     this.onConcluir,
+    this.onAvaliar,
   });
 
   final Chamado chamado;
@@ -19,6 +20,7 @@ class ChamadoCard extends StatelessWidget {
   final VoidCallback? onAceitar;
   final VoidCallback? onRecusar;
   final VoidCallback? onConcluir;
+  final VoidCallback? onAvaliar;
 
   Color get _statusColor => switch (chamado.status) {
         ChamadoStatus.pendente => AppColors.statusPendente,
@@ -85,7 +87,8 @@ class ChamadoCard extends StatelessWidget {
                       : 'Prestador: ${chamado.profissionalNome ?? "#${chamado.profissionalId}"}',
                   style: theme.textTheme.bodyMedium,
                 ),
-                if (isPrestador && chamado.status == ChamadoStatus.pendente) ...[
+                if (isPrestador &&
+                    chamado.status == ChamadoStatus.pendente) ...[
                   const SizedBox(height: 14),
                   Row(
                     children: [
@@ -118,6 +121,17 @@ class ChamadoCard extends StatelessWidget {
                     color: AppColors.statusConcluido,
                     icon: Icons.task_alt_rounded,
                     onTap: onConcluir,
+                  ),
+                ],
+                if (!isPrestador &&
+                    chamado.status == ChamadoStatus.concluido &&
+                    onAvaliar != null) ...[
+                  const SizedBox(height: 14),
+                  _ActionButton(
+                    label: 'Avaliar servico',
+                    color: AppColors.primary,
+                    icon: Icons.star_rounded,
+                    onTap: onAvaliar,
                   ),
                 ],
               ],
@@ -183,7 +197,9 @@ class _ActionButtonState extends State<_ActionButton> {
             ),
             const SizedBox(width: 6),
             Text(
-              _confirmed && widget.label == 'Aceitar' ? 'Confirmado!' : widget.label,
+              _confirmed && widget.label == 'Aceitar'
+                  ? 'Confirmado!'
+                  : widget.label,
               style: TextStyle(
                 fontWeight: FontWeight.w800,
                 fontSize: 13,

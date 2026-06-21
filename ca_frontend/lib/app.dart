@@ -35,7 +35,7 @@ class _ConectaAmaucAppState extends ConsumerState<ConectaAmaucApp> {
       title: 'Conecta AMAUC',
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.dark,
       home: const HomeShell(),
     );
   }

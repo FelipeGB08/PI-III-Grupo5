@@ -175,6 +175,23 @@ const UserController = {
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
         }
     },
+
+    solicitarMagicLink: async (req, res) => {
+        try {
+            const { email } = req.body;
+
+            if (!email) {
+                return res.status(400).json({ erro: 'Email Ã© obrigatÃ³rio.' });
+            }
+
+            return res.status(202).json({
+                mensagem: 'Se o email estiver cadastrado, enviaremos um link de acesso.',
+            });
+        } catch (erro) {
+            console.error('Erro ao solicitar magic link:', erro);
+            return res.status(500).json({ erro: 'Erro interno no servidor.' });
+        }
+    },
 };
 
 module.exports = UserController;

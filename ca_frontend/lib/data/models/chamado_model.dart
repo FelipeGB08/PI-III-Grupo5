@@ -45,8 +45,7 @@ class ChamadoModel extends Chamado {
   static int _parseInt(dynamic v) =>
       v is int ? v : int.tryParse(v?.toString() ?? '') ?? 0;
 
-  static int? _parseIntNullable(dynamic v) =>
-      v == null ? null : _parseInt(v);
+  static int? _parseIntNullable(dynamic v) => v == null ? null : _parseInt(v);
 
   static double? _parseDoubleNullable(dynamic v) {
     if (v == null) return null;

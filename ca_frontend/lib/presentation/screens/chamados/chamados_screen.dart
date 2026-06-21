@@ -54,13 +54,17 @@ class _ChamadosScreenState extends ConsumerState<ChamadosScreen>
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
           child: Text(
             'Central de Chamados',
-            style: Theme.of(context).textTheme.headlineLarge?.copyWith(fontSize: 24),
+            style: Theme.of(context)
+                .textTheme
+                .headlineLarge
+                ?.copyWith(fontSize: 24),
           ),
         ),
         const SizedBox(height: 16),
         TabBar(
           controller: _tabController,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          labelStyle:
+              const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
           tabs: const [
             Tab(text: 'Pendentes'),
             Tab(text: 'Em Progresso'),
@@ -90,6 +94,7 @@ class _ChamadosScreenState extends ConsumerState<ChamadosScreen>
                               c.status == ChamadoStatus.recusado)
                           .toList(),
                       isPrestador: isPrestador,
+                      showAvaliar: !isPrestador,
                     ),
                   ],
                 ),
@@ -107,11 +112,13 @@ class _ChamadosList extends ConsumerWidget {
     required this.chamados,
     required this.isPrestador,
     this.showConcluir = false,
+    this.showAvaliar = false,
   });
 
   final List<Chamado> chamados;
   final bool isPrestador;
   final bool showConcluir;
+  final bool showAvaliar;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -138,6 +145,9 @@ class _ChamadosList extends ConsumerWidget {
             onRecusar: () => ref.read(chamadosProvider.notifier).recusar(c.id),
             onConcluir: showConcluir
                 ? () => ref.read(chamadosProvider.notifier).concluir(c.id)
+                : null,
+            onAvaliar: showAvaliar && c.status == ChamadoStatus.concluido
+                ? () => AvaliacaoBottomSheet.show(context, c)
                 : null,
           );
         },

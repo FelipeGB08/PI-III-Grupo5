@@ -276,9 +276,8 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
               hint: 'seu@email.com',
               icon: Icons.email_outlined,
               keyboardType: TextInputType.emailAddress,
-              textInputAction: _magicLinkMode
-                  ? TextInputAction.done
-                  : TextInputAction.next,
+              textInputAction:
+                  _magicLinkMode ? TextInputAction.done : TextInputAction.next,
               validator: FormValidators.email,
             ),
             if (!_magicLinkMode) ...[
@@ -347,7 +346,9 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          _magicLinkMode ? 'Enviar link por e-mail' : 'Continuar',
+                          _magicLinkMode
+                              ? 'Enviar link por e-mail'
+                              : 'Continuar',
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,

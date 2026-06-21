@@ -9,11 +9,14 @@ class Prestador {
     this.mediaAvaliacao = 0,
     this.totalServicos = 0,
     this.disponivel = true,
+    this.verificado = false,
     this.fotoUrl,
     this.portfolioUrls = const [],
     this.distanciaKm,
     this.telefone,
     this.anosExperiencia,
+    this.curriculoTexto,
+    this.portfolioUrl,
   });
 
   final int id;
@@ -25,11 +28,14 @@ class Prestador {
   final double mediaAvaliacao;
   final int totalServicos;
   final bool disponivel;
+  final bool verificado;
   final String? fotoUrl;
   final List<String> portfolioUrls;
   final double? distanciaKm;
   final String? telefone;
   final int? anosExperiencia;
+  final String? curriculoTexto;
+  final String? portfolioUrl;
 
   Prestador copyWith({
     double? mediaAvaliacao,
@@ -46,11 +52,14 @@ class Prestador {
       mediaAvaliacao: mediaAvaliacao ?? this.mediaAvaliacao,
       totalServicos: totalServicos ?? this.totalServicos,
       disponivel: disponivel,
+      verificado: verificado,
       fotoUrl: fotoUrl,
       portfolioUrls: portfolioUrls ?? this.portfolioUrls,
       distanciaKm: distanciaKm,
       telefone: telefone,
       anosExperiencia: anosExperiencia,
+      curriculoTexto: curriculoTexto,
+      portfolioUrl: portfolioUrl,
     );
   }
 }

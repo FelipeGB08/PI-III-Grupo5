@@ -5,5 +5,6 @@ const router = express.Router();
 
 router.post('/register', UserController.registrarUsuario);
 router.post('/login', UserController.loginUsuario);
+router.post('/magic-link', UserController.solicitarMagicLink);
 
 module.exports = router;

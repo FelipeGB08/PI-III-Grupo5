@@ -99,7 +99,8 @@ class _StepDot extends StatelessWidget {
       height: 28,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: isActive ? StepProgress._activeColor : StepProgress._inactiveColor,
+        color:
+            isActive ? StepProgress._activeColor : StepProgress._inactiveColor,
         border: isCurrent
             ? Border.all(color: Colors.white.withValues(alpha: 0.5), width: 2)
             : null,

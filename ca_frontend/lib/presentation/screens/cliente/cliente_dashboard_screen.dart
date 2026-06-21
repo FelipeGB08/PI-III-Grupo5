@@ -100,7 +100,8 @@ class _ClienteDashboardScreenState
           if (state.erro != null)
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: Text(
                   state.erro!,
                   style: theme.textTheme.bodyMedium?.copyWith(
@@ -301,9 +302,7 @@ class _CategoriaItemState extends State<_CategoriaItem> {
                 : Theme.of(context).cardTheme.color,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: widget.selected
-                  ? widget.cor
-                  : Colors.transparent,
+              color: widget.selected ? widget.cor : Colors.transparent,
               width: 2,
             ),
           ),

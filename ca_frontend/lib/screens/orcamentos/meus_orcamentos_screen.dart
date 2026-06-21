@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_error_formatter.dart';
 import '../../domain/entities/chamado.dart';
 import '../../domain/entities/user.dart';
-import '../../services/servicos_service.dart';
 import '../../presentation/providers/providers.dart';
 import '../avaliacoes/avaliar_servico_screen.dart';
 
@@ -35,7 +34,7 @@ class _MeusOrcamentosScreenState extends ConsumerState<MeusOrcamentosScreen> {
 
     try {
       final user = ref.read(authStateProvider).user;
-      final service = ServicosService(ref.read(dioClientProvider).instance);
+      final service = ref.read(servicosServiceProvider);
       final lista = user?.tipo.isPrestador ?? false
           ? await service.listarComoProfissional()
           : await service.listarComoCliente();

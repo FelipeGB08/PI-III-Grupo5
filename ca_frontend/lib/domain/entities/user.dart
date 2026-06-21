@@ -15,6 +15,7 @@ extension UserTipoX on UserTipo {
 
   bool get isCliente => this == UserTipo.cidadao;
   bool get isPrestador => this == UserTipo.profissional;
+  bool get isAdmin => this == UserTipo.admin;
 }
 
 class User {

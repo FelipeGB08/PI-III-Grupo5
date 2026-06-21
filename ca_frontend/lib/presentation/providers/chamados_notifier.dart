@@ -41,13 +41,14 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
       state = state.copyWith(chamados: lista, isLoading: false);
     } catch (e) {
       state = state.copyWith(
-        isLoading: false, 
+        isLoading: false,
         error: ApiService.unwrap(e).toString(),
       );
     }
   }
 
-  Future<void> atualizarStatus(int chamadoId, ChamadoStatus status, {double? preco}) async {
+  Future<void> atualizarStatus(int chamadoId, ChamadoStatus status,
+      {double? preco}) async {
     state = state.copyWith(isLoading: true);
     try {
       await _apiService.atualizarStatusChamado(
@@ -55,16 +56,17 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
         status: status,
         preco: preco,
       );
-      await carregarChamados(); 
+      await carregarChamados();
     } catch (e) {
       state = state.copyWith(
-        isLoading: false, 
+        isLoading: false,
         error: ApiService.unwrap(e).toString(),
       );
     }
   }
 }
 
-final chamadosProvider = StateNotifierProvider<ChamadosNotifier, ChamadosState>((ref) {
+final chamadosProvider =
+    StateNotifierProvider<ChamadosNotifier, ChamadosState>((ref) {
   return ChamadosNotifier(ref.watch(apiServiceProvider));
 });

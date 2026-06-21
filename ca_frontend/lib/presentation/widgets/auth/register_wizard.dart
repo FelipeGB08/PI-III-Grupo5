@@ -75,8 +75,7 @@ class _RegisterWizardState extends State<RegisterWizard> {
           if (widget.cidadesSelecionadas.isEmpty ||
               widget.categoriasSelecionadas.isEmpty) {
             setState(() {
-              _chipsError =
-                  'Selecione ao menos uma cidade e uma categoria.';
+              _chipsError = 'Selecione ao menos uma cidade e uma categoria.';
             });
             isValid = false;
           } else {
@@ -96,7 +95,8 @@ class _RegisterWizardState extends State<RegisterWizard> {
 
         if (!_captchaVerified) {
           setState(() {
-            _captchaError = 'Complete a verificação anti-bot antes de continuar.';
+            _captchaError =
+                'Complete a verificação anti-bot antes de continuar.';
           });
           isValid = false;
         } else {

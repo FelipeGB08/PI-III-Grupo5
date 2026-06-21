@@ -28,21 +28,14 @@ class PrestadorCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: theme.cardTheme.color,
             borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.08),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
             border: Border.all(
               color: prestador.disponivel
                   ? AppColors.primary.withValues(alpha: 0.2)
-                  : Colors.transparent,
+                  : AppColors.darkBorder,
             ),
           ),
           child: Row(
@@ -62,7 +55,11 @@ class PrestadorCard extends StatelessWidget {
                       prestador.cidade,
                       style: theme.textTheme.bodyMedium,
                     ),
-                    const SizedBox(height: 8),
+                    if (prestador.verificado) ...[
+                      const SizedBox(height: 8),
+                      const _VerifiedBadge(),
+                    ],
+                    const SizedBox(height: 10),
                     Wrap(
                       spacing: 6,
                       runSpacing: 4,
@@ -71,7 +68,7 @@ class PrestadorCard extends StatelessWidget {
                           .map((c) => _CategoriaBadge(categoriaId: c))
                           .toList(),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 10),
                     Row(
                       children: [
                         const Icon(Icons.star_rounded,
@@ -83,12 +80,12 @@ class PrestadorCard extends StatelessWidget {
                         ),
                         if (prestador.distanciaKm != null) ...[
                           const SizedBox(width: 12),
-                          Icon(Icons.near_me,
-                              size: 14, color: theme.hintColor),
+                          Icon(Icons.near_me, size: 14, color: theme.hintColor),
                           const SizedBox(width: 2),
                           Text(
                             '${prestador.distanciaKm!.toStringAsFixed(1)} km',
-                            style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12),
+                            style: theme.textTheme.bodyMedium
+                                ?.copyWith(fontSize: 12),
                           ),
                         ],
                       ],
@@ -185,6 +182,37 @@ class _CategoriaBadge extends StatelessWidget {
           fontWeight: FontWeight.w700,
           color: cat.cor,
         ),
+      ),
+    );
+  }
+}
+
+class _VerifiedBadge extends StatelessWidget {
+  const _VerifiedBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.accent.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.45)),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.verified_rounded, size: 13, color: AppColors.accent),
+          SizedBox(width: 5),
+          Text(
+            'Profissional verificado',
+            style: TextStyle(
+              color: AppColors.accent,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -25,6 +25,8 @@ CREATE TABLE perfis_profissionais (
     id SERIAL PRIMARY KEY,
     usuario_id INTEGER NOT NULL UNIQUE REFERENCES usuarios(id) ON DELETE CASCADE,
     biografia TEXT,
+    curriculo_texto TEXT,
+    portfolio_url VARCHAR(500),
     anos_experiencia INTEGER DEFAULT 0,
     verificado BOOLEAN DEFAULT FALSE
 );
@@ -60,6 +62,51 @@ CREATE TABLE avaliacoes (
     comentario TEXT,
     criado_em TIMESTAMP DEFAULT NOW()
 );
+
+CREATE OR REPLACE FUNCTION validar_papeis_servico()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE id = NEW.cidadao_id AND perfil_tipo = 'cidadao'
+    ) THEN
+        RAISE EXCEPTION 'cidadao_id deve referenciar um usuario cidadao';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE id = NEW.prof_id AND perfil_tipo = 'profissional'
+    ) THEN
+        RAISE EXCEPTION 'prof_id deve referenciar um usuario profissional';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_validar_papeis_servico
+BEFORE INSERT OR UPDATE OF cidadao_id, prof_id ON servicos_solicitados
+FOR EACH ROW
+EXECUTE FUNCTION validar_papeis_servico();
+
+CREATE OR REPLACE FUNCTION validar_categoria_profissional()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE id = NEW.profissional_id AND perfil_tipo = 'profissional'
+    ) THEN
+        RAISE EXCEPTION 'profissional_id deve referenciar um usuario profissional';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_validar_categoria_profissional
+BEFORE INSERT OR UPDATE OF profissional_id ON profissional_categorias
+FOR EACH ROW
+EXECUTE FUNCTION validar_categoria_profissional();
 
 INSERT INTO categorias (nome_servico) VALUES
     ('Hidráulica'),

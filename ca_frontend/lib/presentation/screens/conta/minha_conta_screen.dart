@@ -48,7 +48,8 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
       _preencherCampos(user);
     }
 
-    final atualizado = await ref.read(authStateProvider.notifier).refreshProfile();
+    final atualizado =
+        await ref.read(authStateProvider.notifier).refreshProfile();
     if (!mounted) return;
 
     setState(() {
@@ -93,7 +94,8 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
       if (fotoUrl == null || fotoUrl.isEmpty) {
         if (mounted) {
           setState(() => _salvando = false);
-          _mostrarErro(ref.read(authStateProvider).error ?? 'Falha ao enviar foto.');
+          _mostrarErro(
+              ref.read(authStateProvider).error ?? 'Falha ao enviar foto.');
         }
         return;
       }
@@ -120,7 +122,8 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
         const SnackBar(content: Text('Perfil atualizado com sucesso!')),
       );
     } else {
-      _mostrarErro(ref.read(authStateProvider).error ?? 'Não foi possível salvar.');
+      _mostrarErro(
+          ref.read(authStateProvider).error ?? 'Não foi possível salvar.');
     }
   }
 
@@ -137,8 +140,12 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
         title: const Text('Sair da conta'),
         content: const Text('Deseja encerrar sua sessão neste dispositivo?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sair')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Sair')),
         ],
       ),
     );
@@ -154,7 +161,8 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
     final theme = Theme.of(context);
 
     if (_carregandoPerfil && user == null) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+      return const Center(
+          child: CircularProgressIndicator(color: AppColors.primary));
     }
 
     ImageProvider? fotoExibicao;
@@ -173,7 +181,8 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
         children: [
           Text(
             'Minha Conta',
-            style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
+            style: theme.textTheme.headlineMedium
+                ?.copyWith(fontWeight: FontWeight.w900),
           ).animate().fadeIn().slideY(begin: 0.1),
           const SizedBox(height: 8),
           Text(
@@ -190,7 +199,9 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
                   backgroundImage: fotoExibicao,
                   child: fotoExibicao == null
                       ? Text(
-                          user?.nome.isNotEmpty == true ? user!.nome[0].toUpperCase() : '?',
+                          user?.nome.isNotEmpty == true
+                              ? user!.nome[0].toUpperCase()
+                              : '?',
                           style: const TextStyle(
                             fontSize: 36,
                             fontWeight: FontWeight.w900,
@@ -210,7 +221,8 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
                       onTap: _salvando ? null : _trocarFoto,
                       child: const Padding(
                         padding: EdgeInsets.all(10),
-                        child: Icon(Icons.camera_alt_rounded, color: Colors.white, size: 20),
+                        child: Icon(Icons.camera_alt_rounded,
+                            color: Colors.white, size: 20),
                       ),
                     ),
                   ),
@@ -221,8 +233,11 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
           const SizedBox(height: 12),
           Center(
             child: Text(
-              user?.tipo.isPrestador == true ? 'Prestador AMAUC' : 'Cidadão AMAUC',
-              style: theme.textTheme.labelLarge?.copyWith(color: AppColors.primary),
+              user?.tipo.isPrestador == true
+                  ? 'Prestador AMAUC'
+                  : 'Cidadão AMAUC',
+              style: theme.textTheme.labelLarge
+                  ?.copyWith(color: AppColors.primary),
             ),
           ),
           const SizedBox(height: 28),
@@ -274,9 +289,11 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
                 ? const SizedBox(
                     height: 22,
                     width: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
                   )
-                : const Text('Salvar alterações', style: TextStyle(fontWeight: FontWeight.bold)),
+                : const Text('Salvar alterações',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
           ),
           const SizedBox(height: 16),
           OutlinedButton.icon(

@@ -93,7 +93,8 @@ class FirebaseMessagingService {
     if (messaging == null) return;
     final token = await messaging.getToken();
     debugPrint('[FCM] Token: $token');
-    messaging.onTokenRefresh.listen((t) => debugPrint('[FCM] Token refresh: $t'));
+    messaging.onTokenRefresh
+        .listen((t) => debugPrint('[FCM] Token refresh: $t'));
   }
 
   void _onForegroundMessage(RemoteMessage message) {

@@ -19,6 +19,9 @@ import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/avaliacao_repository.dart';
 import '../../domain/repositories/chamado_repository.dart';
 import '../../domain/repositories/prestador_repository.dart';
+import '../../services/avaliacoes_service.dart';
+import '../../services/profissionais_service.dart';
+import '../../services/servicos_service.dart';
 
 // ─── Infra ────────────────────────────────────────────────────────────────
 
@@ -40,6 +43,18 @@ final dioClientProvider = Provider<DioClient>((ref) {
 
 final apiServiceProvider = Provider<ApiService>((ref) {
   return ApiService(ref.watch(dioClientProvider).instance);
+});
+
+final profissionaisServiceProvider = Provider<ProfissionaisService>((ref) {
+  return ProfissionaisService(ref.watch(dioClientProvider).instance);
+});
+
+final servicosServiceProvider = Provider<ServicosService>((ref) {
+  return ServicosService(ref.watch(dioClientProvider).instance);
+});
+
+final avaliacoesServiceProvider = Provider<AvaliacoesService>((ref) {
+  return AvaliacoesService(ref.watch(dioClientProvider).instance);
 });
 
 // ─── Repositories ───────────────────────────────────────────────────────────
@@ -65,8 +80,161 @@ final avaliacaoRepositoryProvider = Provider<AvaliacaoRepository>((ref) {
 
 // ─── Providers Extras ───────────────────────────────────────────────────────
 
-final avaliacoesProvider = FutureProvider.family<AvaliacoesResumo, int>((ref, prestadorId) {
-  return ref.watch(avaliacaoRepositoryProvider).listarDoProfissional(prestadorId);
+class AdminState {
+  const AdminState({
+    this.categorias = const [],
+    this.relatorio,
+    this.isLoading = false,
+    this.error,
+  });
+
+  final List<Map<String, dynamic>> categorias;
+  final Map<String, dynamic>? relatorio;
+  final bool isLoading;
+  final String? error;
+
+  AdminState copyWith({
+    List<Map<String, dynamic>>? categorias,
+    Map<String, dynamic>? relatorio,
+    bool? isLoading,
+    String? error,
+    bool clearError = false,
+  }) {
+    return AdminState(
+      categorias: categorias ?? this.categorias,
+      relatorio: relatorio ?? this.relatorio,
+      isLoading: isLoading ?? this.isLoading,
+      error: clearError ? null : (error ?? this.error),
+    );
+  }
+}
+
+class AdminNotifier extends StateNotifier<AdminState> {
+  AdminNotifier(this._api) : super(const AdminState());
+
+  final ApiService _api;
+
+  Future<void> carregar() async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final results = await Future.wait([
+        _api.listarCategorias(),
+        _api.buscarRelatorioAdmin(),
+      ]);
+      state = state.copyWith(
+        categorias: results[0] as List<Map<String, dynamic>>,
+        relatorio: results[1] as Map<String, dynamic>,
+        isLoading: false,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: formatApiError(e));
+    }
+  }
+
+  Future<bool> criarCategoria(String nome) async {
+    try {
+      await _api.criarCategoria(nome);
+      await carregar();
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: formatApiError(e));
+      return false;
+    }
+  }
+
+  Future<bool> deletarCategoria(int id) async {
+    try {
+      await _api.deletarCategoria(id);
+      await carregar();
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: formatApiError(e));
+      return false;
+    }
+  }
+}
+
+final adminProvider = StateNotifierProvider<AdminNotifier, AdminState>((ref) {
+  return AdminNotifier(ref.watch(apiServiceProvider));
+});
+
+class CurriculoState {
+  const CurriculoState({
+    this.data,
+    this.isLoading = false,
+    this.isSaving = false,
+    this.error,
+  });
+
+  final Map<String, dynamic>? data;
+  final bool isLoading;
+  final bool isSaving;
+  final String? error;
+
+  CurriculoState copyWith({
+    Map<String, dynamic>? data,
+    bool? isLoading,
+    bool? isSaving,
+    String? error,
+    bool clearError = false,
+  }) {
+    return CurriculoState(
+      data: data ?? this.data,
+      isLoading: isLoading ?? this.isLoading,
+      isSaving: isSaving ?? this.isSaving,
+      error: clearError ? null : (error ?? this.error),
+    );
+  }
+}
+
+class CurriculoNotifier extends StateNotifier<CurriculoState> {
+  CurriculoNotifier(this._api) : super(const CurriculoState());
+
+  final ApiService _api;
+
+  Future<void> carregar() async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final data = await _api.buscarMeuPerfilProfissional();
+      state = state.copyWith(data: data, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: formatApiError(e));
+    }
+  }
+
+  Future<bool> salvar({
+    required String biografia,
+    required int anosExperiencia,
+    String? curriculoTexto,
+    String? portfolioUrl,
+  }) async {
+    state = state.copyWith(isSaving: true, clearError: true);
+    try {
+      final data = await _api.salvarCurriculoProfissional(
+        biografia: biografia,
+        anosExperiencia: anosExperiencia,
+        curriculoTexto: curriculoTexto,
+        portfolioUrl: portfolioUrl,
+      );
+      state = state.copyWith(data: data, isSaving: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSaving: false, error: formatApiError(e));
+      return false;
+    }
+  }
+}
+
+final curriculoProvider =
+    StateNotifierProvider<CurriculoNotifier, CurriculoState>((ref) {
+  return CurriculoNotifier(ref.watch(apiServiceProvider));
+});
+
+final avaliacoesProvider =
+    FutureProvider.family<AvaliacoesResumo, int>((ref, prestadorId) {
+  return ref
+      .watch(avaliacaoRepositoryProvider)
+      .listarDoProfissional(prestadorId);
 });
 
 // ─── Auth State ─────────────────────────────────────────────────────────────
@@ -218,8 +386,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 }
 
-final authStateProvider =
-    StateNotifierProvider<AuthNotifier, AuthState>((ref) {
+final authStateProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier(ref.watch(authRepositoryProvider));
 });
 
@@ -267,8 +434,9 @@ class PrestadoresState {
       isLoading: isLoading ?? this.isLoading,
       erro: clearErro ? null : (erro ?? this.erro),
       cidadeSelecionada: cidadeSelecionada ?? this.cidadeSelecionada,
-      categoriaSelecionada:
-          clearCategoria ? null : (categoriaSelecionada ?? this.categoriaSelecionada),
+      categoriaSelecionada: clearCategoria
+          ? null
+          : (categoriaSelecionada ?? this.categoriaSelecionada),
       busca: busca ?? this.busca,
     );
   }
@@ -295,7 +463,7 @@ class PrestadoresNotifier extends StateNotifier<PrestadoresState> {
       }
 
       state = state.copyWith(
-        prestadores: result, 
+        prestadores: result,
         isLoading: false,
       );
     } catch (e) {

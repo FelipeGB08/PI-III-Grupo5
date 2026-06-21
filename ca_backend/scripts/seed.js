@@ -17,6 +17,13 @@ const CLIENTES = [
   { nome: 'Lúcia Contratante', email: 'lucia.contratante@amauc.com', cidade: 'Irani', telefone: '(49) 98803-0003' },
 ];
 
+const ADMIN = {
+  nome: 'Admin AMAUC',
+  email: 'admin@amauc.com',
+  cidade: 'ConcÃ³rdia',
+  telefone: '(49) 98800-0000',
+};
+
 const PRESTADORES = [
   {
     nome: 'João Hidráulica',
@@ -96,9 +103,22 @@ async function criarPrestadorCompleto(p, mapaCategorias) {
   });
 
   await pool.query(
-    `INSERT INTO perfis_profissionais (usuario_id, biografia, anos_experiencia, verificado)
-     VALUES ($1, $2, $3, TRUE)`,
-    [userId, p.biografia, p.anos]
+    `INSERT INTO perfis_profissionais (
+       usuario_id,
+       biografia,
+       anos_experiencia,
+       curriculo_texto,
+       portfolio_url,
+       verificado
+     )
+     VALUES ($1, $2, $3, $4, $5, TRUE)`,
+    [
+      userId,
+      p.biografia,
+      p.anos,
+      `Atua em ${p.categoria} na regiao AMAUC. Atendimento com foco em qualidade, prazo e comunicacao clara.`,
+      `https://portfolio.example.com/${p.email.split('@')[0]}`,
+    ]
   );
 
   const catId = mapaCategorias[p.categoria];
@@ -124,6 +144,9 @@ async function seed() {
   for (const c of CLIENTES) {
     clienteIds[c.email] = await criarUsuario({ ...c, perfilTipo: 'cidadao' });
   }
+
+  console.log('Criando administrador...');
+  await criarUsuario({ ...ADMIN, perfilTipo: 'admin' });
 
   console.log('Criando prestadores...');
   const prestadorIds = {};
@@ -197,6 +220,8 @@ async function seed() {
   console.log('\n✅ Simulação criada! Senha de todas as contas: sim123456\n');
   console.log('── CLIENTES ──');
   CLIENTES.forEach((c) => console.log(`  ${c.email}`));
+  console.log('\nADMIN');
+  console.log(`  ${ADMIN.email}`);
   console.log('\n── PRESTADORES ──');
   PRESTADORES.forEach((p) => console.log(`  ${p.email}  (${p.categoria} — ${p.cidade})`));
   console.log('\n── SERVIÇOS ──');

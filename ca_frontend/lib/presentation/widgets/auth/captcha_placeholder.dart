@@ -113,10 +113,10 @@ class _CaptchaPlaceholderState extends State<CaptchaPlaceholder> {
             )
           else
             Icon(
-              _isVerified ? Icons.verified_user_outlined : Icons.shield_outlined,
-              color: _isVerified
-                  ? const Color(0xFF22C55E)
-                  : Colors.white54,
+              _isVerified
+                  ? Icons.verified_user_outlined
+                  : Icons.shield_outlined,
+              color: _isVerified ? const Color(0xFF22C55E) : Colors.white54,
               size: 22,
             ),
           const SizedBox(width: 12),
