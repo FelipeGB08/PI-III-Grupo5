@@ -153,6 +153,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  /// Envia magic link para login passwordless. Não altera sessão atual.
+  Future<bool> requestMagicLink(String email) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      await _repo.requestMagicLink(email: email.trim());
+      state = state.copyWith(isLoading: false, error: null);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: formatApiError(e));
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     await _repo.logout();
     state = const AuthState();

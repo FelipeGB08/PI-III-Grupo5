@@ -53,6 +53,14 @@ class ApiService {
     return response.data as Map<String, dynamic>;
   }
 
+  /// Solicita envio de magic link (login sem senha) por e-mail.
+  Future<void> requestMagicLink({required String email}) async {
+    await _dio.post(
+      ApiConfig.authMagicLink,
+      data: {'email': email.trim()},
+    );
+  }
+
   /// Cria o perfil de prestador/profissional do usuário.
   Future<void> criarPerfilProfissional({
     required String bio,

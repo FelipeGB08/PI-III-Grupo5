@@ -55,6 +55,15 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<void> requestMagicLink({required String email}) async {
+    try {
+      await _api.requestMagicLink(email: email);
+    } on DioException catch (e) {
+      throw DioClient.unwrapError(e);
+    }
+  }
+
+  @override
   Future<void> logout() => _storage.clear();
 
   @override

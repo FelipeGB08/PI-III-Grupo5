@@ -27,6 +27,7 @@ class ApiConfig {
 
   static const String authRegister = '$apiPrefix/auth/register';
   static const String authLogin = '$apiPrefix/auth/login';
+  static const String authMagicLink = '$apiPrefix/auth/magic-link';
   static const String authRegisterLegacy = '$apiPrefix/usuarios/registro';
   static const String authLoginLegacy = '$apiPrefix/usuarios/login';
   static const String usuariosMe = '$apiPrefix/usuarios/me';
