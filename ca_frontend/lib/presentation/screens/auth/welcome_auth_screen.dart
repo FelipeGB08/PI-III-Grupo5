@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/amauc_constants.dart';
 import '../../../core/validation/form_validators.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/repositories/auth_repository.dart';
@@ -137,12 +138,28 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
     );
   }
 
-  void _showSocialComingSoon(String provider) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Login com $provider — integração OAuth em breve.'),
-      ),
+  Future<void> _socialLogin(String provider) async {
+    final data = await showModalBottomSheet<_SocialLoginData>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _SocialLoginSheet(provider: provider),
     );
+    if (data == null) return;
+
+    final ok = await ref.read(authStateProvider.notifier).socialLogin(
+          provider: provider.toLowerCase(),
+          token: data.token,
+          cidadeAmauc: data.cidade,
+        );
+
+    if (ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Login com $provider realizado com sucesso!')),
+      );
+    } else if (mounted) {
+      _showError(ref.read(authStateProvider).error);
+    }
   }
 
   @override
@@ -387,9 +404,9 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
             const SizedBox(height: 24),
             SocialLoginButtons(
               enabled: !loading,
-              onGoogleTap: () => _showSocialComingSoon('Google'),
-              onAppleTap: () => _showSocialComingSoon('Apple'),
-              onGitHubTap: () => _showSocialComingSoon('GitHub'),
+              onGoogleTap: () => _socialLogin('Google'),
+              onAppleTap: () => _socialLogin('Apple'),
+              onGitHubTap: () => _socialLogin('GitHub'),
             ),
           ],
         ),
@@ -465,6 +482,162 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
         ],
       ),
     ).animate().fadeIn();
+  }
+}
+
+class _SocialLoginData {
+  const _SocialLoginData({
+    required this.token,
+    required this.cidade,
+  });
+
+  final String token;
+  final String cidade;
+}
+
+class _SocialLoginSheet extends StatefulWidget {
+  const _SocialLoginSheet({required this.provider});
+
+  final String provider;
+
+  @override
+  State<_SocialLoginSheet> createState() => _SocialLoginSheetState();
+}
+
+class _SocialLoginSheetState extends State<_SocialLoginSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _tokenController = TextEditingController();
+  String? _cidade;
+
+  @override
+  void dispose() {
+    _tokenController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+    Navigator.pop(
+      context,
+      _SocialLoginData(
+        token: _tokenController.text.trim(),
+        cidade: _cidade!,
+      ),
+    );
+  }
+
+  String _tokenLabel(String provider) {
+    return provider.toLowerCase() == 'github'
+        ? 'GitHub access token'
+        : '$provider ID token';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 18,
+          right: 18,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Continuar com ${widget.provider}',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Cole o token real do provedor. Google/Apple usam ID token; GitHub usa access token.',
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
+                ),
+                const SizedBox(height: 18),
+                AuthTextField(
+                  controller: _tokenController,
+                  label: _tokenLabel(widget.provider),
+                  hint: 'Cole o token aqui',
+                  icon: Icons.key_rounded,
+                  maxLines: 3,
+                  validator: (value) {
+                    if (value == null || value.trim().length < 20) {
+                      return 'Informe um token válido do provedor.';
+                    }
+                    return null;
+                  },
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: _cidade,
+                  dropdownColor: const Color(0xFF1E293B),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: const Color(0xFF1E293B),
+                    prefixIcon: const Icon(Icons.location_city_outlined),
+                    hintText: 'Cidade AMAUC',
+                    hintStyle:
+                        TextStyle(color: Colors.white.withValues(alpha: 0.45)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  items: AmaucConstants.cidades
+                      .map(
+                        (cidade) => DropdownMenuItem(
+                          value: cidade,
+                          child: Text(cidade),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (cidade) => setState(() => _cidade = cidade),
+                  validator: (value) =>
+                      value == null ? 'Selecione sua cidade AMAUC.' : null,
+                ),
+                const SizedBox(height: 18),
+                ElevatedButton.icon(
+                  onPressed: _submit,
+                  icon: const Icon(Icons.login_rounded, color: Colors.white),
+                  label: Text(
+                    'Entrar com ${widget.provider}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3B82F6),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -31,6 +31,11 @@ class RegisterParams {
 
 abstract class AuthRepository {
   Future<AuthResult> login({required String email, required String senha});
+  Future<AuthResult> socialLogin({
+    required String provider,
+    required String token,
+    required String cidadeAmauc,
+  });
   Future<AuthResult> register(RegisterParams params);
   Future<void> requestMagicLink({required String email});
   Future<void> logout();

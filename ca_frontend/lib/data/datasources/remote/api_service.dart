@@ -35,6 +35,22 @@ class ApiService {
   }
 
   /// Realiza o registro de um novo usuário.
+  Future<AuthResponseModel> socialLogin({
+    required String provider,
+    required String token,
+    required String cidadeAmauc,
+  }) async {
+    final response = await _dio.post(
+      ApiConfig.authSocialLogin,
+      data: {
+        'provider': provider,
+        'token': token,
+        'cidade_amauc': cidadeAmauc,
+      },
+    );
+    return AuthResponseModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
   Future<Map<String, dynamic>> register(RegisterParams params) async {
     final response = await _dio.post(
       ApiConfig.authRegister,

@@ -7,6 +7,7 @@ import '../../providers/providers.dart';
 import '../../widgets/avaliacao_bottom_sheet.dart';
 import '../../widgets/chamado_card.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../agendamentos/agendamento_detalhes_screen.dart';
 
 class ChamadosScreen extends ConsumerStatefulWidget {
   const ChamadosScreen({super.key});
@@ -53,7 +54,7 @@ class _ChamadosScreenState extends ConsumerState<ChamadosScreen>
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
           child: Text(
-            'Central de Chamados',
+            'Agendamentos',
             style: Theme.of(context)
                 .textTheme
                 .headlineLarge
@@ -66,9 +67,9 @@ class _ChamadosScreenState extends ConsumerState<ChamadosScreen>
           labelStyle:
               const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
           tabs: const [
-            Tab(text: 'Pendentes'),
-            Tab(text: 'Em Progresso'),
-            Tab(text: 'Histórico'),
+            Tab(text: 'Proximos'),
+            Tab(text: 'Confirmados'),
+            Tab(text: 'Historico'),
           ],
         ),
         Expanded(
@@ -149,6 +150,12 @@ class _ChamadosList extends ConsumerWidget {
             onAvaliar: showAvaliar && c.status == ChamadoStatus.concluido
                 ? () => AvaliacaoBottomSheet.show(context, c)
                 : null,
+            onDetalhes: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AgendamentoDetalhesScreen(chamado: c),
+              ),
+            ),
           );
         },
       ),

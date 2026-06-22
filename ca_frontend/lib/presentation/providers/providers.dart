@@ -237,6 +237,40 @@ final avaliacoesProvider =
       .listarDoProfissional(prestadorId);
 });
 
+class FavoritosNotifier extends StateNotifier<Set<int>> {
+  FavoritosNotifier(this._prefs) : super(_load(_prefs));
+
+  static const _key = 'favoritos_profissionais';
+
+  final SharedPreferences _prefs;
+
+  static Set<int> _load(SharedPreferences prefs) {
+    return (prefs.getStringList(_key) ?? const <String>[])
+        .map(int.tryParse)
+        .whereType<int>()
+        .toSet();
+  }
+
+  bool contains(int id) => state.contains(id);
+
+  Future<void> toggle(int id) async {
+    final next = {...state};
+    if (!next.add(id)) {
+      next.remove(id);
+    }
+    state = next;
+    await _prefs.setStringList(
+      _key,
+      next.map((id) => id.toString()).toList(),
+    );
+  }
+}
+
+final favoritosProvider =
+    StateNotifierProvider<FavoritosNotifier, Set<int>>((ref) {
+  return FavoritosNotifier(ref.watch(sharedPreferencesProvider));
+});
+
 // ─── Auth State ─────────────────────────────────────────────────────────────
 
 class AuthState {
@@ -301,6 +335,26 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final result = await _repo.login(email: email, senha: senha);
+      state = AuthState(user: result.user);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: formatApiError(e));
+      return false;
+    }
+  }
+
+  Future<bool> socialLogin({
+    required String provider,
+    required String token,
+    required String cidadeAmauc,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final result = await _repo.socialLogin(
+        provider: provider,
+        token: token,
+        cidadeAmauc: cidadeAmauc,
+      );
       state = AuthState(user: result.user);
       return true;
     } catch (e) {

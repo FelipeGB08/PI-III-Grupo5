@@ -61,6 +61,10 @@ class _RegisterWizardState extends State<RegisterWizard> {
   String? _chipsError;
   DateTime? _lastStepTap;
 
+  String? get _cidadeSelecionada => widget.cidadesSelecionadas.isEmpty
+      ? null
+      : widget.cidadesSelecionadas.first;
+
   bool _validateStep(int step) {
     final form = widget.formKey.currentState;
     if (form == null) return false;
@@ -71,16 +75,22 @@ class _RegisterWizardState extends State<RegisterWizard> {
       case 1:
         var isValid = form.validate();
 
-        if (widget.tipoSelecionado.isPrestador) {
-          if (widget.cidadesSelecionadas.isEmpty ||
-              widget.categoriasSelecionadas.isEmpty) {
+        if (widget.cidadesSelecionadas.isEmpty) {
+          setState(() {
+            _chipsError = 'Selecione sua cidade AMAUC.';
+          });
+          isValid = false;
+        } else if (widget.tipoSelecionado.isPrestador) {
+          if (widget.categoriasSelecionadas.isEmpty) {
             setState(() {
-              _chipsError = 'Selecione ao menos uma cidade e uma categoria.';
+              _chipsError = 'Selecione ao menos uma categoria de serviço.';
             });
             isValid = false;
           } else {
             setState(() => _chipsError = null);
           }
+        } else {
+          setState(() => _chipsError = null);
         }
 
         if (!_acceptedLegal) {
@@ -278,49 +288,60 @@ class _RegisterWizardState extends State<RegisterWizard> {
           textInputAction: TextInputAction.next,
           validator: FormValidators.name,
         ),
-        if (widget.tipoSelecionado.isPrestador) ...[
-          const SizedBox(height: 20),
-          const Text(
-            'Cidades de atuação (AMAUC)',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
+        const SizedBox(height: 20),
+        const Text(
+          'Cidade AMAUC',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          initialValue: _cidadeSelecionada,
+          dropdownColor: const Color(0xFF1E293B),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: const Color(0xFF1E293B),
+            prefixIcon: const Icon(Icons.location_city_outlined),
+            hintText: 'Selecione sua cidade',
+            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.45)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
             ),
           ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: AmaucConstants.cidades.map((cidade) {
-              final selected = widget.cidadesSelecionadas.contains(cidade);
-              return ChoiceChip(
-                label: Text(
-                  cidade,
-                  style: TextStyle(
-                    color: selected ? Colors.white : Colors.white70,
-                    fontSize: 12,
-                  ),
-                ),
-                selected: selected,
-                selectedColor: const Color(0xFF3B82F6),
-                backgroundColor: const Color(0xFF1E293B),
-                onSelected: (_) {
-                  setState(() {
-                    if (selected) {
-                      widget.cidadesSelecionadas.remove(cidade);
-                    } else {
-                      widget.cidadesSelecionadas.add(cidade);
-                    }
-                    _chipsError = null;
-                  });
-                  widget.onCidadesChanged();
-                  HapticFeedback.selectionClick();
-                },
-              );
-            }).toList(),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
           ),
-          const SizedBox(height: 16),
+          items: AmaucConstants.cidades
+              .map(
+                (cidade) => DropdownMenuItem(
+                  value: cidade,
+                  child: Text(cidade),
+                ),
+              )
+              .toList(),
+          onChanged: (cidade) {
+            if (cidade == null) return;
+            setState(() {
+              widget.cidadesSelecionadas
+                ..clear()
+                ..add(cidade);
+              _chipsError = null;
+            });
+            widget.onCidadesChanged();
+          },
+          validator: (_) {
+            return widget.cidadesSelecionadas.isEmpty
+                ? 'Selecione sua cidade AMAUC.'
+                : null;
+          },
+        ),
+        if (widget.tipoSelecionado.isPrestador) ...[
+          const SizedBox(height: 20),
           const Text(
             'Categorias de serviço',
             style: TextStyle(

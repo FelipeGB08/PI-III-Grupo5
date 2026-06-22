@@ -1,4 +1,5 @@
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const UserModel = require('../models/UserModel');
 const { cidadePermitida, CIDADES_AMAUC } = require('../config/amaucCidades');
@@ -33,6 +34,116 @@ function montarRespostaUsuario(usuario) {
         tipo_usuario: usuario.perfil_tipo,
         foto_url: usuario.foto_url || null,
     };
+}
+
+function criarErroHttp(status, mensagem) {
+    const erro = new Error(mensagem);
+    erro.status = status;
+    return erro;
+}
+
+function exigirEnv(nome) {
+    const valor = process.env[nome];
+    if (!valor) {
+        throw criarErroHttp(500, `${nome} não configurado no servidor.`);
+    }
+    return valor;
+}
+
+function decodificarJwtHeader(token) {
+    const [header] = String(token || '').split('.');
+    if (!header) throw criarErroHttp(401, 'Token social mal formatado.');
+    return JSON.parse(Buffer.from(header, 'base64url').toString('utf8'));
+}
+
+async function buscarJson(url, options = {}) {
+    const resposta = await fetch(url, options);
+    if (!resposta.ok) {
+        throw criarErroHttp(401, 'Não foi possível validar o token social.');
+    }
+    return resposta.json();
+}
+
+async function buscarChavePublica(jwksUrl, kid) {
+    const jwks = await buscarJson(jwksUrl);
+    const jwk = jwks.keys?.find((key) => key.kid === kid);
+    if (!jwk) {
+        throw criarErroHttp(401, 'Chave pública do token social não encontrada.');
+    }
+    return crypto
+        .createPublicKey({ key: jwk, format: 'jwk' })
+        .export({ type: 'spki', format: 'pem' });
+}
+
+async function verificarJwtSocial({ token, jwksUrl, issuer, audience }) {
+    const header = decodificarJwtHeader(token);
+    const publicKey = await buscarChavePublica(jwksUrl, header.kid);
+    return jwt.verify(token, publicKey, {
+        algorithms: ['RS256'],
+        issuer,
+        audience,
+    });
+}
+
+async function verificarTokenSocial(provider, token) {
+    if (!token) {
+        throw criarErroHttp(400, 'Token do provedor social é obrigatório.');
+    }
+
+    if (provider === 'google') {
+        const claims = await verificarJwtSocial({
+            token,
+            jwksUrl: 'https://www.googleapis.com/oauth2/v3/certs',
+            issuer: 'https://accounts.google.com',
+            audience: exigirEnv('GOOGLE_CLIENT_ID'),
+        });
+        return {
+            providerId: claims.sub,
+            email: claims.email,
+            nome: claims.name || claims.email?.split('@')[0],
+            fotoUrl: claims.picture || null,
+        };
+    }
+
+    if (provider === 'apple') {
+        const claims = await verificarJwtSocial({
+            token,
+            jwksUrl: 'https://appleid.apple.com/auth/keys',
+            issuer: 'https://appleid.apple.com',
+            audience: exigirEnv('APPLE_CLIENT_ID'),
+        });
+        return {
+            providerId: claims.sub,
+            email: claims.email || `${claims.sub}@apple.local`,
+            nome: claims.name || 'Usuário Apple',
+            fotoUrl: null,
+        };
+    }
+
+    if (provider === 'github') {
+        const headers = {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github+json',
+            'User-Agent': 'Conecta-AMAUC',
+        };
+        const perfil = await buscarJson('https://api.github.com/user', { headers });
+        const emails = await buscarJson('https://api.github.com/user/emails', { headers });
+        const principal = emails.find((item) => item.primary && item.verified) ||
+            emails.find((item) => item.verified);
+
+        if (!principal?.email && !perfil.email) {
+            throw criarErroHttp(401, 'Token GitHub válido, mas sem e-mail verificado.');
+        }
+
+        return {
+            providerId: String(perfil.id),
+            email: principal?.email || perfil.email,
+            nome: perfil.name || perfil.login,
+            fotoUrl: perfil.avatar_url || null,
+        };
+    }
+
+    throw criarErroHttp(400, 'provider deve ser google, apple ou github.');
 }
 
 const UserController = {
@@ -173,6 +284,72 @@ const UserController = {
         } catch (erro) {
             console.error('Erro no login:', erro);
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
+        }
+    },
+
+    loginSocial: async (req, res) => {
+        try {
+            const {
+                provider,
+                token,
+                id_token,
+                access_token,
+                cidade_amauc,
+                cidade,
+            } = req.body;
+
+            const providerNormalizado = String(provider || '').toLowerCase();
+            const tokenSocial = token || id_token || access_token;
+            const perfilSocial = await verificarTokenSocial(providerNormalizado, tokenSocial);
+            const emailNormalizado = String(perfilSocial.email || '').trim().toLowerCase();
+
+            let usuario = await UserModel.buscarPorEmail(emailNormalizado);
+
+            if (!usuario) {
+                const cidadeInformada = cidade_amauc || cidade;
+                const cidadeValidada = cidadePermitida(cidadeInformada);
+                if (!cidadeValidada) {
+                    return res.status(403).json({
+                        erro: 'RF01 — Cadastro social restrito à região AMAUC. Informe uma cidade permitida.',
+                        cidades_permitidas: CIDADES_AMAUC,
+                    });
+                }
+
+                const nomeSocial = String(perfilSocial.nome || emailNormalizado.split('@')[0]).trim();
+                const senhaSocialHash = await bcrypt.hash(
+                    `${providerNormalizado}:${perfilSocial.providerId || emailNormalizado}:${Date.now()}`,
+                    10
+                );
+
+                usuario = await UserModel.criarUsuario(
+                    nomeSocial.length >= 2 ? nomeSocial : 'Usuário AMAUC',
+                    emailNormalizado,
+                    senhaSocialHash,
+                    null,
+                    cidadeValidada,
+                    'cidadao'
+                );
+            }
+
+            const token = jwt.sign(
+                montarPayloadJwt(usuario),
+                process.env.JWT_SECRET,
+                { expiresIn: '7d' }
+            );
+
+            return res.status(200).json({
+                mensagem: `Login com ${providerNormalizado} realizado com sucesso!`,
+                token,
+                usuario: {
+                    ...montarRespostaUsuario(usuario),
+                    foto_url: usuario.foto_url || perfilSocial.fotoUrl || null,
+                },
+            });
+        } catch (erro) {
+            console.error('Erro no login social:', erro);
+            return res.status(erro.status || 500).json({
+                erro: erro.status ? erro.message : 'Erro interno no servidor.',
+            });
         }
     },
 

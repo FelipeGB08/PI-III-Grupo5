@@ -8,7 +8,9 @@ import '../admin/admin_dashboard_screen.dart';
 import '../auth/welcome_auth_screen.dart';
 import '../chamados/chamados_screen.dart';
 import '../cliente/cliente_dashboard_screen.dart';
+import '../cliente/cliente_home_screen.dart';
 import '../conta/minha_conta_screen.dart';
+import '../favoritos/favoritos_screen.dart';
 import '../prestador/curriculo_profissional_screen.dart';
 
 class HomeShell extends ConsumerWidget {
@@ -57,8 +59,10 @@ class _MainNavigationState extends State<_MainNavigation> {
                 MinhaContaScreen(),
               ]
             : const [
+                ClienteHomeScreen(),
                 ClienteDashboardScreen(),
                 ChamadosScreen(),
+                FavoritosScreen(),
                 MinhaContaScreen()
               ];
 
@@ -66,7 +70,7 @@ class _MainNavigationState extends State<_MainNavigation> {
         ? ['Admin', 'Conta']
         : widget.tipo.isPrestador
             ? ['Chamados', 'Curriculo', 'Conta']
-            : ['Descobrir', 'Chamados', 'Conta'];
+            : ['Inicio', 'Explorar', 'Agenda', 'Favoritos', 'Conta'];
 
     final icons = widget.tipo.isAdmin
         ? [Icons.admin_panel_settings_rounded, Icons.person_rounded]
@@ -77,8 +81,10 @@ class _MainNavigationState extends State<_MainNavigation> {
                 Icons.person_rounded,
               ]
             : [
+                Icons.home_rounded,
                 Icons.explore_rounded,
-                Icons.assignment_rounded,
+                Icons.calendar_month_rounded,
+                Icons.favorite_rounded,
                 Icons.person_rounded
               ];
 

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/prestador.dart';
 import '../../providers/providers.dart';
-import '../chamados/solicitar_servico_sheet.dart';
+import '../agendamentos/agendar_servico_screen.dart';
 
 class PrestadorProfileScreen extends ConsumerWidget {
   const PrestadorProfileScreen({super.key, required this.prestador});
@@ -19,22 +19,42 @@ class PrestadorProfileScreen extends ConsumerWidget {
       );
       return;
     }
-    SolicitarServicoSheet.show(context, prestador);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AgendarServicoScreen(prestador: prestador),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final avaliacoesAsync = ref.watch(avaliacoesProvider(prestador.id));
+    final favoritos = ref.watch(favoritosProvider);
+    final isFavorito = favoritos.contains(prestador.id);
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(prestador.nome)),
+      appBar: AppBar(
+        title: Text(prestador.nome),
+        actions: [
+          IconButton(
+            tooltip: isFavorito ? 'Remover dos favoritos' : 'Salvar favorito',
+            onPressed: () =>
+                ref.read(favoritosProvider.notifier).toggle(prestador.id),
+            icon: Icon(
+              isFavorito ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              color: isFavorito ? AppColors.statusRecusado : null,
+            ),
+          ),
+        ],
+      ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(20, 8, 20, 20),
         child: FilledButton.icon(
           onPressed: () => _solicitarServico(context, ref),
-          icon: const Icon(Icons.assignment_add),
-          label: const Text('Solicitar servico'),
+          icon: const Icon(Icons.calendar_month_rounded),
+          label: const Text('Agendar servico'),
           style: FilledButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 16),
             backgroundColor: AppColors.primary,

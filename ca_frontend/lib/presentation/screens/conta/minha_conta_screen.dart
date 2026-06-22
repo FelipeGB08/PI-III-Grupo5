@@ -26,6 +26,8 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
 
   bool _salvando = false;
   bool _carregandoPerfil = true;
+  bool _notificacoes = true;
+  bool _altoContraste = true;
   File? _fotoLocal;
   String? _fotoUrlRemota;
 
@@ -180,13 +182,13 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Minha Conta',
+            'Perfil',
             style: theme.textTheme.headlineMedium
                 ?.copyWith(fontWeight: FontWeight.w900),
           ).animate().fadeIn().slideY(begin: 0.1),
           const SizedBox(height: 8),
           Text(
-            'Gerencie seus dados e foto de perfil.',
+            'Gerencie seus dados, preferencias e seguranca.',
             style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.muted),
           ),
           const SizedBox(height: 28),
@@ -295,6 +297,70 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
                 : const Text('Salvar alterações',
                     style: TextStyle(fontWeight: FontWeight.bold)),
           ),
+          const SizedBox(height: 28),
+          _SettingsSection(
+            title: 'Endereco principal',
+            children: [
+              _SettingsTile(
+                icon: Icons.location_on_outlined,
+                title: user?.cidadeAmauc ?? 'Cidade AMAUC',
+                subtitle: 'Base para buscas e agendamentos',
+                onTap: () => _mostrarErro('Edite a cidade pelo cadastro.'),
+              ),
+            ],
+          ),
+          _SettingsSection(
+            title: 'Preferencias',
+            children: [
+              _SettingsTile(
+                icon: Icons.notifications_none_rounded,
+                title: 'Notificacoes Push',
+                subtitle: 'Avisos de agendamentos e respostas',
+                trailing: Switch(
+                  value: _notificacoes,
+                  onChanged: (value) => setState(() => _notificacoes = value),
+                ),
+              ),
+              _SettingsTile(
+                icon: Icons.contrast_rounded,
+                title: 'Alto contraste',
+                subtitle: 'Melhora a leitura em ambientes externos',
+                trailing: Switch(
+                  value: _altoContraste,
+                  onChanged: (value) => setState(() => _altoContraste = value),
+                ),
+              ),
+            ],
+          ),
+          _SettingsSection(
+            title: 'Seguranca',
+            children: [
+              _SettingsTile(
+                icon: Icons.lock_outline_rounded,
+                title: 'Alterar senha',
+                subtitle: 'Use a recuperacao de senha no login',
+                onTap: () =>
+                    _mostrarErro('Fluxo de senha ainda nao implementado.'),
+              ),
+            ],
+          ),
+          _SettingsSection(
+            title: 'Mais',
+            children: [
+              _SettingsTile(
+                icon: Icons.privacy_tip_outlined,
+                title: 'Privacidade',
+                subtitle: 'Dados usados somente no Conecta AMAUC',
+                onTap: () =>
+                    _mostrarErro('Documento de privacidade pendente.'),
+              ),
+              const _SettingsTile(
+                icon: Icons.info_outline_rounded,
+                title: 'Sobre o Conecta AMAUC',
+                subtitle: 'Versao 1.0.0',
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           OutlinedButton.icon(
             onPressed: _sair,
@@ -302,6 +368,113 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
             label: const Text('Sair da conta'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SettingsSection extends StatelessWidget {
+  const _SettingsSection({
+    required this.title,
+    required this.children,
+  });
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 2, bottom: 8),
+            child: Text(
+              title.toUpperCase(),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
+                  ),
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.darkCard,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.darkBorder),
+            ),
+            child: Column(children: children),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsTile extends StatelessWidget {
+  const _SettingsTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: AppColors.primary, size: 19),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: AppColors.textPrimaryDark,
+                        ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontSize: 12,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            trailing ??
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: onTap == null ? AppColors.darkBorder : AppColors.muted,
+                ),
+          ],
+        ),
       ),
     );
   }

@@ -13,6 +13,7 @@ class ChamadoCard extends StatelessWidget {
     this.onRecusar,
     this.onConcluir,
     this.onAvaliar,
+    this.onDetalhes,
   });
 
   final Chamado chamado;
@@ -21,6 +22,7 @@ class ChamadoCard extends StatelessWidget {
   final VoidCallback? onRecusar;
   final VoidCallback? onConcluir;
   final VoidCallback? onAvaliar;
+  final VoidCallback? onDetalhes;
 
   Color get _statusColor => switch (chamado.status) {
         ChamadoStatus.pendente => AppColors.statusPendente,
@@ -132,6 +134,16 @@ class ChamadoCard extends StatelessWidget {
                     color: AppColors.primary,
                     icon: Icons.star_rounded,
                     onTap: onAvaliar,
+                  ),
+                ],
+                if (onDetalhes != null) ...[
+                  const SizedBox(height: 12),
+                  _ActionButton(
+                    label: 'Ver Detalhes',
+                    color: AppColors.primary,
+                    icon: Icons.receipt_long_outlined,
+                    onTap: onDetalhes,
+                    outlined: true,
                   ),
                 ],
               ],

@@ -30,6 +30,26 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<AuthResult> socialLogin({
+    required String provider,
+    required String token,
+    required String cidadeAmauc,
+  }) async {
+    try {
+      final response = await _api.socialLogin(
+        provider: provider,
+        token: token,
+        cidadeAmauc: cidadeAmauc,
+      );
+      final result = AuthResult(token: response.token, user: response.user);
+      await saveSession(result);
+      return result;
+    } on DioException catch (e) {
+      throw DioClient.unwrapError(e);
+    }
+  }
+
+  @override
   Future<AuthResult> register(RegisterParams params) async {
     try {
       await _api.register(params);

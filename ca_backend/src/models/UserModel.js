@@ -34,7 +34,7 @@ const UserModel = {
         const query = `
             INSERT INTO usuarios (nome, email, senha_hash, telefone, cidade_amauc, perfil_tipo)
             VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id, nome, email, telefone, cidade_amauc, perfil_tipo, criado_em;
+            RETURNING id, nome, email, telefone, cidade_amauc, perfil_tipo, foto_url, criado_em;
         `;
         const values = [nome, email, senhaHash, telefone || null, cidadeAmauc, perfilTipo];
         const result = await pool.query(query, values);
