@@ -1,175 +1,126 @@
-const path = require('path');
-const ServicoModel = require('../models/ServicoModel');
-const UserModel = require('../models/UserModel');
+criarServico: async (req, res) => {
+    try {
+        const cidadaoId = req.usuarioLogado.id;
+        const profId = Number(req.body.prof_id || req.body.profissional_id);
 
-function montarUrlFoto(req, fotoUrl) {
-    if (!fotoUrl) return null;
-    if (fotoUrl.startsWith('http://') || fotoUrl.startsWith('https://')) {
-        return fotoUrl;
+        const descricao = req.body.descricao;
+
+        const agendaServicoId = req.body.agenda_servico_id
+            ? Number(req.body.agenda_servico_id)
+            : null;
+
+        const agendadoPara = req.body.agendado_para || req.body.agendadoPara || null;
+
+        if (agendadoPara) {
+    const agora = new Date();
+    const dataAgendada = new Date(agendadoPara);
+
+    if (dataAgendada < agora) {
+        return res.status(400).json({
+            erro: 'Não é permitido agendar em horário passado.'
+        });
     }
-    return `${req.protocol}://${req.get('host')}/uploads/${path.basename(fotoUrl)}`;
 }
 
-function normalizarStatusLegado(status) {
-    const mapa = {
-        em_andamento: 'aceito',
-        aceito: 'aceito',
-        pendente: 'pendente',
-        recusado: 'recusado',
-        concluido: 'concluido',
-    };
-    return mapa[status] || status;
-}
+        const enderecoAtendimento =
+            String(req.body.endereco_atendimento || req.body.enderecoAtendimento || '').trim();
 
-function formatarServicoResposta(servico) {
-    if (!servico) return servico;
-    return {
-        ...servico,
-        profissional_id: servico.prof_id,
-        data_solicitacao: servico.criado_em,
-    };
-}
+        if (!profId || !descricao) {
+            return res.status(400).json({
+                erro: 'prof_id e descricao são obrigatórios.',
+            });
+        }
 
-const ServicoController = {
-    criarSolicitacao: async (req, res) => ServicoController.criarServico(req, res),
+        if (cidadaoId === profId) {
+            return res.status(400).json({
+                erro: 'Você não pode solicitar serviço para si mesmo.',
+            });
+        }
 
-    criarServico: async (req, res) => {
-        try {
-            const cidadaoId = req.usuarioLogado.id;
-            const profId = Number(req.body.prof_id || req.body.profissional_id);
-            const descricao = req.body.descricao;
-            const preco = req.body.preco !== undefined && req.body.preco !== ''
-                ? Number(req.body.preco)
-                : null;
-            const agendaServicoId = req.body.agenda_servico_id || req.body.agendaServicoId;
-            const servicoNome = String(req.body.servico_nome || req.body.servicoNome || '').trim();
-            const enderecoAtendimento = String(req.body.endereco_atendimento || req.body.enderecoAtendimento || '').trim();
-            const agendadoPara = req.body.agendado_para || req.body.agendadoPara || null;
+        const profissional = await UserModel.buscarPorId(profId);
+        if (!profissional || profissional.perfil_tipo !== 'profissional') {
+            return res.status(404).json({ erro: 'Profissional não encontrado.' });
+        }
 
-            if (!profId || !descricao || descricao.trim() === '') {
-                return res.status(400).json({
-                    erro: 'prof_id e descricao são obrigatórios para solicitar orçamento.',
+   
+        let servicoBanco = null;
+        let preco = null;
+        let duracao = null;
+        let nomeServico = null;
+
+        if (agendaServicoId) {
+            const agenda = await require('../models/AgendaModel')
+                .buscarPorProfissional(profId);
+
+            const servico = agenda.servicos.find(s => s.id === agendaServicoId);
+
+            if (!servico) {
+                return res.status(404).json({
+                    erro: 'Serviço inválido para esse profissional.',
                 });
             }
 
-            if (preco !== null && (Number.isNaN(preco) || preco <= 0)) {
-                return res.status(400).json({ erro: 'Preco do servico invalido.' });
+            servicoBanco = servico;
+            preco = servico.preco;
+            duracao = servico.duracao_minutos;
+            nomeServico = servico.nome;
+        }
+
+  
+        if (agendadoPara) {
+            const agora = new Date();
+            const dataAgendada = new Date(agendadoPara);
+
+            if (dataAgendada < agora) {
+                return res.status(400).json({
+                    erro: 'Não é permitido agendar em horário passado.',
+                });
             }
 
-            if (cidadaoId === profId) {
-                return res.status(400).json({ erro: 'Você não pode solicitar serviços para si mesmo.' });
-            }
+            const conflito = await pool.query(`
+                SELECT id FROM servicos_solicitados
+                WHERE prof_id = $1
+                AND status IN ('pendente','aceito')
+                AND agendado_para = $2
+                LIMIT 1
+            `, [profId, agendadoPara]);
 
-            const profissional = await UserModel.buscarPorId(profId);
-            if (!profissional || profissional.perfil_tipo !== 'profissional') {
-                return res.status(404).json({ erro: 'Profissional não encontrado.' });
+            if (conflito.rows.length > 0) {
+                return res.status(409).json({
+                    erro: 'Já existe um agendamento neste horário.',
+                });
             }
+        }
 
-            const fotoUrl = req.file ? montarUrlFoto(req, req.file.filename) : null;
-            const novoServico = await ServicoModel.criar(cidadaoId, profId, descricao.trim(), fotoUrl, {
-                agenda_servico_id: agendaServicoId ? Number(agendaServicoId) : null,
-                servico_nome: servicoNome || null,
-                endereco_atendimento: enderecoAtendimento || null,
+        const fotoUrl = req.file
+            ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
+            : null;
+
+        const novoServico = await ServicoModel.criar(
+            cidadaoId,
+            profId,
+            descricao.trim(),
+            fotoUrl,
+            {
+                agenda_servico_id: agendaServicoId,
+                servico_nome: nomeServico,
+                endereco_atendimento: enderecoAtendimento,
                 agendado_para: agendadoPara,
                 preco,
-            });
-
-            return res.status(201).json({
-                mensagem: 'Orçamento solicitado com sucesso!',
-                servico: formatarServicoResposta(novoServico),
-                solicitacao: formatarServicoResposta(novoServico),
-            });
-        } catch (erro) {
-            console.error('Erro ao criar serviço:', erro);
-            return res.status(500).json({ erro: 'Falha interna ao processar solicitação de orçamento.' });
-        }
-    },
-
-    atualizarStatus: async (req, res) => {
-        try {
-            const profId = req.usuarioLogado.id;
-            const { id } = req.params;
-            const status = normalizarStatusLegado(req.body.status);
-            const preco = req.body.preco !== undefined && req.body.preco !== ''
-                ? Number(req.body.preco)
-                : null;
-
-            const statusPermitidos = ['aceito', 'recusado', 'concluido'];
-            if (!status || !statusPermitidos.includes(status)) {
-                return res.status(400).json({
-                    erro: 'Status invalido. Use: aceito, recusado ou concluido.',
-                });
+                duracao,
             }
+        );
 
-            if (preco !== null && (Number.isNaN(preco) || preco <= 0)) {
-                return res.status(400).json({
-                    erro: 'O preco proposto deve ser maior que zero.',
-                });
-            }
+        return res.status(201).json({
+            mensagem: 'Orçamento solicitado com sucesso!',
+            servico: novoServico,
+            solicitacao: novoServico,
+        });
 
-            const servicoAtual = await ServicoModel.buscarPorId(id);
-            if (!servicoAtual || Number(servicoAtual.prof_id) !== profId) {
-                return res.status(404).json({ erro: 'ServiÃ§o nÃ£o encontrado ou acesso negado.' });
-            }
-
-            const transicoesPermitidas = {
-                pendente: ['aceito', 'recusado'],
-                aceito: ['concluido'],
-                recusado: [],
-                concluido: [],
-            };
-
-            if (!transicoesPermitidas[servicoAtual.status]?.includes(status)) {
-                return res.status(400).json({
-                    erro: `TransiÃ§Ã£o invÃ¡lida: serviÃ§o ${servicoAtual.status} nÃ£o pode ir para ${status}.`,
-                });
-            }
-
-            const servicoAtualizado = await ServicoModel.atualizarStatus(
-                id,
-                profId,
-                status,
-                status === 'aceito' ? preco : preco
-            );
-
-            if (!servicoAtualizado) {
-                return res.status(404).json({ erro: 'Serviço não encontrado ou acesso negado.' });
-            }
-
-            return res.status(200).json({
-                mensagem: 'Status do serviço atualizado com sucesso!',
-                servico: formatarServicoResposta(servicoAtualizado),
-                solicitacao: formatarServicoResposta(servicoAtualizado),
-            });
-        } catch (erro) {
-            console.error('Erro na atualização de status:', erro);
-            return res.status(500).json({ erro: 'Erro interno ao processar atualização.' });
-        }
-    },
-
-    listarMeusPedidos: async (req, res) => {
-        try {
-            const profId = req.usuarioLogado.id;
-            const { status } = req.query;
-            const pedidos = await ServicoModel.buscarPorProfissional(profId, status || null);
-            return res.status(200).json(pedidos.map(formatarServicoResposta));
-        } catch (erro) {
-            console.error('Erro ao listar pedidos do profissional:', erro);
-            return res.status(500).json({ erro: 'Erro ao recuperar pedidos.' });
-        }
-    },
-
-    listarMinhasSolicitacoes: async (req, res) => {
-        try {
-            const cidadaoId = req.usuarioLogado.id;
-            const { status } = req.query;
-            const pedidos = await ServicoModel.buscarPorCidadao(cidadaoId, status || null);
-            return res.status(200).json(pedidos.map(formatarServicoResposta));
-        } catch (erro) {
-            console.error('Erro ao listar solicitações do cidadão:', erro);
-            return res.status(500).json({ erro: 'Erro ao recuperar solicitações.' });
-        }
-    },
-};
-
-module.exports = ServicoController;
+    } catch (erro) {
+        console.error('Erro ao criar serviço:', erro);
+        return res.status(500).json({
+            erro: 'Falha interna ao processar solicitação.',
+        });
+    }
+}

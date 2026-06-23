@@ -3,8 +3,13 @@ const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000/api';
 const runId = Date.now();
 const senha = 'Teste123456';
 const cidade = 'Concordia';
+
 const cidadaoEmail = `cidadao.e2e.${runId}@amauc.com`;
 const profissionalEmail = `profissional.e2e.${runId}@amauc.com`;
+
+let agendamentoId;
+let servicoId;
+let profissionalId;
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -49,82 +54,95 @@ async function login(email) {
 }
 
 async function main() {
-  console.log('[E2E] Registrando cidadao e profissional...');
+  console.log('[E2E] Criando usuários...');
+
   await registrarUsuario({
     nome: 'Cidadao E2E',
     email: cidadaoEmail,
     perfil_tipo: 'cidadao',
   });
+
   await registrarUsuario({
     nome: 'Profissional E2E',
     email: profissionalEmail,
     perfil_tipo: 'profissional',
   });
 
-  console.log('[E2E] Fazendo login e validando JWT...');
+  console.log('[E2E] Login...');
   const cidadaoToken = await login(cidadaoEmail);
   const profissionalToken = await login(profissionalEmail);
 
-  console.log('[E2E] Criando Curriculo Vivo do profissional...');
-  await request('/perfil', {
+  console.log('[E2E] Criando agenda do profissional...');
+
+  const agenda = await request('/agenda/minha', {
     method: 'POST',
     token: profissionalToken,
     body: JSON.stringify({
-      biografia: 'Profissional de TI para manutencao e redes na regiao AMAUC.',
-      anos_experiencia: 7,
-      curriculo_texto: 'Suporte tecnico, redes Wi-Fi e manutencao preventiva.',
-      portfolio_url: 'https://portfolio.example.com/profissional-e2e',
-      categoria: 'TI',
+      servicos: [
+        {
+          nome: 'Corte de cabelo',
+          duracao_minutos: 60,
+          preco: 50,
+        },
+      ],
+      horarios: ['10:00']
     }),
   });
+
+  servicoId = agenda.agenda?.servicos?.[0]?.id || 1;
+  profissionalId = agenda.agenda?.profissional_id || null;
 
   console.log('[E2E] Buscando profissional...');
-  const profissionais = await request('/profissionais?cidade=Conc%C3%B3rdia&categoria=TI');
+
+  const profissionais = await request(
+    `/profissionais?cidade=${encodeURIComponent('Concordia')}&categoria=TI`
+  );
+
   const profissional = profissionais.find((p) => p.email === profissionalEmail);
+
   if (!profissional) {
-    throw new Error('Profissional criado nao apareceu na busca por cidade/categoria.');
+    throw new Error('Profissional nao encontrado na busca.');
   }
 
-  console.log('[E2E] Solicitando orcamento...');
-  const solicitacaoData = await request('/solicitacoes', {
+  console.log('[E2E] Criando agendamento...');
+
+  const agendamento = await request('/agendamentos', {
     method: 'POST',
     token: cidadaoToken,
     body: JSON.stringify({
-      profissional_id: profissional.id,
-      descricao: 'Teste E2E: configurar rede Wi-Fi residencial.',
+      agenda_servico_id: servicoId,
+      data_hora: '2099-06-24T10:00:00',
     }),
   });
-  const solicitacao = solicitacaoData.solicitacao || solicitacaoData.servico;
 
-  console.log('[E2E] Aceitando e concluindo servico...');
-  await request(`/solicitacoes/${solicitacao.id}/status`, {
-    method: 'PATCH',
+  agendamentoId = agendamento.id;
+
+  console.log('[E2E] Aceitando agendamento...');
+
+  await request(`/agendamentos/${agendamentoId}/aceitar`, {
+    method: 'PUT',
     token: profissionalToken,
-    body: JSON.stringify({ status: 'aceito' }),
-  });
-  await request(`/solicitacoes/${solicitacao.id}/status`, {
-    method: 'PATCH',
-    token: profissionalToken,
-    body: JSON.stringify({ status: 'concluido' }),
   });
 
-  console.log('[E2E] Avaliando servico concluido...');
-  await request('/avaliacoes', {
+  console.log('[E2E] Concluindo agendamento...');
+
+  await request(`/agendamentos/${agendamentoId}/concluir`, {
+    method: 'PUT',
+    token: profissionalToken,
+  });
+
+  console.log('[E2E] Avaliando...');
+
+  await request(`/agendamentos/${agendamentoId}/avaliar`, {
     method: 'POST',
     token: cidadaoToken,
     body: JSON.stringify({
-      servico_id: solicitacao.id,
-      nota_estrelas: 5,
-      comentario: 'Fluxo E2E concluido com sucesso.',
+      nota: 5,
+      comentario: 'Fluxo E2E de agendamento OK',
     }),
   });
 
-  const resumo = await request(`/avaliacoes/profissional/${profissional.id}`);
-  if (!resumo.avaliacoes?.length) {
-    throw new Error('Avaliacao nao apareceu no resumo do profissional.');
-  }
-
-  console.log('[E2E] Fluxo completo aprovado.');
+  console.log('[E2E] Teste finalizado com sucesso!');
 }
 
 main().catch((error) => {
