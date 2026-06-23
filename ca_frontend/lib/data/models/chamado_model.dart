@@ -11,6 +11,9 @@ class ChamadoModel extends Chamado {
     super.cidadaoNome,
     super.preco,
     super.dataSolicitacao,
+    super.servicoNome,
+    super.enderecoAtendimento,
+    super.agendadoPara,
   });
 
   factory ChamadoModel.fromJson(Map<String, dynamic> json) {
@@ -25,16 +28,32 @@ class ChamadoModel extends Chamado {
       preco: _parseDoubleNullable(json['preco']),
       dataSolicitacao:
           json['data_solicitacao']?.toString() ?? json['criado_em']?.toString(),
+      servicoNome: json['servico_nome']?.toString(),
+      enderecoAtendimento: json['endereco_atendimento']?.toString(),
+      agendadoPara: json['agendado_para']?.toString(),
     );
   }
 
   Map<String, dynamic> toCreateJson({
     required int profissionalId,
     required String descricao,
+    int? agendaServicoId,
+    String? servicoNome,
+    double? preco,
+    DateTime? agendadoPara,
+    String? enderecoAtendimento,
   }) =>
       {
         'profissional_id': profissionalId,
         'descricao': descricao,
+        if (agendaServicoId != null) 'agenda_servico_id': agendaServicoId,
+        if (servicoNome != null && servicoNome.isNotEmpty)
+          'servico_nome': servicoNome,
+        if (preco != null) 'preco': preco,
+        if (agendadoPara != null)
+          'agendado_para': agendadoPara.toIso8601String(),
+        if (enderecoAtendimento != null && enderecoAtendimento.isNotEmpty)
+          'endereco_atendimento': enderecoAtendimento,
       };
 
   Map<String, dynamic> toStatusJson(ChamadoStatus status, {double? preco}) => {

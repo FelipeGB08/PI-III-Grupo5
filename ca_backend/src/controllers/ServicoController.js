@@ -38,11 +38,22 @@ const ServicoController = {
             const cidadaoId = req.usuarioLogado.id;
             const profId = Number(req.body.prof_id || req.body.profissional_id);
             const descricao = req.body.descricao;
+            const preco = req.body.preco !== undefined && req.body.preco !== ''
+                ? Number(req.body.preco)
+                : null;
+            const agendaServicoId = req.body.agenda_servico_id || req.body.agendaServicoId;
+            const servicoNome = String(req.body.servico_nome || req.body.servicoNome || '').trim();
+            const enderecoAtendimento = String(req.body.endereco_atendimento || req.body.enderecoAtendimento || '').trim();
+            const agendadoPara = req.body.agendado_para || req.body.agendadoPara || null;
 
             if (!profId || !descricao || descricao.trim() === '') {
                 return res.status(400).json({
                     erro: 'prof_id e descricao são obrigatórios para solicitar orçamento.',
                 });
+            }
+
+            if (preco !== null && (Number.isNaN(preco) || preco <= 0)) {
+                return res.status(400).json({ erro: 'Preco do servico invalido.' });
             }
 
             if (cidadaoId === profId) {
@@ -55,7 +66,13 @@ const ServicoController = {
             }
 
             const fotoUrl = req.file ? montarUrlFoto(req, req.file.filename) : null;
-            const novoServico = await ServicoModel.criar(cidadaoId, profId, descricao.trim(), fotoUrl);
+            const novoServico = await ServicoModel.criar(cidadaoId, profId, descricao.trim(), fotoUrl, {
+                agenda_servico_id: agendaServicoId ? Number(agendaServicoId) : null,
+                servico_nome: servicoNome || null,
+                endereco_atendimento: enderecoAtendimento || null,
+                agendado_para: agendadoPara,
+                preco,
+            });
 
             return res.status(201).json({
                 mensagem: 'Orçamento solicitado com sucesso!',

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_formatter.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../domain/entities/agenda_config.dart';
 import '../../../domain/entities/prestador.dart';
 import '../../providers/providers.dart';
 import 'agendamento_confirmado_screen.dart';
@@ -17,29 +18,13 @@ class AgendarServicoScreen extends ConsumerStatefulWidget {
       _AgendarServicoScreenState();
 }
 
-class _ServicoAgenda {
-  const _ServicoAgenda(this.nome, this.preco, this.duracao);
-
-  final String nome;
-  final double preco;
-  final String duracao;
-}
-
 class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
   final _enderecoController = TextEditingController();
   final _observacaoController = TextEditingController();
 
-  final _servicos = const [
-    _ServicoAgenda('Troca de Chuveiro', 120, 'Aprox. 1 hora'),
-    _ServicoAgenda('Instalacao de Tomadas', 90, 'Aprox. 2 horas'),
-    _ServicoAgenda('Visita Tecnica', 80, 'Aprox. 40 min'),
-  ];
-
-  final _horarios = const ['09:00', '10:30', '14:00', '15:30'];
-
   int _servicoIndex = 0;
   int _diaIndex = 0;
-  String _horario = '09:00';
+  String? _horario;
   bool _enviando = false;
 
   @override
@@ -57,7 +42,21 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
     super.dispose();
   }
 
-  Future<void> _confirmar() async {
+  Future<void> _confirmar(AgendaConfig agenda) async {
+    final servicos = agenda.servicos;
+    final dias = _diasDisponiveis(agenda);
+    if (servicos.isEmpty || dias.isEmpty) {
+      _showSnack('Este profissional ainda nao configurou agenda.');
+      return;
+    }
+
+    final horarios = _horariosDoDia(agenda, dias[_diaIndex].date);
+    final horario = _horario ?? (horarios.isNotEmpty ? horarios.first : null);
+    if (horario == null) {
+      _showSnack('Escolha um horario disponivel.');
+      return;
+    }
+
     final endereco = _enderecoController.text.trim();
     if (endereco.isEmpty) {
       _showSnack('Informe o endereco do atendimento.');
@@ -65,12 +64,13 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
     }
 
     setState(() => _enviando = true);
-    final servico = _servicos[_servicoIndex];
-    final dia = _dias[_diaIndex];
+    final servico = servicos[_servicoIndex];
+    final dia = dias[_diaIndex];
+    final agendadoPara = _combinarDataHorario(dia.date, horario);
     final descricao = [
       'Servico: ${servico.nome}',
       'Data: ${dia.label}',
-      'Horario: $_horario',
+      'Horario: $horario',
       'Endereco: $endereco',
       if (_observacaoController.text.trim().isNotEmpty)
         'Observacoes: ${_observacaoController.text.trim()}',
@@ -80,6 +80,11 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
       final chamado = await ref.read(chamadoRepositoryProvider).criar(
             profissionalId: widget.prestador.id,
             descricao: descricao,
+            agendaServicoId: servico.id,
+            servicoNome: servico.nome,
+            preco: servico.preco,
+            agendadoPara: agendadoPara,
+            enderecoAtendimento: endereco,
           );
       await ref.read(chamadosProvider.notifier).carregar();
       if (!mounted) return;
@@ -91,7 +96,7 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
             prestador: widget.prestador,
             servicoNome: servico.nome,
             diaLabel: dia.label,
-            horario: _horario,
+            horario: horario,
             endereco: endereco,
           ),
         ),
@@ -103,168 +108,239 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
     }
   }
 
-  List<_DiaAgenda> get _dias {
+  List<_DiaAgenda> _diasDisponiveis(AgendaConfig agenda) {
+    final diasPermitidos =
+        agenda.diasSemana.isEmpty ? {1, 2, 3, 4, 5} : agenda.diasSemana.toSet();
     final agora = DateTime.now();
-    return List.generate(4, (index) {
-      final date = agora.add(Duration(days: index));
-      final titulo = switch (index) {
+    final result = <_DiaAgenda>[];
+
+    for (var offset = 0; offset < 21 && result.length < 4; offset++) {
+      final date = DateTime(agora.year, agora.month, agora.day + offset);
+      if (!diasPermitidos.contains(date.weekday)) continue;
+      final titulo = switch (offset) {
         0 => 'HOJE',
         1 => 'AMANHA',
         _ => _semana[date.weekday - 1],
       };
-      return _DiaAgenda(titulo, date.day.toString().padLeft(2, '0'));
-    });
+      result.add(_DiaAgenda(titulo, date));
+    }
+    return result;
+  }
+
+  List<String> _horariosDoDia(AgendaConfig agenda, DateTime date) {
+    final horarios = agenda.horarios
+        .where((item) => item.diaSemana == date.weekday)
+        .map((item) => item.horario)
+        .toSet()
+        .toList()
+      ..sort();
+
+    if (horarios.isNotEmpty) return horarios;
+    return agenda.horarios.map((item) => item.horario).toSet().toList()..sort();
+  }
+
+  DateTime _combinarDataHorario(DateTime date, String horario) {
+    final partes = horario.split(':');
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      int.parse(partes[0]),
+      int.parse(partes[1]),
+    );
   }
 
   void _showSnack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final servico = _servicos[_servicoIndex];
+    final agendaAsync =
+        ref.watch(agendaProfissionalProvider(widget.prestador.id));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Agendar Servico')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
-        children: [
-          _ProfessionalHeader(prestador: widget.prestador),
-          const SizedBox(height: 22),
-          _StepTitle(number: 1, title: 'Qual servico voce precisa?'),
-          const SizedBox(height: 10),
-          ...List.generate(_servicos.length, (index) {
-            final item = _servicos[index];
-            return _SelectablePanel(
-              selected: _servicoIndex == index,
-              onTap: () => setState(() => _servicoIndex = index),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item.nome, style: theme.textTheme.labelLarge),
-                        const SizedBox(height: 3),
-                        Text(
-                          item.duracao,
-                          style: theme.textTheme.bodyMedium
-                              ?.copyWith(fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    'R\$ ${item.preco.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      color: AppColors.textPrimaryDark,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-          const SizedBox(height: 20),
-          _StepTitle(number: 2, title: 'Escolha data e horario'),
-          const SizedBox(height: 10),
-          Row(
-            children: List.generate(_dias.length, (index) {
-              final dia = _dias[index];
-              return Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(right: index == _dias.length - 1 ? 0 : 8),
-                  child: _DateTile(
-                    dia: dia,
-                    selected: _diaIndex == index,
-                    onTap: () => setState(() => _diaIndex = index),
-                  ),
-                ),
-              );
-            }),
+      body: agendaAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => _ErrorState(
+          message: formatApiError(error),
+          onRetry: () =>
+              ref.invalidate(agendaProfissionalProvider(widget.prestador.id)),
+        ),
+        data: (agenda) => _buildContent(agenda),
+      ),
+    );
+  }
+
+  Widget _buildContent(AgendaConfig agenda) {
+    final theme = Theme.of(context);
+    final servicos = agenda.servicos;
+    final dias = _diasDisponiveis(agenda);
+
+    if (servicos.isEmpty || dias.isEmpty) {
+      return const _EmptyAgendaState();
+    }
+
+    if (_servicoIndex >= servicos.length) _servicoIndex = 0;
+    if (_diaIndex >= dias.length) _diaIndex = 0;
+
+    final servico = servicos[_servicoIndex];
+    final horarios = _horariosDoDia(agenda, dias[_diaIndex].date);
+    if (_horario == null || !horarios.contains(_horario)) {
+      _horario = horarios.isNotEmpty ? horarios.first : null;
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+      children: [
+        _ProfessionalHeader(prestador: widget.prestador),
+        if (agenda.usandoPadrao) ...[
+          const SizedBox(height: 14),
+          const _InfoBanner(
+            text: 'Este profissional ainda nao personalizou a agenda. '
+                'Mostrando uma configuracao padrao.',
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: _horarios.map((horario) {
-              final selected = _horario == horario;
-              return ChoiceChip(
-                label: Text(horario),
-                selected: selected,
-                onSelected: (_) => setState(() => _horario = horario),
-                selectedColor: AppColors.primary.withValues(alpha: 0.25),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 20),
-          _StepTitle(number: 3, title: 'Local do atendimento'),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _enderecoController,
-            maxLines: 2,
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.home_work_outlined),
-              hintText: 'Rua, numero, bairro e cidade',
-            ),
-          ),
-          const SizedBox(height: 20),
-          _StepTitle(number: 4, title: 'Observacoes'),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _observacaoController,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              hintText: 'Detalhes adicionais para o profissional...',
-            ),
-          ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.darkCard,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.darkBorder),
-            ),
+        ],
+        const SizedBox(height: 22),
+        _StepTitle(number: 1, title: 'Qual servico voce precisa?'),
+        const SizedBox(height: 10),
+        ...List.generate(servicos.length, (index) {
+          final item = servicos[index];
+          return _SelectablePanel(
+            selected: _servicoIndex == index,
+            onTap: () => setState(() => _servicoIndex = index),
             child: Row(
               children: [
-                const Text('Total estimado:'),
-                const Spacer(),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(item.nome, style: theme.textTheme.labelLarge),
+                      const SizedBox(height: 3),
+                      Text(
+                        item.duracaoLabel,
+                        style:
+                            theme.textTheme.bodyMedium?.copyWith(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
                 Text(
-                  'R\$ ${servico.preco.toStringAsFixed(2)}',
-                  style: theme.textTheme.titleLarge?.copyWith(
+                  'R\$ ${item.preco.toStringAsFixed(0)}',
+                  style: const TextStyle(
                     color: AppColors.textPrimaryDark,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
               ],
             ),
+          );
+        }),
+        const SizedBox(height: 20),
+        _StepTitle(number: 2, title: 'Escolha data e horario'),
+        const SizedBox(height: 10),
+        Row(
+          children: List.generate(dias.length, (index) {
+            final dia = dias[index];
+            return Expanded(
+              child: Padding(
+                padding:
+                    EdgeInsets.only(right: index == dias.length - 1 ? 0 : 8),
+                child: _DateTile(
+                  dia: dia,
+                  selected: _diaIndex == index,
+                  onTap: () => setState(() {
+                    _diaIndex = index;
+                    _horario = null;
+                  }),
+                ),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: horarios.map((horario) {
+            final selected = _horario == horario;
+            return ChoiceChip(
+              label: Text(horario),
+              selected: selected,
+              onSelected: (_) => setState(() => _horario = horario),
+              selectedColor: AppColors.primary.withValues(alpha: 0.25),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 20),
+        _StepTitle(number: 3, title: 'Local do atendimento'),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _enderecoController,
+          maxLines: 2,
+          decoration: const InputDecoration(
+            prefixIcon: Icon(Icons.home_work_outlined),
+            hintText: 'Rua, numero, bairro e cidade',
           ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: _enviando ? null : _confirmar,
-            icon: _enviando
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.arrow_forward_rounded),
-            label: Text(_enviando ? 'Enviando...' : 'Confirmar Agendamento'),
+        ),
+        const SizedBox(height: 20),
+        _StepTitle(number: 4, title: 'Observacoes'),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _observacaoController,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            hintText: 'Detalhes adicionais para o profissional...',
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.darkCard,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.darkBorder),
+          ),
+          child: Row(
+            children: [
+              const Text('Total estimado:'),
+              const Spacer(),
+              Text(
+                'R\$ ${servico.preco.toStringAsFixed(2)}',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: AppColors.textPrimaryDark,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          onPressed: _enviando ? null : () => _confirmar(agenda),
+          icon: _enviando
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.arrow_forward_rounded),
+          label: Text(_enviando ? 'Enviando...' : 'Confirmar Agendamento'),
+        ),
+      ],
     );
   }
 }
 
 class _DiaAgenda {
-  const _DiaAgenda(this.titulo, this.numero);
+  const _DiaAgenda(this.titulo, this.date);
 
   final String titulo;
-  final String numero;
+  final DateTime date;
 
+  String get numero => date.day.toString().padLeft(2, '0');
   String get label => '$titulo $numero';
 }
 
@@ -280,25 +356,31 @@ class _ProfessionalHeader extends StatelessWidget {
     return Row(
       children: [
         CircleAvatar(
-          radius: 24,
+          radius: 30,
           backgroundColor: AppColors.primary.withValues(alpha: 0.18),
           child: Text(
             prestador.nome.isNotEmpty ? prestador.nome[0].toUpperCase() : '?',
             style: const TextStyle(
               color: AppColors.primary,
+              fontSize: 20,
               fontWeight: FontWeight.w900,
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(prestador.nome, style: Theme.of(context).textTheme.titleMedium),
+              Text(prestador.nome,
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 2),
               Text(
                 prestador.categoria ?? prestador.cidade,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(fontSize: 12),
               ),
             ],
           ),
@@ -319,21 +401,23 @@ class _StepTitle extends StatelessWidget {
     return Row(
       children: [
         CircleAvatar(
-          radius: 11,
+          radius: 13,
           backgroundColor: AppColors.primary.withValues(alpha: 0.18),
           child: Text(
             '$number',
             style: const TextStyle(
               color: AppColors.primary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
           ),
         ),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: Theme.of(context).textTheme.labelLarge,
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
         ),
       ],
     );
@@ -359,7 +443,7 @@ class _SelectablePanel extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: selected ? AppColors.darkPanel : AppColors.darkCard,
             borderRadius: BorderRadius.circular(16),
@@ -391,7 +475,7 @@ class _DateTile extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Container(
-        height: 64,
+        height: 80,
         decoration: BoxDecoration(
           color: selected ? AppColors.primaryDark : AppColors.darkCard,
           borderRadius: BorderRadius.circular(14),
@@ -406,10 +490,72 @@ class _DateTile extends StatelessWidget {
               dia.titulo,
               style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 5),
             Text(
               dia.numero,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoBanner extends StatelessWidget {
+  const _InfoBanner({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+      ),
+      child: Text(text, style: const TextStyle(fontSize: 12)),
+    );
+  }
+}
+
+class _EmptyAgendaState extends StatelessWidget {
+  const _EmptyAgendaState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child:
+            Text('Este profissional ainda nao configurou servicos e horarios.'),
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Tentar novamente'),
             ),
           ],
         ),

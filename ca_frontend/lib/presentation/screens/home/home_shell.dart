@@ -11,6 +11,7 @@ import '../cliente/cliente_dashboard_screen.dart';
 import '../cliente/cliente_home_screen.dart';
 import '../conta/minha_conta_screen.dart';
 import '../favoritos/favoritos_screen.dart';
+import '../prestador/agenda_config_screen.dart';
 import '../prestador/curriculo_profissional_screen.dart';
 
 class HomeShell extends ConsumerWidget {
@@ -55,6 +56,7 @@ class _MainNavigationState extends State<_MainNavigation> {
         : widget.tipo.isPrestador
             ? const [
                 ChamadosScreen(),
+                AgendaConfigScreen(),
                 CurriculoProfissionalScreen(),
                 MinhaContaScreen(),
               ]
@@ -69,7 +71,7 @@ class _MainNavigationState extends State<_MainNavigation> {
     final labels = widget.tipo.isAdmin
         ? ['Admin', 'Conta']
         : widget.tipo.isPrestador
-            ? ['Chamados', 'Curriculo', 'Conta']
+            ? ['Chamados', 'Agenda', 'Curriculo', 'Conta']
             : ['Inicio', 'Explorar', 'Agenda', 'Favoritos', 'Conta'];
 
     final icons = widget.tipo.isAdmin
@@ -77,6 +79,7 @@ class _MainNavigationState extends State<_MainNavigation> {
         : widget.tipo.isPrestador
             ? [
                 Icons.inbox_rounded,
+                Icons.event_available_rounded,
                 Icons.badge_rounded,
                 Icons.person_rounded,
               ]

@@ -11,10 +11,20 @@ class ChamadoRepositoryImpl implements ChamadoRepository {
   Future<Chamado> criar({
     required int profissionalId,
     required String descricao,
+    int? agendaServicoId,
+    String? servicoNome,
+    double? preco,
+    DateTime? agendadoPara,
+    String? enderecoAtendimento,
   }) =>
       _api.criarChamado(
         profissionalId: profissionalId,
         descricao: descricao,
+        agendaServicoId: agendaServicoId,
+        servicoNome: servicoNome,
+        preco: preco,
+        agendadoPara: agendadoPara,
+        enderecoAtendimento: enderecoAtendimento,
       );
 
   @override

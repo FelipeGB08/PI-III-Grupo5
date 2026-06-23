@@ -36,6 +36,48 @@ function montarRespostaUsuario(usuario) {
     };
 }
 
+const magicLinkTokens = new Map();
+const passwordResetTokens = new Map();
+
+function ambienteDesenvolvimento() {
+    return process.env.NODE_ENV !== 'production';
+}
+
+function gerarTokenSeguro() {
+    return crypto.randomBytes(32).toString('base64url');
+}
+
+function hashToken(token) {
+    return crypto.createHash('sha256').update(String(token)).digest('hex');
+}
+
+function expiraEmMinutos(minutos) {
+    return Date.now() + minutos * 60 * 1000;
+}
+
+function limparExpirados(store) {
+    const agora = Date.now();
+    for (const [hash, dados] of store.entries()) {
+        if (dados.expiraEm <= agora) {
+            store.delete(hash);
+        }
+    }
+}
+
+function criarRespostaLogin(usuario, mensagem) {
+    const token = jwt.sign(
+        montarPayloadJwt(usuario),
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+    );
+
+    return {
+        mensagem,
+        token,
+        usuario: montarRespostaUsuario(usuario),
+    };
+}
+
 function criarErroHttp(status, mensagem) {
     const erro = new Error(mensagem);
     erro.status = status;
@@ -94,9 +136,12 @@ async function verificarTokenSocial(provider, token) {
         const claims = await verificarJwtSocial({
             token,
             jwksUrl: 'https://www.googleapis.com/oauth2/v3/certs',
-            issuer: 'https://accounts.google.com',
+            issuer: ['https://accounts.google.com', 'accounts.google.com'],
             audience: exigirEnv('GOOGLE_CLIENT_ID'),
         });
+        if (claims.email_verified !== true && claims.email_verified !== 'true') {
+            throw criarErroHttp(401, 'Token Google válido, mas e-mail não verificado.');
+        }
         return {
             providerId: claims.sub,
             email: claims.email,
@@ -112,9 +157,12 @@ async function verificarTokenSocial(provider, token) {
             issuer: 'https://appleid.apple.com',
             audience: exigirEnv('APPLE_CLIENT_ID'),
         });
+        if (!claims.email) {
+            throw criarErroHttp(401, 'Token Apple válido, mas sem e-mail.');
+        }
         return {
             providerId: claims.sub,
-            email: claims.email || `${claims.sub}@apple.local`,
+            email: claims.email,
             nome: claims.name || 'Usuário Apple',
             fotoUrl: null,
         };
@@ -162,8 +210,10 @@ const UserController = {
 
             const cidadeInformada = cidade_amauc || cidade;
             const perfilInformado = normalizarPerfilTipo(perfil_tipo || tipo_usuario);
+            const emailNormalizado = String(email || '').trim().toLowerCase();
+            const nomeNormalizado = String(nome || '').trim();
 
-            if (!nome || !email || !senha || !cidadeInformada || !perfilInformado) {
+            if (!nomeNormalizado || !emailNormalizado || !senha || !cidadeInformada || !perfilInformado) {
                 return res.status(400).json({
                     erro: 'Campos obrigatórios: nome, email, senha, cidade_amauc e perfil_tipo.',
                 });
@@ -183,7 +233,7 @@ const UserController = {
                 });
             }
 
-            const usuarioExistente = await UserModel.buscarPorEmail(email);
+            const usuarioExistente = await UserModel.buscarPorEmail(emailNormalizado);
             if (usuarioExistente) {
                 return res.status(400).json({ erro: 'Este email já está em uso.' });
             }
@@ -192,8 +242,8 @@ const UserController = {
             const senhaHash = await bcrypt.hash(senha, salt);
 
             const novoUsuario = await UserModel.criarUsuario(
-                nome,
-                email,
+                nomeNormalizado,
+                emailNormalizado,
                 senhaHash,
                 telefone,
                 cidadeValidada,
@@ -250,12 +300,13 @@ const UserController = {
     loginUsuario: async (req, res) => {
         try {
             const { email, senha } = req.body;
+            const emailNormalizado = String(email || '').trim().toLowerCase();
 
-            if (!email || !senha) {
+            if (!emailNormalizado || !senha) {
                 return res.status(400).json({ erro: 'Email e senha são obrigatórios!' });
             }
 
-            const usuario = await UserModel.buscarPorEmail(email);
+            const usuario = await UserModel.buscarPorEmail(emailNormalizado);
             if (!usuario) {
                 return res.status(401).json({ erro: 'Email ou senha incorretos.' });
             }
@@ -270,17 +321,9 @@ const UserController = {
                 return res.status(401).json({ erro: 'Email ou senha incorretos.' });
             }
 
-            const token = jwt.sign(
-                montarPayloadJwt(usuario),
-                process.env.JWT_SECRET,
-                { expiresIn: '7d' }
+            return res.status(200).json(
+                criarRespostaLogin(usuario, 'Login realizado com sucesso!')
             );
-
-            return res.status(200).json({
-                mensagem: 'Login realizado com sucesso!',
-                token,
-                usuario: montarRespostaUsuario(usuario),
-            });
         } catch (erro) {
             console.error('Erro no login:', erro);
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
@@ -331,7 +374,7 @@ const UserController = {
                 );
             }
 
-            const token = jwt.sign(
+            const jwtToken = jwt.sign(
                 montarPayloadJwt(usuario),
                 process.env.JWT_SECRET,
                 { expiresIn: '7d' }
@@ -339,7 +382,7 @@ const UserController = {
 
             return res.status(200).json({
                 mensagem: `Login com ${providerNormalizado} realizado com sucesso!`,
-                token,
+                token: jwtToken,
                 usuario: {
                     ...montarRespostaUsuario(usuario),
                     foto_url: usuario.foto_url || perfilSocial.fotoUrl || null,
@@ -356,16 +399,140 @@ const UserController = {
     solicitarMagicLink: async (req, res) => {
         try {
             const { email } = req.body;
+            const emailNormalizado = String(email || '').trim().toLowerCase();
 
-            if (!email) {
-                return res.status(400).json({ erro: 'Email Ã© obrigatÃ³rio.' });
+            if (!emailNormalizado) {
+                return res.status(400).json({ erro: 'Email e obrigatorio.' });
             }
 
-            return res.status(202).json({
+            limparExpirados(magicLinkTokens);
+            const usuario = await UserModel.buscarPorEmail(emailNormalizado);
+            const resposta = {
                 mensagem: 'Se o email estiver cadastrado, enviaremos um link de acesso.',
-            });
+            };
+
+            if (usuario) {
+                const token = gerarTokenSeguro();
+                magicLinkTokens.set(hashToken(token), {
+                    usuarioId: usuario.id,
+                    expiraEm: expiraEmMinutos(15),
+                });
+
+                if (ambienteDesenvolvimento()) {
+                    resposta.dev_token = token;
+                    console.info(`[DEV] Magic link token para ${emailNormalizado}: ${token}`);
+                }
+            }
+
+            return res.status(202).json(resposta);
         } catch (erro) {
             console.error('Erro ao solicitar magic link:', erro);
+            return res.status(500).json({ erro: 'Erro interno no servidor.' });
+        }
+    },
+
+    verificarMagicLink: async (req, res) => {
+        try {
+            const { token } = req.body;
+            const tokenInformado = String(token || '').trim();
+
+            if (!tokenInformado) {
+                return res.status(400).json({ erro: 'Token e obrigatorio.' });
+            }
+
+            limparExpirados(magicLinkTokens);
+            const tokenHash = hashToken(tokenInformado);
+            const dados = magicLinkTokens.get(tokenHash);
+
+            if (!dados || dados.expiraEm <= Date.now()) {
+                magicLinkTokens.delete(tokenHash);
+                return res.status(401).json({ erro: 'Link expirado ou invalido.' });
+            }
+
+            const usuario = await UserModel.buscarPorId(dados.usuarioId);
+            magicLinkTokens.delete(tokenHash);
+
+            if (!usuario) {
+                return res.status(404).json({ erro: 'Usuario nao encontrado.' });
+            }
+
+            return res.status(200).json(
+                criarRespostaLogin(usuario, 'Login sem senha realizado com sucesso!')
+            );
+        } catch (erro) {
+            console.error('Erro ao verificar magic link:', erro);
+            return res.status(500).json({ erro: 'Erro interno no servidor.' });
+        }
+    },
+
+    solicitarResetSenha: async (req, res) => {
+        try {
+            const { email } = req.body;
+            const emailNormalizado = String(email || '').trim().toLowerCase();
+
+            if (!emailNormalizado) {
+                return res.status(400).json({ erro: 'Email e obrigatorio.' });
+            }
+
+            limparExpirados(passwordResetTokens);
+            const usuario = await UserModel.buscarPorEmail(emailNormalizado);
+            const resposta = {
+                mensagem: 'Se o email estiver cadastrado, enviaremos instrucoes para redefinir a senha.',
+            };
+
+            if (usuario) {
+                const token = gerarTokenSeguro();
+                passwordResetTokens.set(hashToken(token), {
+                    usuarioId: usuario.id,
+                    expiraEm: expiraEmMinutos(30),
+                });
+
+                if (ambienteDesenvolvimento()) {
+                    resposta.dev_token = token;
+                    console.info(`[DEV] Reset de senha token para ${emailNormalizado}: ${token}`);
+                }
+            }
+
+            return res.status(202).json(resposta);
+        } catch (erro) {
+            console.error('Erro ao solicitar reset de senha:', erro);
+            return res.status(500).json({ erro: 'Erro interno no servidor.' });
+        }
+    },
+
+    confirmarResetSenha: async (req, res) => {
+        try {
+            const { token, senha } = req.body;
+            const tokenInformado = String(token || '').trim();
+
+            if (!tokenInformado || !senha) {
+                return res.status(400).json({ erro: 'Token e nova senha sao obrigatorios.' });
+            }
+
+            if (String(senha).length < 6) {
+                return res.status(400).json({ erro: 'A senha deve ter ao menos 6 caracteres.' });
+            }
+
+            limparExpirados(passwordResetTokens);
+            const tokenHash = hashToken(tokenInformado);
+            const dados = passwordResetTokens.get(tokenHash);
+
+            if (!dados || dados.expiraEm <= Date.now()) {
+                passwordResetTokens.delete(tokenHash);
+                return res.status(401).json({ erro: 'Token expirado ou invalido.' });
+            }
+
+            const senhaHash = await bcrypt.hash(String(senha), 10);
+            const usuario = await UserModel.atualizarSenha(dados.usuarioId, senhaHash);
+            passwordResetTokens.delete(tokenHash);
+
+            if (!usuario) {
+                return res.status(404).json({ erro: 'Usuario nao encontrado.' });
+            }
+
+            return res.status(200).json({ mensagem: 'Senha alterada com sucesso.' });
+        } catch (erro) {
+            console.error('Erro ao confirmar reset de senha:', erro);
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
         }
     },

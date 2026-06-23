@@ -74,11 +74,11 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
     _lastLoginSubmit = DateTime.now();
 
     if (_magicLinkMode) {
-      final ok = await ref
+      final devToken = await ref
           .read(authStateProvider.notifier)
           .requestMagicLink(_loginEmail.text.trim());
 
-      if (ok && mounted) {
+      if (devToken != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -87,6 +87,7 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
             ),
           ),
         );
+        await _confirmMagicLink(devToken.isEmpty ? null : devToken);
       } else if (mounted) {
         _showError(ref.read(authStateProvider).error);
       }
@@ -113,6 +114,7 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
             email: _regEmail.text.trim(),
             senha: _regSenha.text,
             tipo: _tipoSelecionado,
+            cidadeAmauc: _cidadesSelecionadas.first,
             bio: _regBio.text.trim(),
             telefoneComercial: _regTelefone.text.trim(),
             cidades: _cidadesSelecionadas.toList(),
@@ -136,6 +138,39 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
         backgroundColor: Colors.redAccent,
       ),
     );
+  }
+
+  Future<void> _confirmMagicLink(String? devToken) async {
+    final token = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _MagicLinkVerifySheet(devToken: devToken),
+    );
+    if (token == null) return;
+
+    final ok = await ref.read(authStateProvider.notifier).verifyMagicLink(token);
+    if (ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Login realizado com sucesso!')),
+      );
+    } else if (mounted) {
+      _showError(ref.read(authStateProvider).error);
+    }
+  }
+
+  Future<void> _forgotPassword() async {
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PasswordResetSheet(initialEmail: _loginEmail.text.trim()),
+    );
+    if (changed == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Senha alterada com sucesso!')),
+      );
+    }
   }
 
   Future<void> _socialLogin(String provider) async {
@@ -307,7 +342,7 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
                     style: TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                   TextButton(
-                    onPressed: () {},
+                    onPressed: loading ? null : _forgotPassword,
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
                       minimumSize: Size.zero,
@@ -482,6 +517,331 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
         ],
       ),
     ).animate().fadeIn();
+  }
+}
+
+class _AuthBottomSheetFrame extends StatelessWidget {
+  const _AuthBottomSheetFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 18,
+          right: 18,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+        ),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.86,
+          ),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: SingleChildScrollView(child: child),
+        ),
+      ),
+    );
+  }
+}
+
+class _MagicLinkVerifySheet extends StatefulWidget {
+  const _MagicLinkVerifySheet({this.devToken});
+
+  final String? devToken;
+
+  @override
+  State<_MagicLinkVerifySheet> createState() => _MagicLinkVerifySheetState();
+}
+
+class _MagicLinkVerifySheetState extends State<_MagicLinkVerifySheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _tokenController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _tokenController.text = widget.devToken ?? '';
+  }
+
+  @override
+  void dispose() {
+    _tokenController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+    Navigator.pop(context, _tokenController.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _AuthBottomSheetFrame(
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Confirmar acesso',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              widget.devToken == null
+                  ? 'Informe o token recebido por e-mail para entrar.'
+                  : 'Ambiente local: o token de teste ja foi preenchido.',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
+            ),
+            const SizedBox(height: 18),
+            AuthTextField(
+              controller: _tokenController,
+              label: 'Token de acesso',
+              hint: 'Cole o token aqui',
+              icon: Icons.mark_email_read_outlined,
+              maxLines: 2,
+              validator: (value) {
+                if (value == null || value.trim().length < 20) {
+                  return 'Informe um token valido.';
+                }
+                return null;
+              },
+              textInputAction: TextInputAction.done,
+            ),
+            const SizedBox(height: 18),
+            ElevatedButton.icon(
+              onPressed: _submit,
+              icon: const Icon(Icons.login_rounded, color: Colors.white),
+              label: const Text(
+                'Entrar',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF3B82F6),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PasswordResetSheet extends ConsumerStatefulWidget {
+  const _PasswordResetSheet({required this.initialEmail});
+
+  final String initialEmail;
+
+  @override
+  ConsumerState<_PasswordResetSheet> createState() =>
+      _PasswordResetSheetState();
+}
+
+class _PasswordResetSheetState extends ConsumerState<_PasswordResetSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _tokenController = TextEditingController();
+  final _senhaController = TextEditingController();
+  bool _obscureSenha = true;
+  bool _tokenRequested = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController.text = widget.initialEmail;
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _tokenController.dispose();
+    _senhaController.dispose();
+    super.dispose();
+  }
+
+  void _showError(String? msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg ?? 'Erro ao processar.'),
+        backgroundColor: Colors.redAccent,
+      ),
+    );
+  }
+
+  Future<void> _requestToken() async {
+    final emailError = FormValidators.email(_emailController.text);
+    if (emailError != null) {
+      _showError(emailError);
+      return;
+    }
+
+    final devToken = await ref
+        .read(authStateProvider.notifier)
+        .requestPasswordReset(_emailController.text.trim());
+    if (!mounted) return;
+
+    if (devToken == null) {
+      _showError(ref.read(authStateProvider).error);
+      return;
+    }
+
+    setState(() {
+      _tokenRequested = true;
+      if (devToken.isNotEmpty) {
+        _tokenController.text = devToken;
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Token de redefinicao enviado.')),
+    );
+  }
+
+  Future<void> _confirm() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final ok = await ref.read(authStateProvider.notifier).confirmPasswordReset(
+          token: _tokenController.text.trim(),
+          senha: _senhaController.text,
+        );
+    if (!mounted) return;
+
+    if (ok) {
+      Navigator.pop(context, true);
+    } else {
+      _showError(ref.read(authStateProvider).error);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final loading = ref.watch(authStateProvider).isLoading;
+
+    return _AuthBottomSheetFrame(
+      child: Form(
+        key: _formKey,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Redefinir senha',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _tokenRequested
+                  ? 'Informe o token recebido e escolha a nova senha.'
+                  : 'Informe seu e-mail para receber o token de recuperacao.',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
+            ),
+            const SizedBox(height: 18),
+            AuthTextField(
+              controller: _emailController,
+              label: 'E-mail',
+              hint: 'seu@email.com',
+              icon: Icons.email_outlined,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              validator: FormValidators.email,
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: loading ? null : _requestToken,
+              icon: const Icon(Icons.send_outlined),
+              label: const Text('Enviar token'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.18)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            AuthTextField(
+              controller: _tokenController,
+              label: 'Token',
+              hint: 'Cole o token recebido',
+              icon: Icons.key_rounded,
+              maxLines: 2,
+              validator: (value) {
+                if (value == null || value.trim().length < 20) {
+                  return 'Informe o token recebido.';
+                }
+                return null;
+              },
+              textInputAction: TextInputAction.next,
+            ),
+            const SizedBox(height: 14),
+            AuthTextField(
+              controller: _senhaController,
+              label: 'Nova senha',
+              hint: 'Digite a nova senha',
+              icon: Icons.lock_reset_rounded,
+              obscureText: _obscureSenha,
+              suffixIcon: PasswordVisibilityToggle(
+                obscure: _obscureSenha,
+                onToggle: () => setState(() => _obscureSenha = !_obscureSenha),
+              ),
+              validator: FormValidators.password,
+              textInputAction: TextInputAction.done,
+            ),
+            const SizedBox(height: 18),
+            ElevatedButton.icon(
+              onPressed: loading ? null : _confirm,
+              icon: loading
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.check_rounded, color: Colors.white),
+              label: const Text(
+                'Alterar senha',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF3B82F6),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

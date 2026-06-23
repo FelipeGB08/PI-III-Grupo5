@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/network/api_error_formatter.dart';
 import '../../core/network/dio_client.dart';
 import '../../core/network/session_events.dart';
+import '../../domain/entities/agenda_config.dart';
 import '../../domain/entities/avaliacao.dart';
 import '../../domain/entities/chamado.dart';
 import '../../domain/entities/prestador.dart';
@@ -230,6 +231,73 @@ final curriculoProvider =
   return CurriculoNotifier(ref.watch(apiServiceProvider));
 });
 
+final agendaProfissionalProvider =
+    FutureProvider.family<AgendaConfig, int>((ref, profissionalId) {
+  return ref.watch(apiServiceProvider).buscarAgendaProfissional(profissionalId);
+});
+
+class MinhaAgendaState {
+  const MinhaAgendaState({
+    this.data,
+    this.isLoading = false,
+    this.isSaving = false,
+    this.error,
+  });
+
+  final AgendaConfig? data;
+  final bool isLoading;
+  final bool isSaving;
+  final String? error;
+
+  MinhaAgendaState copyWith({
+    AgendaConfig? data,
+    bool? isLoading,
+    bool? isSaving,
+    String? error,
+    bool clearError = false,
+  }) {
+    return MinhaAgendaState(
+      data: data ?? this.data,
+      isLoading: isLoading ?? this.isLoading,
+      isSaving: isSaving ?? this.isSaving,
+      error: clearError ? null : (error ?? this.error),
+    );
+  }
+}
+
+class MinhaAgendaNotifier extends StateNotifier<MinhaAgendaState> {
+  MinhaAgendaNotifier(this._api) : super(const MinhaAgendaState());
+
+  final ApiService _api;
+
+  Future<void> carregar() async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final data = await _api.buscarMinhaAgenda();
+      state = state.copyWith(data: data, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: formatApiError(e));
+    }
+  }
+
+  Future<bool> salvar(AgendaConfig config) async {
+    state = state.copyWith(isSaving: true, clearError: true);
+    try {
+      final data = await _api.salvarMinhaAgenda(config);
+      state = state.copyWith(data: data, isSaving: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSaving: false, error: formatApiError(e));
+      return false;
+    }
+  }
+}
+
+final minhaAgendaProvider =
+    StateNotifierProvider<MinhaAgendaNotifier, MinhaAgendaState>((ref) {
+  return MinhaAgendaNotifier(ref.watch(apiServiceProvider));
+});
+
 final avaliacoesProvider =
     FutureProvider.family<AvaliacoesResumo, int>((ref, prestadorId) {
   return ref
@@ -376,10 +444,49 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   /// Envia magic link para login passwordless. Não altera sessão atual.
-  Future<bool> requestMagicLink(String email) async {
+  Future<String?> requestMagicLink(String email) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      await _repo.requestMagicLink(email: email.trim());
+      final devToken = await _repo.requestMagicLink(email: email.trim());
+      state = state.copyWith(isLoading: false, error: null);
+      return devToken ?? '';
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: formatApiError(e));
+      return null;
+    }
+  }
+
+  Future<bool> verifyMagicLink(String token) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final result = await _repo.verifyMagicLink(token: token);
+      state = AuthState(user: result.user);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: formatApiError(e));
+      return false;
+    }
+  }
+
+  Future<String?> requestPasswordReset(String email) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final devToken = await _repo.requestPasswordReset(email: email.trim());
+      state = state.copyWith(isLoading: false, error: null);
+      return devToken ?? '';
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: formatApiError(e));
+      return null;
+    }
+  }
+
+  Future<bool> confirmPasswordReset({
+    required String token,
+    required String senha,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      await _repo.confirmPasswordReset(token: token, senha: senha);
       state = state.copyWith(isLoading: false, error: null);
       return true;
     } catch (e) {

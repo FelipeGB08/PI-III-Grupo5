@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/config/api_config.dart';
 import '../../../core/network/dio_client.dart';
+import '../../../domain/entities/agenda_config.dart';
 import '../../../domain/entities/chamado.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import '../../models/avaliacao_model.dart';
@@ -59,7 +60,7 @@ class ApiService {
         'email': params.email,
         'senha': params.senha,
         'telefone': params.telefoneComercial ?? '',
-        'cidade_amauc': params.cidades.isNotEmpty ? params.cidades.first : '',
+        'cidade_amauc': params.cidadeAmauc,
         'perfil_tipo': params.tipo.name,
       },
     );
@@ -67,10 +68,42 @@ class ApiService {
   }
 
   /// Solicita envio de magic link (login sem senha) por e-mail.
-  Future<void> requestMagicLink({required String email}) async {
-    await _dio.post(
+  Future<String?> requestMagicLink({required String email}) async {
+    final response = await _dio.post(
       ApiConfig.authMagicLink,
       data: {'email': email.trim()},
+    );
+    final data = response.data as Map<String, dynamic>?;
+    return data?['dev_token']?.toString();
+  }
+
+  Future<AuthResponseModel> verifyMagicLink({required String token}) async {
+    final response = await _dio.post(
+      ApiConfig.authMagicLinkVerify,
+      data: {'token': token.trim()},
+    );
+    return AuthResponseModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<String?> requestPasswordReset({required String email}) async {
+    final response = await _dio.post(
+      ApiConfig.authPasswordResetRequest,
+      data: {'email': email.trim()},
+    );
+    final data = response.data as Map<String, dynamic>?;
+    return data?['dev_token']?.toString();
+  }
+
+  Future<void> confirmPasswordReset({
+    required String token,
+    required String senha,
+  }) async {
+    await _dio.post(
+      ApiConfig.authPasswordResetConfirm,
+      data: {
+        'token': token.trim(),
+        'senha': senha,
+      },
     );
   }
 
@@ -165,6 +198,25 @@ class ApiService {
     return data['foto_url']?.toString() ?? '';
   }
 
+  Future<AgendaConfig> buscarAgendaProfissional(int profissionalId) async {
+    final response =
+        await _dio.get(ApiConfig.agendaProfissional(profissionalId));
+    return AgendaConfig.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<AgendaConfig> buscarMinhaAgenda() async {
+    final response = await _dio.get(ApiConfig.agendaMe);
+    return AgendaConfig.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<AgendaConfig> salvarMinhaAgenda(AgendaConfig config) async {
+    final response = await _dio.put(ApiConfig.agendaMe, data: config.toJson());
+    final data = response.data as Map<String, dynamic>;
+    return AgendaConfig.fromJson(
+      (data['agenda'] as Map<String, dynamic>?) ?? data,
+    );
+  }
+
   // ─── PRESTADORES ────────────────────────────────────────────────────────
 
   /// Lista prestadores baseando-se na geolocalização.
@@ -210,6 +262,11 @@ class ApiService {
   Future<ChamadoModel> criarChamado({
     required int profissionalId,
     required String descricao,
+    int? agendaServicoId,
+    String? servicoNome,
+    double? preco,
+    DateTime? agendadoPara,
+    String? enderecoAtendimento,
   }) async {
     final response = await _dio.post(
       ApiConfig.chamados,
@@ -218,7 +275,15 @@ class ApiService {
         descricao: descricao,
         status: ChamadoStatus.pendente,
         profissionalId: profissionalId,
-      ).toCreateJson(profissionalId: profissionalId, descricao: descricao),
+      ).toCreateJson(
+        profissionalId: profissionalId,
+        descricao: descricao,
+        agendaServicoId: agendaServicoId,
+        servicoNome: servicoNome,
+        preco: preco,
+        agendadoPara: agendadoPara,
+        enderecoAtendimento: enderecoAtendimento,
+      ),
     );
     final data = response.data as Map<String, dynamic>;
     return ChamadoModel.fromJson(

@@ -76,6 +76,8 @@ async function limparDadosSimulacao() {
   await pool.query(`
     DELETE FROM avaliacoes;
     DELETE FROM servicos_solicitados;
+    DELETE FROM profissional_agenda_horarios;
+    DELETE FROM profissional_agenda_servicos;
     DELETE FROM profissional_categorias;
     DELETE FROM perfis_profissionais;
     DELETE FROM usuarios WHERE email LIKE '%@amauc.com';
@@ -129,7 +131,62 @@ async function criarPrestadorCompleto(p, mapaCategorias) {
     );
   }
 
+  await configurarAgendaPrestador(userId, p.categoria);
+
   return userId;
+}
+
+function servicosPorCategoria(categoria) {
+  const mapa = {
+    'HidrÃ¡ulica': [
+      ['Troca de Chuveiro', 60, 120],
+      ['Instalacao de Torneira', 90, 110],
+      ['Visita Tecnica', 40, 80],
+    ],
+    'ElÃ©trica': [
+      ['Instalacao de Tomadas', 120, 90],
+      ['Troca de Disjuntor', 60, 130],
+      ['Visita Tecnica', 40, 80],
+    ],
+    'Limpeza': [
+      ['Limpeza Residencial', 180, 150],
+      ['Limpeza Pos-Obra', 240, 280],
+      ['Visita Tecnica', 40, 60],
+    ],
+    'TI': [
+      ['Formatacao de Computador', 120, 140],
+      ['Configuracao de Wi-Fi', 90, 120],
+      ['Visita Tecnica', 40, 80],
+    ],
+  };
+  return mapa[categoria] || [
+    ['Visita Tecnica', 40, 80],
+    ['Servico Residencial', 120, 180],
+    ['Orcamento no Local', 30, 60],
+  ];
+}
+
+async function configurarAgendaPrestador(profissionalId, categoria) {
+  const servicos = servicosPorCategoria(categoria);
+  for (const [ordem, servico] of servicos.entries()) {
+    await pool.query(
+      `INSERT INTO profissional_agenda_servicos
+       (profissional_id, nome, duracao_minutos, preco, ativo, ordem)
+       VALUES ($1, $2, $3, $4, TRUE, $5)`,
+      [profissionalId, servico[0], servico[1], servico[2], ordem]
+    );
+  }
+
+  const horarios = ['09:00', '10:30', '14:00', '15:30'];
+  for (const dia of [1, 2, 3, 4, 5]) {
+    for (const horario of horarios) {
+      await pool.query(
+        `INSERT INTO profissional_agenda_horarios (profissional_id, dia_semana, horario, ativo)
+         VALUES ($1, $2, $3, TRUE)`,
+        [profissionalId, dia, horario]
+      );
+    }
+  }
 }
 
 async function seed() {

@@ -64,7 +64,7 @@ class AuthRepositoryImpl implements AuthRepository {
       await _api.criarPerfilProfissional(
         bio: params.bio ?? 'Profissional autônomo na região AMAUC.',
         telefoneComercial: params.telefoneComercial ?? '',
-        cidade: params.cidades.first,
+        cidade: params.cidadeAmauc,
         categoria: AmaucConstants.categoriaNomePorId(params.categorias.first) ??
             params.categorias.first,
       );
@@ -75,9 +75,42 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<void> requestMagicLink({required String email}) async {
+  Future<String?> requestMagicLink({required String email}) async {
     try {
-      await _api.requestMagicLink(email: email);
+      return await _api.requestMagicLink(email: email);
+    } on DioException catch (e) {
+      throw DioClient.unwrapError(e);
+    }
+  }
+
+  @override
+  Future<AuthResult> verifyMagicLink({required String token}) async {
+    try {
+      final response = await _api.verifyMagicLink(token: token);
+      final result = AuthResult(token: response.token, user: response.user);
+      await saveSession(result);
+      return result;
+    } on DioException catch (e) {
+      throw DioClient.unwrapError(e);
+    }
+  }
+
+  @override
+  Future<String?> requestPasswordReset({required String email}) async {
+    try {
+      return await _api.requestPasswordReset(email: email);
+    } on DioException catch (e) {
+      throw DioClient.unwrapError(e);
+    }
+  }
+
+  @override
+  Future<void> confirmPasswordReset({
+    required String token,
+    required String senha,
+  }) async {
+    try {
+      await _api.confirmPasswordReset(token: token, senha: senha);
     } on DioException catch (e) {
       throw DioClient.unwrapError(e);
     }

@@ -1,13 +1,34 @@
 const pool = require('../config/db');
 
 const ServicoModel = {
-    criar: async (cidadaoId, profId, descricao, fotoUrl) => {
+    criar: async (cidadaoId, profId, descricao, fotoUrl, dadosAgenda = {}) => {
         const query = `
-            INSERT INTO servicos_solicitados (cidadao_id, prof_id, descricao, foto_url, status)
-            VALUES ($1, $2, $3, $4, 'pendente')
+            INSERT INTO servicos_solicitados (
+                cidadao_id,
+                prof_id,
+                agenda_servico_id,
+                servico_nome,
+                descricao,
+                endereco_atendimento,
+                agendado_para,
+                foto_url,
+                status,
+                preco
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pendente', $9)
             RETURNING *;
         `;
-        const resultado = await pool.query(query, [cidadaoId, profId, descricao, fotoUrl || null]);
+        const resultado = await pool.query(query, [
+            cidadaoId,
+            profId,
+            dadosAgenda.agenda_servico_id || null,
+            dadosAgenda.servico_nome || null,
+            descricao,
+            dadosAgenda.endereco_atendimento || null,
+            dadosAgenda.agendado_para || null,
+            fotoUrl || null,
+            dadosAgenda.preco || null,
+        ]);
         return resultado.rows[0];
     },
 

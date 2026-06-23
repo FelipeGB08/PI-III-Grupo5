@@ -29,6 +29,11 @@ class ApiConfig {
   static const String authLogin = '$apiPrefix/auth/login';
   static const String authSocialLogin = '$apiPrefix/auth/social-login';
   static const String authMagicLink = '$apiPrefix/auth/magic-link';
+  static const String authMagicLinkVerify = '$apiPrefix/auth/magic-link/verify';
+  static const String authPasswordResetRequest =
+      '$apiPrefix/auth/password-reset/request';
+  static const String authPasswordResetConfirm =
+      '$apiPrefix/auth/password-reset/confirm';
   static const String authRegisterLegacy = '$apiPrefix/usuarios/registro';
   static const String authLoginLegacy = '$apiPrefix/usuarios/login';
   static const String usuariosMe = '$apiPrefix/usuarios/me';
@@ -37,6 +42,7 @@ class ApiConfig {
   static const String prestadoresBusca = '$apiPrefix/perfil/busca';
   static const String perfil = '$apiPrefix/perfil';
   static const String perfilMeu = '$apiPrefix/perfil/meu-perfil';
+  static const String agendaMe = '$apiPrefix/agenda/me';
   static const String servicos = '$apiPrefix/servicos';
   static const String chamados = '$apiPrefix/solicitacoes';
   static const String chamadosMeus = '$apiPrefix/solicitacoes/meus-pedidos';
@@ -50,6 +56,8 @@ class ApiConfig {
 
   static String servicoStatus(int id) => '$servicos/$id/status';
   static String chamadoStatus(int id) => '$chamados/$id/status';
+  static String agendaProfissional(int id) =>
+      '$apiPrefix/agenda/profissionais/$id';
   static String avaliacoesProfissional(int id) =>
       '$avaliacoes/profissional/$id';
 

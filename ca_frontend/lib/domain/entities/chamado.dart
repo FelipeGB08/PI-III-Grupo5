@@ -48,6 +48,9 @@ class Chamado {
     this.cidadaoNome,
     this.preco,
     this.dataSolicitacao,
+    this.servicoNome,
+    this.enderecoAtendimento,
+    this.agendadoPara,
   });
 
   final int id;
@@ -59,6 +62,9 @@ class Chamado {
   final String? cidadaoNome;
   final double? preco;
   final String? dataSolicitacao;
+  final String? servicoNome;
+  final String? enderecoAtendimento;
+  final String? agendadoPara;
 
   Chamado copyWith({ChamadoStatus? status, double? preco}) {
     return Chamado(
@@ -71,6 +77,9 @@ class Chamado {
       cidadaoNome: cidadaoNome,
       preco: preco ?? this.preco,
       dataSolicitacao: dataSolicitacao,
+      servicoNome: servicoNome,
+      enderecoAtendimento: enderecoAtendimento,
+      agendadoPara: agendadoPara,
     );
   }
 }

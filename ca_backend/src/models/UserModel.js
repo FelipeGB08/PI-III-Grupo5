@@ -2,7 +2,7 @@ const pool = require('../config/db');
 
 const UserModel = {
     buscarPorEmail: async (email) => {
-        const query = 'SELECT * FROM usuarios WHERE email = $1';
+        const query = 'SELECT * FROM usuarios WHERE LOWER(email) = LOWER($1)';
         const result = await pool.query(query, [email]);
         return result.rows[0];
     },
@@ -38,6 +38,17 @@ const UserModel = {
         `;
         const values = [nome, email, senhaHash, telefone || null, cidadeAmauc, perfilTipo];
         const result = await pool.query(query, values);
+        return result.rows[0];
+    },
+
+    atualizarSenha: async (id, senhaHash) => {
+        const query = `
+            UPDATE usuarios
+            SET senha_hash = $2
+            WHERE id = $1
+            RETURNING id, nome, email, telefone, cidade_amauc, perfil_tipo, foto_url, criado_em;
+        `;
+        const result = await pool.query(query, [id, senhaHash]);
         return result.rows[0];
     },
 };

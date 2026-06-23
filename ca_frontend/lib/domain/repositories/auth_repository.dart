@@ -13,6 +13,7 @@ class RegisterParams {
     required this.email,
     required this.senha,
     required this.tipo,
+    required this.cidadeAmauc,
     this.bio,
     this.telefoneComercial,
     this.cidades = const [],
@@ -23,6 +24,7 @@ class RegisterParams {
   final String email;
   final String senha;
   final UserTipo tipo;
+  final String cidadeAmauc;
   final String? bio;
   final String? telefoneComercial;
   final List<String> cidades;
@@ -37,7 +39,13 @@ abstract class AuthRepository {
     required String cidadeAmauc,
   });
   Future<AuthResult> register(RegisterParams params);
-  Future<void> requestMagicLink({required String email});
+  Future<String?> requestMagicLink({required String email});
+  Future<AuthResult> verifyMagicLink({required String token});
+  Future<String?> requestPasswordReset({required String email});
+  Future<void> confirmPasswordReset({
+    required String token,
+    required String senha,
+  });
   Future<void> logout();
   Future<String?> getToken();
   Future<User?> getCurrentUser();

@@ -2,6 +2,8 @@
 -- Execute: npm run db:migrate
 
 DROP TABLE IF EXISTS avaliacoes CASCADE;
+DROP TABLE IF EXISTS profissional_agenda_horarios CASCADE;
+DROP TABLE IF EXISTS profissional_agenda_servicos CASCADE;
 DROP TABLE IF EXISTS servicos_solicitados CASCADE;
 DROP TABLE IF EXISTS profissional_categorias CASCADE;
 DROP TABLE IF EXISTS perfis_profissionais CASCADE;
@@ -42,11 +44,35 @@ CREATE TABLE profissional_categorias (
     PRIMARY KEY (profissional_id, categoria_id)
 );
 
+CREATE TABLE profissional_agenda_servicos (
+    id SERIAL PRIMARY KEY,
+    profissional_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    nome VARCHAR(120) NOT NULL,
+    duracao_minutos INTEGER NOT NULL DEFAULT 60 CHECK (duracao_minutos > 0),
+    preco NUMERIC(10, 2) NOT NULL CHECK (preco > 0),
+    ativo BOOLEAN NOT NULL DEFAULT TRUE,
+    ordem INTEGER NOT NULL DEFAULT 0,
+    criado_em TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE profissional_agenda_horarios (
+    id SERIAL PRIMARY KEY,
+    profissional_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    dia_semana INTEGER NOT NULL CHECK (dia_semana BETWEEN 1 AND 7),
+    horario TIME NOT NULL,
+    ativo BOOLEAN NOT NULL DEFAULT TRUE,
+    UNIQUE (profissional_id, dia_semana, horario)
+);
+
 CREATE TABLE servicos_solicitados (
     id SERIAL PRIMARY KEY,
     cidadao_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     prof_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    agenda_servico_id INTEGER REFERENCES profissional_agenda_servicos(id) ON DELETE SET NULL,
+    servico_nome VARCHAR(120),
     descricao TEXT NOT NULL,
+    endereco_atendimento TEXT,
+    agendado_para TIMESTAMP,
     foto_url VARCHAR(500),
     status VARCHAR(30) NOT NULL DEFAULT 'pendente'
         CHECK (status IN ('pendente', 'aceito', 'recusado', 'concluido')),
