@@ -16,22 +16,24 @@ class ChamadoRepositoryImpl implements ChamadoRepository {
     double? preco,
     DateTime? agendadoPara,
     String? enderecoAtendimento,
-  }) =>
-      _api.criarChamado(
-        profissionalId: profissionalId,
-        descricao: descricao,
-        agendaServicoId: agendaServicoId,
-        servicoNome: servicoNome,
-        preco: preco,
-        agendadoPara: agendadoPara,
-        enderecoAtendimento: enderecoAtendimento,
-      );
+  }) {
+    return _api.criarChamado(
+      profissionalId: profissionalId,
+      descricao: descricao,
+      agendaServicoId: agendaServicoId,
+      servicoNome: servicoNome,
+      preco: preco,
+      agendadoPara: agendadoPara,
+      enderecoAtendimento: enderecoAtendimento,
+    );
+  }
 
   @override
   Future<List<Chamado>> listarMeusChamados({bool isPrestador = false}) {
     if (isPrestador) {
       return _api.listarChamadosPrestador();
     }
+
     return _api.listarChamadosCliente();
   }
 
@@ -40,10 +42,35 @@ class ChamadoRepositoryImpl implements ChamadoRepository {
     required int chamadoId,
     required ChamadoStatus status,
     double? preco,
-  }) =>
-      _api.atualizarStatusChamado(
-        chamadoId: chamadoId,
-        status: status,
-        preco: preco,
-      );
+  }) {
+    return _api.atualizarStatusChamado(
+      chamadoId: chamadoId,
+      status: status,
+      preco: preco,
+    );
+  }
+
+  @override
+  Future<Chamado> cancelarSolicitacao({
+    required int chamadoId,
+    String? motivo,
+  }) {
+    return _api.cancelarSolicitacao(
+      chamadoId: chamadoId,
+      motivo: motivo,
+    );
+  }
+
+  @override
+  Future<Chamado> solicitarRemarcacao({
+    required int chamadoId,
+    required DateTime novaDataHora,
+    String? motivo,
+  }) {
+    return _api.solicitarRemarcacao(
+      chamadoId: chamadoId,
+      novaDataHora: novaDataHora,
+      motivo: motivo,
+    );
+  }
 }

@@ -56,6 +56,10 @@ class ApiConfig {
 
   static String servicoStatus(int id) => '$servicos/$id/status';
   static String chamadoStatus(int id) => '$chamados/$id/status';
+  static String cancelarSolicitacao(int id) => '$chamados/$id/cancelar';
+  static String remarcarSolicitacao(int id) => '$chamados/$id/remarcar';
+  static String aceitarRemarcacao(int id) => '$chamados/$id/remarcacao/aceitar';
+  static String recusarRemarcacao(int id) => '$chamados/$id/remarcacao/recusar';
   static String agendaProfissional(int id) =>
       '$apiPrefix/agenda/profissionais/$id';
   static String avaliacoesProfissional(int id) =>

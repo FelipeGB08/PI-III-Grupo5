@@ -18,4 +18,15 @@ abstract class ChamadoRepository {
     required ChamadoStatus status,
     double? preco,
   });
+
+    Future<Chamado> cancelarSolicitacao({
+    required int chamadoId,
+    String? motivo,
+  });
+
+  Future<Chamado> solicitarRemarcacao({
+    required int chamadoId,
+    required DateTime novaDataHora,
+    String? motivo,
+  });
 }

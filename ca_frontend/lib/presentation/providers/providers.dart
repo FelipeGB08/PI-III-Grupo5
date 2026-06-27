@@ -696,6 +696,30 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
     state = ChamadosState(chamados: list);
   }
 
+  Future<void> cancelarSolicitacao(int chamadoId) async {
+    state = ChamadosState(isLoading: true, chamados: state.chamados);
+
+    await _repo.cancelarSolicitacao(chamadoId: chamadoId);
+
+    await carregar();
+  }
+
+  Future<void> solicitarRemarcacao(
+    int chamadoId, {
+    required DateTime novaDataHora,
+    String? motivo,
+  }) async {
+    state = ChamadosState(isLoading: true, chamados: state.chamados);
+
+    await _repo.solicitarRemarcacao(
+      chamadoId: chamadoId,
+      novaDataHora: novaDataHora,
+      motivo: motivo,
+    );
+
+    await carregar();
+  }
+
   Future<void> aceitar(int id) => _atualizar(id, ChamadoStatus.emAndamento);
   Future<void> recusar(int id) => _atualizar(id, ChamadoStatus.recusado);
   Future<void> concluir(int id) => _atualizar(id, ChamadoStatus.concluido);

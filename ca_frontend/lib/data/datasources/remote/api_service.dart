@@ -338,6 +338,70 @@ class ApiService {
     );
   }
 
+    Future<ChamadoModel> cancelarSolicitacao({
+    required int chamadoId,
+    String? motivo,
+  }) async {
+    final response = await _dio.patch(
+      ApiConfig.cancelarSolicitacao(chamadoId),
+      data: {
+        if (motivo != null && motivo.trim().isNotEmpty)
+          'motivo': motivo.trim(),
+      },
+    );
+
+    final data = response.data as Map<String, dynamic>;
+    return ChamadoModel.fromJson(
+      (data['solicitacao'] as Map<String, dynamic>?) ?? data,
+    );
+  }
+
+  Future<ChamadoModel> solicitarRemarcacao({
+    required int chamadoId,
+    required DateTime novaDataHora,
+    String? motivo,
+  }) async {
+    final response = await _dio.patch(
+      ApiConfig.remarcarSolicitacao(chamadoId),
+      data: {
+        'nova_data_hora': novaDataHora.toIso8601String(),
+        if (motivo != null && motivo.trim().isNotEmpty)
+          'motivo': motivo.trim(),
+      },
+    );
+
+    final data = response.data as Map<String, dynamic>;
+    return ChamadoModel.fromJson(
+      (data['solicitacao'] as Map<String, dynamic>?) ?? data,
+    );
+  }
+
+  Future<ChamadoModel> aceitarRemarcacao({
+    required int chamadoId,
+  }) async {
+    final response = await _dio.patch(
+      ApiConfig.aceitarRemarcacao(chamadoId),
+    );
+
+    final data = response.data as Map<String, dynamic>;
+    return ChamadoModel.fromJson(
+      (data['solicitacao'] as Map<String, dynamic>?) ?? data,
+    );
+  }
+
+  Future<ChamadoModel> recusarRemarcacao({
+    required int chamadoId,
+  }) async {
+    final response = await _dio.patch(
+      ApiConfig.recusarRemarcacao(chamadoId),
+    );
+
+    final data = response.data as Map<String, dynamic>;
+    return ChamadoModel.fromJson(
+      (data['solicitacao'] as Map<String, dynamic>?) ?? data,
+    );
+  }
+
   // ─── AVALIAÇÕES ─────────────────────────────────────────────────────────
 
   /// Envia uma nova avaliação para um serviço concluído.
