@@ -31,49 +31,14 @@ const UserModel = {
     },
 
     criarUsuario: async (nome, email, senhaHash, telefone, cidadeAmauc, perfilTipo) => {
-        const client = await pool.connect();
-
-        try {
-            await client.query('BEGIN');
-
-            const queryUsuario = `
-                INSERT INTO usuarios (nome, email, senha_hash, telefone, cidade_amauc, perfil_tipo)
-                VALUES ($1, $2, $3, $4, $5, $6)
-                RETURNING id, nome, email, telefone, cidade_amauc, perfil_tipo, foto_url, criado_em;
-            `;
-
-            const values = [
-                nome,
-                email,
-                senhaHash,
-                telefone || null,
-                cidadeAmauc,
-                perfilTipo,
-            ];
-
-            const result = await client.query(queryUsuario, values);
-            const novoUsuario = result.rows[0];
-
-            if (perfilTipo === 'profissional') {
-                await client.query(
-                    `
-                    INSERT INTO perfis_profissionais (usuario_id)
-                    VALUES ($1)
-                    ON CONFLICT (usuario_id) DO NOTHING;
-                    `,
-                    [novoUsuario.id]
-                );
-            }
-
-            await client.query('COMMIT');
-
-            return novoUsuario;
-        } catch (erro) {
-            await client.query('ROLLBACK');
-            throw erro;
-        } finally {
-            client.release();
-        }
+        const query = `
+            INSERT INTO usuarios (nome, email, senha_hash, telefone, cidade_amauc, perfil_tipo)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id, nome, email, telefone, cidade_amauc, perfil_tipo, foto_url, criado_em;
+        `;
+        const values = [nome, email, senhaHash, telefone || null, cidadeAmauc, perfilTipo];
+        const result = await pool.query(query, values);
+        return result.rows[0];
     },
 
     atualizarSenha: async (id, senhaHash) => {
