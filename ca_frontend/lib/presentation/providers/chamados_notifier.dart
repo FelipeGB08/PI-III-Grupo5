@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:ca_frontend/data/datasources/remote/api_service.dart';
 import 'package:ca_frontend/domain/entities/chamado.dart';
-import 'package:ca_frontend/data/models/chamado_model.dart'; // Import corrigido
+import 'package:ca_frontend/data/models/chamado_model.dart';
 import 'providers.dart';
 
 class ChamadosState {
@@ -24,7 +24,7 @@ class ChamadosState {
     return ChamadosState(
       chamados: chamados ?? this.chamados,
       isLoading: isLoading ?? this.isLoading,
-      error: error ?? this.error,
+      error: error,
     );
   }
 }
@@ -36,9 +36,15 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
 
   Future<void> carregarChamados({String? status}) async {
     state = state.copyWith(isLoading: true, error: null);
+
     try {
       final lista = await _apiService.listarChamadosPrestador(status: status);
-      state = state.copyWith(chamados: lista, isLoading: false);
+
+      state = state.copyWith(
+        chamados: lista,
+        isLoading: false,
+        error: null,
+      );
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -47,15 +53,94 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
     }
   }
 
-  Future<void> atualizarStatus(int chamadoId, ChamadoStatus status,
-      {double? preco}) async {
-    state = state.copyWith(isLoading: true);
+  Future<void> atualizarStatus(
+    int chamadoId,
+    ChamadoStatus status, {
+    double? preco,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+
     try {
       await _apiService.atualizarStatusChamado(
         chamadoId: chamadoId,
         status: status,
         preco: preco,
       );
+
+      await carregarChamados();
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: ApiService.unwrap(e).toString(),
+      );
+    }
+  }
+
+  Future<void> cancelarSolicitacao(
+    int chamadoId, {
+    String? motivo,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      await _apiService.cancelarSolicitacao(
+        chamadoId: chamadoId,
+        motivo: motivo,
+      );
+
+      await carregarChamados();
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: ApiService.unwrap(e).toString(),
+      );
+    }
+  }
+
+  Future<void> solicitarRemarcacao(
+    int chamadoId, {
+    required DateTime novaDataHora,
+    String? motivo,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      await _apiService.solicitarRemarcacao(
+        chamadoId: chamadoId,
+        novaDataHora: novaDataHora,
+        motivo: motivo,
+      );
+
+      await carregarChamados();
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: ApiService.unwrap(e).toString(),
+      );
+    }
+  }
+
+  Future<void> aceitarRemarcacao(int chamadoId) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      await _apiService.aceitarRemarcacao(chamadoId: chamadoId);
+
+      await carregarChamados();
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: ApiService.unwrap(e).toString(),
+      );
+    }
+  }
+
+  Future<void> recusarRemarcacao(int chamadoId) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      await _apiService.recusarRemarcacao(chamadoId: chamadoId);
+
       await carregarChamados();
     } catch (e) {
       state = state.copyWith(

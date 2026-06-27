@@ -14,6 +14,10 @@ class ChamadoCard extends StatelessWidget {
     this.onConcluir,
     this.onAvaliar,
     this.onDetalhes,
+    this.onCancelar,
+    this.onRemarcar,
+    this.onAceitarRemarcacao,
+    this.onRecusarRemarcacao,
   });
 
   final Chamado chamado;
@@ -23,6 +27,10 @@ class ChamadoCard extends StatelessWidget {
   final VoidCallback? onConcluir;
   final VoidCallback? onAvaliar;
   final VoidCallback? onDetalhes;
+  final VoidCallback? onCancelar;
+  final VoidCallback? onRemarcar;
+  final VoidCallback? onAceitarRemarcacao;
+  final VoidCallback? onRecusarRemarcacao;
 
   Color get _statusColor => switch (chamado.status) {
         ChamadoStatus.pendente => AppColors.statusPendente,
@@ -89,6 +97,26 @@ class ChamadoCard extends StatelessWidget {
                       : 'Prestador: ${chamado.profissionalNome ?? "#${chamado.profissionalId}"}',
                   style: theme.textTheme.bodyMedium,
                 ),
+                if (!isPrestador && chamado.status == ChamadoStatus.pendente && onCancelar != null) ...[
+  const SizedBox(height: 14),
+  _ActionButton(
+    label: 'Cancelar solicitação',
+    color: AppColors.statusRecusado,
+    icon: Icons.cancel_outlined,
+    onTap: onCancelar,
+    outlined: true,
+  ),
+],
+if (isPrestador && chamado.status == ChamadoStatus.emAndamento && onRemarcar != null) ...[
+  const SizedBox(height: 14),
+  _ActionButton(
+    label: 'Remarcar horário',
+    color: AppColors.primary,
+    icon: Icons.event_repeat_rounded,
+    onTap: onRemarcar,
+    outlined: true,
+  ),
+],
                 if (isPrestador &&
                     chamado.status == ChamadoStatus.pendente) ...[
                   const SizedBox(height: 14),

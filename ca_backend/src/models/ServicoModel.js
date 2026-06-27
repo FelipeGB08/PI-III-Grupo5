@@ -93,6 +93,79 @@ const ServicoModel = {
         const resultado = await pool.query(query, [status, preco, id, profId]);
         return resultado.rows[0];
     },
+        cancelarPeloCliente: async (id, cidadaoId, motivoCancelamento = null) => {
+        const query = `
+            UPDATE servicos_solicitados
+            SET status = 'cancelado_cliente',
+                motivo_cancelamento = COALESCE($3, motivo_cancelamento),
+                atualizado_em = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND cidadao_id = $2
+              AND status IN ('pendente', 'aceito', 'remarcacao_solicitada')
+            RETURNING *;
+        `;
+
+        const resultado = await pool.query(query, [id, cidadaoId, motivoCancelamento]);
+        return resultado.rows[0];
+    },
+
+    solicitarRemarcacao: async (id, profId, novaDataHora, motivoRemarcacao = null) => {
+        const query = `
+            UPDATE servicos_solicitados
+            SET status = 'remarcacao_solicitada',
+                remarcacao_solicitada_para = $3,
+                motivo_remarcacao = COALESCE($4, motivo_remarcacao),
+                atualizado_em = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND prof_id = $2
+              AND status IN ('pendente', 'aceito')
+            RETURNING *;
+        `;
+
+        const resultado = await pool.query(query, [
+            id,
+            profId,
+            novaDataHora,
+            motivoRemarcacao,
+        ]);
+
+        return resultado.rows[0];
+    },
+
+    aceitarRemarcacao: async (id, cidadaoId) => {
+        const query = `
+            UPDATE servicos_solicitados
+            SET status = 'aceito',
+                agendado_para = remarcacao_solicitada_para,
+                remarcacao_solicitada_para = NULL,
+                atualizado_em = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND cidadao_id = $2
+              AND status = 'remarcacao_solicitada'
+              AND remarcacao_solicitada_para IS NOT NULL
+            RETURNING *;
+        `;
+
+        const resultado = await pool.query(query, [id, cidadaoId]);
+        return resultado.rows[0];
+    },
+
+    recusarRemarcacao: async (id, cidadaoId) => {
+        const query = `
+            UPDATE servicos_solicitados
+            SET status = 'aceito',
+                remarcacao_solicitada_para = NULL,
+                motivo_remarcacao = NULL,
+                atualizado_em = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND cidadao_id = $2
+              AND status = 'remarcacao_solicitada'
+            RETURNING *;
+        `;
+
+        const resultado = await pool.query(query, [id, cidadaoId]);
+        return resultado.rows[0];
+    },
 };
 
 module.exports = ServicoModel;

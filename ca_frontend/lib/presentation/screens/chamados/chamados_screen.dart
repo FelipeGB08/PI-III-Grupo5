@@ -140,23 +140,35 @@ class _ChamadosList extends ConsumerWidget {
         itemBuilder: (_, i) {
           final c = chamados[i];
           return ChamadoCard(
-            chamado: c,
-            isPrestador: isPrestador,
-            onAceitar: () => ref.read(chamadosProvider.notifier).aceitar(c.id),
-            onRecusar: () => ref.read(chamadosProvider.notifier).recusar(c.id),
-            onConcluir: showConcluir
-                ? () => ref.read(chamadosProvider.notifier).concluir(c.id)
-                : null,
-            onAvaliar: showAvaliar && c.status == ChamadoStatus.concluido
-                ? () => AvaliacaoBottomSheet.show(context, c)
-                : null,
-            onDetalhes: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => AgendamentoDetalhesScreen(chamado: c),
-              ),
-            ),
-          );
+  chamado: c,
+  isPrestador: isPrestador,
+  onAceitar: () => ref.read(chamadosProvider.notifier).aceitar(c.id),
+  onRecusar: () => ref.read(chamadosProvider.notifier).recusar(c.id),
+  onConcluir: showConcluir
+      ? () => ref.read(chamadosProvider.notifier).concluir(c.id)
+      : null,
+  onCancelar: !isPrestador && c.status == ChamadoStatus.pendente
+      ? () => ref.read(chamadosProvider.notifier).cancelarSolicitacao(c.id)
+      : null,
+  onRemarcar: isPrestador && c.status == ChamadoStatus.emAndamento
+      ? () async {
+          final novaData = DateTime.now().add(const Duration(days: 1));
+          await ref.read(chamadosProvider.notifier).solicitarRemarcacao(
+                c.id,
+                novaDataHora: novaData,
+              );
+        }
+      : null,
+  onAvaliar: showAvaliar && c.status == ChamadoStatus.concluido
+      ? () => AvaliacaoBottomSheet.show(context, c)
+      : null,
+  onDetalhes: () => Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => AgendamentoDetalhesScreen(chamado: c),
+    ),
+  ),
+);
         },
       ),
     );
