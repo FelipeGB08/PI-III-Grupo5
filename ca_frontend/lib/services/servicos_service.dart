@@ -93,6 +93,84 @@ class ServicosService {
     } on DioException catch (e) {
       throw DioClient.unwrapError(e);
     }
+  }  Future<ChamadoModel> cancelarSolicitacao({
+    required int servicoId,
+    String? motivo,
+  }) async {
+    try {
+      final response = await _dio.patch(
+        ApiConfig.cancelarSolicitacao(servicoId),
+        data: {
+          if (motivo != null && motivo.trim().isNotEmpty)
+            'motivo': motivo.trim(),
+        },
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      final payload = (data['servico'] ?? data['solicitacao'] ?? data)
+          as Map<String, dynamic>;
+      return ChamadoModel.fromJson(payload);
+    } on DioException catch (e) {
+      throw DioClient.unwrapError(e);
+    }
+  }
+
+  Future<ChamadoModel> solicitarRemarcacao({
+    required int servicoId,
+    required DateTime novaDataHora,
+    String? motivo,
+  }) async {
+    try {
+      final response = await _dio.patch(
+        ApiConfig.remarcarSolicitacao(servicoId),
+        data: {
+          'nova_data_hora': novaDataHora.toIso8601String(),
+          if (motivo != null && motivo.trim().isNotEmpty)
+            'motivo': motivo.trim(),
+        },
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      final payload = (data['servico'] ?? data['solicitacao'] ?? data)
+          as Map<String, dynamic>;
+      return ChamadoModel.fromJson(payload);
+    } on DioException catch (e) {
+      throw DioClient.unwrapError(e);
+    }
+  }
+
+  Future<ChamadoModel> aceitarRemarcacao({
+    required int servicoId,
+  }) async {
+    try {
+      final response = await _dio.patch(
+        ApiConfig.aceitarRemarcacao(servicoId),
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      final payload = (data['servico'] ?? data['solicitacao'] ?? data)
+          as Map<String, dynamic>;
+      return ChamadoModel.fromJson(payload);
+    } on DioException catch (e) {
+      throw DioClient.unwrapError(e);
+    }
+  }
+
+  Future<ChamadoModel> recusarRemarcacao({
+    required int servicoId,
+  }) async {
+    try {
+      final response = await _dio.patch(
+        ApiConfig.recusarRemarcacao(servicoId),
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      final payload = (data['servico'] ?? data['solicitacao'] ?? data)
+          as Map<String, dynamic>;
+      return ChamadoModel.fromJson(payload);
+    } on DioException catch (e) {
+      throw DioClient.unwrapError(e);
+    }
   }
 
   String _statusApi(ChamadoStatus status) => switch (status) {

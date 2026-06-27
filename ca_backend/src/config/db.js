@@ -1,8 +1,12 @@
 const { Pool } = require('pg');
 require('dotenv').config(); // Isso aqui puxa as senhas do seu arquivo .env
-
-// Cria a configuração de conexão usando as variáveis de ambiente
-// Aceita DB_PASS (usado no .env do projeto) ou DB_PASSWORD
+console.log({
+  DB_HOST: process.env.DB_HOST,
+  DB_PORT: process.env.DB_PORT,
+  DB_USER: process.env.DB_USER,
+  DB_PASSWORD: process.env.DB_PASSWORD,
+  DB_NAME: process.env.DB_NAME,
+});
 const pool = new Pool(
     process.env.DATABASE_URL
         ? { connectionString: process.env.DATABASE_URL }
