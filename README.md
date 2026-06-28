@@ -1,12 +1,19 @@
 # Conecta AMAUC
 
-MVP academico de uma plataforma regional para contratacao de servicos autonomos.
+MVP acadêmico de uma plataforma regional para contratação de serviços autônomos na região da AMAUC.
 
 ## Stack
 
 - Flutter + Riverpod
 - Node.js + Express
+- Socket.io para chat em tempo real
 - PostgreSQL com SQL puro via `pg`
+
+## Como abrir o projeto
+
+```bash
+cd C:\Users\Pichau\OneDrive\Documentos\GitHub\PI-III-Grupo5
+```
 
 ## Backend
 
@@ -16,15 +23,17 @@ npm install
 copy .env.example .env
 ```
 
-Edite o arquivo `.env` com as credenciais do PostgreSQL e uma `JWT_SECRET`.
-Para login social e recuperacao de senha em modo real, configure tambem:
+Edite o arquivo `ca_backend/.env` com as credenciais do PostgreSQL e uma `JWT_SECRET` forte.
 
-- `GOOGLE_CLIENT_ID`: client ID usado pelo backend para validar o ID token.
-- `APPLE_CLIENT_ID`: Services ID/Bundle ID usado para validar o token Apple.
-- `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` e `MAIL_FROM`: envio real de magic link/reset.
+Variáveis principais:
+
+- `JWT_SECRET`: chave usada para assinar JWT.
+- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`: conexão PostgreSQL.
+- `GOOGLE_CLIENT_ID` e `APPLE_CLIENT_ID`: validação de login social.
+- `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`: envio real de magic link/reset.
 - `FRONTEND_URL`: URL usada nos links enviados por e-mail.
 
-Criar tabelas e dados de demonstracao:
+Criar tabelas, seed e subir API:
 
 ```bash
 npm run db:migrate
@@ -32,12 +41,9 @@ npm run db:seed
 npm run dev
 ```
 
-O comando `npm run db:migrate` aplica migrations incrementais em
-`ca_backend/migrations` e nao recria o banco.
+A API roda em `http://localhost:3000`.
 
-A API sobe em `http://localhost:3000`.
-
-Teste automatizado do fluxo principal:
+Teste E2E:
 
 ```bash
 npm run test:e2e
@@ -51,31 +57,45 @@ flutter pub get
 flutter run
 ```
 
-Para dispositivo fisico Android, informe o IP da maquina do backend:
+Configuração do app fica em:
+
+```text
+ca_frontend/assets/env/app.env
+```
+
+Esse arquivo deve conter apenas valores públicos do app, como URL da API e client IDs. Segredos reais ficam somente no backend.
+
+Exemplo:
+
+```env
+API_BASE_URL=http://localhost:3000
+GOOGLE_CLIENT_ID=
+GOOGLE_SERVER_CLIENT_ID=
+APPLE_CLIENT_ID=
+APPLE_REDIRECT_URI=
+```
+
+Para o mapa no Android, configure a chave do Google Maps em `ca_frontend/android/local.properties`:
+
+```properties
+MAPS_API_KEY=SUA_CHAVE_GOOGLE_MAPS
+```
+
+Também é possível sobrescrever por CI/linha de comando:
+
+```bash
+flutter run --dart-define-from-file=env/dev.json
+```
+
+Para dispositivo físico Android, use o IP da máquina do backend:
 
 ```bash
 flutter run --dart-define=API_BASE_URL=http://SEU_IP:3000
 ```
 
-Para testar login social real, informe tambem as chaves do provedor no Flutter:
+## Contas de demonstração
 
-```bash
-flutter run ^
-  --dart-define=API_BASE_URL=http://SEU_IP:3000 ^
-  --dart-define=GOOGLE_SERVER_CLIENT_ID=SEU_GOOGLE_WEB_CLIENT_ID ^
-  --dart-define=GOOGLE_CLIENT_ID=SEU_GOOGLE_CLIENT_ID ^
-  --dart-define=APPLE_CLIENT_ID=SEU_APPLE_SERVICES_ID ^
-  --dart-define=APPLE_REDIRECT_URI=https://SEU_DOMINIO/callbacks/sign_in_with_apple
-```
-
-No Google, o `GOOGLE_SERVER_CLIENT_ID` deve bater com o `GOOGLE_CLIENT_ID`
-configurado no backend quando o backend validar a audiencia do ID token. No
-GitHub, o app usa um access token real do GitHub e o backend valida esse token
-diretamente na API do GitHub.
-
-## Contas de demonstracao
-
-O seed cria usuarios com senha:
+O seed cria usuários com senha:
 
 ```text
 sim123456
@@ -88,25 +108,35 @@ Exemplos:
 - `maria.eletrica@amauc.com`
 - `admin@amauc.com`
 
-## Fluxo principal para a apresentacao
+## Fluxo principal para apresentação
 
 1. Entrar como prestador/profissional.
-2. Configurar a agenda: servicos, precos, duracao e horarios disponiveis.
-3. Entrar como cidadao/cliente.
+2. Configurar agenda: serviços, preços, duração e horários disponíveis.
+3. Entrar como cidadão/cliente.
 4. Buscar profissional por cidade/categoria.
-5. Escolher um servico da agenda do prestador e solicitar o agendamento.
-6. Voltar como prestador e aceitar o chamado.
-7. Como prestador, concluir o chamado apos o atendimento.
-8. Voltar como cliente e avaliar o servico concluido.
-9. Demonstrar o Curriculo Vivo/perfil publico do prestador.
-10. Entrar como admin e demonstrar categorias/relatorios.
+5. Escolher um serviço da agenda do prestador e solicitar agendamento.
+6. Abrir o chat do chamado para combinar detalhes entre cliente e prestador.
+7. Abrir o mapa de prestadores e demonstrar busca por raio/distância.
+8. Voltar como prestador e aceitar o chamado.
+9. Como prestador, concluir o chamado após o atendimento.
+10. Voltar como cliente e avaliar o serviço concluído.
+11. Demonstrar o Currículo Vivo/perfil público do prestador.
+12. Entrar como admin e demonstrar categorias/relatórios.
 
-O backend valida o agendamento usando os dados do banco: o app informa apenas
-`agenda_servico_id`, profissional, endereco, descricao e horario desejado. O
-preco, nome do servico e duracao sao carregados da agenda configurada pelo
-prestador.
+O backend valida o agendamento usando dados do banco. O app informa apenas `agenda_servico_id`, profissional, endereço, descrição e horário desejado. Preço, nome do serviço e duração vêm da agenda configurada pelo prestador.
 
-## Homologacao pratica
+## CI
 
-O roteiro de teste em dispositivos fisicos e a amostragem com 10 usuarios reais
-estao em `docs/HOMOLOGACAO.md`.
+O workflow em `.github/workflows/ci.yml` roda automaticamente em PRs e pushes para `main/master`:
+
+- `npm ci`
+- `node --check`
+- `npm run db:migrate`
+- `npm run db:seed`
+- `npm run test:e2e`
+- `flutter analyze`
+- `flutter test`
+
+## Homologação prática
+
+O roteiro de teste em dispositivos físicos e a amostragem com 10 usuários reais estão em `docs/HOMOLOGACAO.md`.

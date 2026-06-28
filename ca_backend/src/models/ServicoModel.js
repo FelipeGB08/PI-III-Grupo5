@@ -102,11 +102,37 @@ const ServicoModel = {
         const resultado = await pool.query(query, [status, preco, id, profId]);
         return resultado.rows[0];
     },
-        cancelarPeloCliente: async (id, cidadaoId, motivoCancelamento = null) => {
+
+    adicionarFotosConclusao: async (id, profId, fotos) => {
+        const query = `
+            UPDATE servicos_solicitados
+            SET fotos_conclusao = COALESCE(fotos_conclusao, '{}') || $3::text[],
+                atualizado_em = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND prof_id = $2
+              AND status IN ('aceito', 'concluido')
+            RETURNING *;
+        `;
+
+        const resultado = await pool.query(query, [id, profId, fotos]);
+        return resultado.rows[0];
+    },
+
+    cancelarPeloCliente: async (
+        id,
+        cidadaoId,
+        motivoCancelamento = null,
+        politicaCancelamento = null,
+        reembolsoStatus = null
+    ) => {
         const query = `
             UPDATE servicos_solicitados
             SET status = 'cancelado_cliente',
                 motivo_cancelamento = COALESCE($3, motivo_cancelamento),
+                cancelado_em = CURRENT_TIMESTAMP,
+                cancelado_por = $2,
+                politica_cancelamento = $4,
+                reembolso_status = $5,
                 atualizado_em = CURRENT_TIMESTAMP
             WHERE id = $1
               AND cidadao_id = $2
@@ -114,7 +140,13 @@ const ServicoModel = {
             RETURNING *;
         `;
 
-        const resultado = await pool.query(query, [id, cidadaoId, motivoCancelamento]);
+        const resultado = await pool.query(query, [
+            id,
+            cidadaoId,
+            motivoCancelamento,
+            politicaCancelamento,
+            reembolsoStatus,
+        ]);
         return resultado.rows[0];
     },
 

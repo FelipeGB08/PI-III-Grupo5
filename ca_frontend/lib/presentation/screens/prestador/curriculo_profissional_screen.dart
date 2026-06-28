@@ -19,6 +19,8 @@ class _CurriculoProfissionalScreenState
   final _anosController = TextEditingController();
   final _curriculoController = TextEditingController();
   final _portfolioController = TextEditingController();
+  final _portfolioFotosController = TextEditingController();
+  final _certificacoesController = TextEditingController();
   final _taxaController = TextEditingController();
   final Set<String> _cidadesAtendidas = {};
   bool _atendeRural = false;
@@ -40,6 +42,8 @@ class _CurriculoProfissionalScreenState
     _anosController.dispose();
     _curriculoController.dispose();
     _portfolioController.dispose();
+    _portfolioFotosController.dispose();
+    _certificacoesController.dispose();
     _taxaController.dispose();
     super.dispose();
   }
@@ -50,6 +54,8 @@ class _CurriculoProfissionalScreenState
     _anosController.text = data['anos_experiencia']?.toString() ?? '0';
     _curriculoController.text = data['curriculo_texto']?.toString() ?? '';
     _portfolioController.text = data['portfolio_url']?.toString() ?? '';
+    _portfolioFotosController.text = _joinList(data['portfolio_fotos']);
+    _certificacoesController.text = _joinList(data['certificacoes']);
     _taxaController.text = data['taxa_deslocamento']?.toString() ?? '';
     _atendeRural = data['atende_rural'] == true;
     _atendeEmergencia = data['atende_emergencia'] == true;
@@ -80,6 +86,8 @@ class _CurriculoProfissionalScreenState
           anosExperiencia: anos,
           curriculoTexto: _curriculoController.text.trim(),
           portfolioUrl: _portfolioController.text.trim(),
+          portfolioFotos: _splitLines(_portfolioFotosController.text),
+          certificacoes: _splitLines(_certificacoesController.text),
           cidadesAtendidas: _cidadesAtendidas.toList(),
           atendeRural: _atendeRural,
           atendeEmergencia: _atendeEmergencia,
@@ -101,6 +109,22 @@ class _CurriculoProfissionalScreenState
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(mensagem)),
     );
+  }
+
+  List<String> _splitLines(String value) {
+    return value
+        .split(RegExp(r'\r?\n|,'))
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList();
+  }
+
+  String _joinList(dynamic value) {
+    if (value is List) {
+      return value.map((item) => item.toString()).join('\n');
+    }
+    return '';
   }
 
   @override
@@ -176,6 +200,28 @@ class _CurriculoProfissionalScreenState
                 labelText: 'Link de portfolio',
                 hintText: 'https://...',
                 prefixIcon: Icon(Icons.link_outlined),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _portfolioFotosController,
+              keyboardType: TextInputType.url,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Galeria de trabalhos',
+                hintText: 'Cole uma URL de imagem por linha',
+                prefixIcon: Icon(Icons.photo_library_outlined),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _certificacoesController,
+              keyboardType: TextInputType.url,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Certificacoes e diplomas',
+                hintText: 'Cole uma URL de certificado por linha',
+                prefixIcon: Icon(Icons.workspace_premium_outlined),
               ),
             ),
             const SizedBox(height: 24),

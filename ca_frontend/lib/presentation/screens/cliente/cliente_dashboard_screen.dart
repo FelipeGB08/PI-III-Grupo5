@@ -9,6 +9,7 @@ import '../../../domain/entities/prestador.dart';
 import '../../providers/providers.dart';
 import '../../widgets/prestador_card.dart';
 import '../../widgets/shimmer_loading.dart';
+import 'prestadores_map_screen.dart';
 import '../prestador/prestador_profile_screen.dart';
 
 class ClienteDashboardScreen extends ConsumerStatefulWidget {
@@ -83,6 +84,12 @@ class _ClienteDashboardScreenState
                 total: state.prestadores.length,
                 disponiveis: selecionados,
                 cidade: state.cidadeSelecionada,
+                onMapTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const PrestadoresMapScreen(),
+                  ),
+                ),
               ).animate().fadeIn().slideY(begin: -0.05),
             ),
           ),
@@ -157,11 +164,13 @@ class _ExploreHeader extends StatelessWidget {
     required this.total,
     required this.disponiveis,
     required this.cidade,
+    required this.onMapTap,
   });
 
   final int total;
   final int disponiveis;
   final String cidade;
+  final VoidCallback onMapTap;
 
   @override
   Widget build(BuildContext context) {
@@ -210,6 +219,11 @@ class _ExploreHeader extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+              IconButton.filledTonal(
+                tooltip: 'Abrir mapa',
+                onPressed: onMapTap,
+                icon: const Icon(Icons.map_rounded),
               ),
             ],
           ),

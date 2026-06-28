@@ -1,6 +1,10 @@
 const PerfilModel = require('../models/PerfilModel');
 const CategoriaModel = require('../models/CategoriaModel');
 const { cidadePermitida } = require('../config/amaucCidades');
+const {
+    parsePagination,
+    setPaginationHeaders,
+} = require('../utils/pagination');
 
 function isProfissional(usuarioLogado) {
     const perfil = usuarioLogado.perfil_tipo || usuarioLogado.tipo_usuario;
@@ -31,6 +35,18 @@ function normalizarCidades(cidades) {
     return validadas;
 }
 
+function normalizarListaTexto(valor) {
+    if (valor === undefined || valor === null) return undefined;
+    const lista = Array.isArray(valor)
+        ? valor
+        : String(valor)
+            .split(/\r?\n|,/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+
+    return [...new Set(lista.map((item) => String(item).trim()).filter(Boolean))];
+}
+
 function montarDadosRegionais(body) {
     const taxa = body.taxa_deslocamento !== undefined && body.taxa_deslocamento !== ''
         ? Number(body.taxa_deslocamento)
@@ -44,6 +60,8 @@ function montarDadosRegionais(body) {
             ? normalizarCidades(body.cidades_atendidas)
             : undefined,
         taxa_deslocamento: Number.isFinite(taxa) ? taxa : undefined,
+        portfolio_fotos: normalizarListaTexto(body.portfolio_fotos || body.portfolioFotos),
+        certificacoes: normalizarListaTexto(body.certificacoes || body.certificacoes_urls),
     };
 }
 
@@ -166,12 +184,18 @@ const PerfilController = {
     listarProfissionais: async (req, res) => {
         try {
             const { categoria, cidade, atende_rural } = req.query;
-            const profissionais = await PerfilModel.listarTodos({
+            const pagination = parsePagination(req.query);
+            const resultado = await PerfilModel.listarTodos({
                 categoria,
                 cidade,
                 atende_rural,
+            }, pagination);
+            setPaginationHeaders(res, {
+                total: resultado.total,
+                page: pagination.page,
+                limit: pagination.limit,
             });
-            return res.status(200).json(profissionais);
+            return res.status(200).json(resultado.rows);
         } catch (erro) {
             console.error('Erro ao buscar profissionais:', erro);
             return res.status(500).json({ erro: 'Erro interno no servidor.' });

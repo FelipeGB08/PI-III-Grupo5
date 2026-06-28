@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/api_config.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/prestador.dart';
 import '../../providers/providers.dart';
@@ -43,7 +44,9 @@ class PrestadorProfileScreen extends ConsumerWidget {
             onPressed: () =>
                 ref.read(favoritosProvider.notifier).toggle(prestador.id),
             icon: Icon(
-              isFavorito ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              isFavorito
+                  ? Icons.favorite_rounded
+                  : Icons.favorite_border_rounded,
               color: isFavorito ? AppColors.statusRecusado : null,
             ),
           ),
@@ -68,6 +71,8 @@ class PrestadorProfileScreen extends ConsumerWidget {
         children: [
           _PrestadorHero(prestador: prestador),
           const SizedBox(height: 18),
+          _PrestadorBadges(prestador: prestador),
+          const SizedBox(height: 14),
           _SectionCard(
             title: 'Atendimento AMAUC',
             icon: Icons.map_outlined,
@@ -162,12 +167,24 @@ class PrestadorProfileScreen extends ConsumerWidget {
             ),
           if (prestador.portfolioUrl?.isNotEmpty == true)
             _SectionCard(
-              title: 'Portfolio',
+              title: 'Link de portfolio',
               icon: Icons.collections_outlined,
               child: SelectableText(
                 prestador.portfolioUrl!,
                 style: const TextStyle(color: AppColors.primary),
               ),
+            ),
+          if (prestador.portfolioUrls.isNotEmpty)
+            _SectionCard(
+              title: 'Galeria de trabalhos',
+              icon: Icons.photo_library_outlined,
+              child: _ImageGallery(urls: prestador.portfolioUrls),
+            ),
+          if (prestador.certificacoes.isNotEmpty)
+            _SectionCard(
+              title: 'Certificacoes',
+              icon: Icons.workspace_premium_outlined,
+              child: _ImageGallery(urls: prestador.certificacoes),
             ),
           _SectionCard(
             title: 'Avaliacoes',
@@ -208,6 +225,101 @@ class PrestadorProfileScreen extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PrestadorBadges extends StatelessWidget {
+  const _PrestadorBadges({required this.prestador});
+
+  final Prestador prestador;
+
+  @override
+  Widget build(BuildContext context) {
+    final badges = <_BadgeData>[
+      if (prestador.verificado)
+        const _BadgeData(
+            Icons.verified_rounded, 'Verificado', AppColors.accent),
+      if (prestador.avaliacoesPositivas >= 5)
+        const _BadgeData(
+          Icons.thumb_up_alt_rounded,
+          'Bem avaliado',
+          AppColors.primary,
+        ),
+      if (prestador.mediaAvaliacao >= 4.8 && prestador.totalServicos >= 3)
+        const _BadgeData(
+          Icons.star_rounded,
+          'Top regional',
+          AppColors.statusPendente,
+        ),
+      if (prestador.totalServicos >= 10)
+        const _BadgeData(
+          Icons.military_tech_rounded,
+          'Experiente',
+          AppColors.accent,
+        ),
+    ];
+
+    if (badges.isEmpty) return const SizedBox.shrink();
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: badges
+          .map(
+            (badge) => _FeatureChip(
+              icon: badge.icon,
+              label: badge.label,
+              highlighted: badge.color == AppColors.accent,
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+class _BadgeData {
+  const _BadgeData(this.icon, this.label, this.color);
+
+  final IconData icon;
+  final String label;
+  final Color color;
+}
+
+class _ImageGallery extends StatelessWidget {
+  const _ImageGallery({required this.urls});
+
+  final List<String> urls;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 128,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: urls.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final url = urls[index];
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              width: 128,
+              color: AppColors.darkSurface,
+              child: Image.network(
+                ApiConfig.resolveAssetUrl(url),
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Center(
+                  child: Icon(
+                    Icons.broken_image_outlined,
+                    color: AppColors.muted,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

@@ -12,6 +12,34 @@ const obterIdUsuarioLogado = (req) => {
     return req.usuarioLogado?.id || req.usuario?.id || req.user?.id;
 };
 
+function calcularPoliticaCancelamento(solicitacao) {
+    const agendadoPara = solicitacao?.agendado_para
+        ? new Date(solicitacao.agendado_para)
+        : null;
+
+    if (!agendadoPara || Number.isNaN(agendadoPara.getTime())) {
+        return {
+            politica: 'sem_horario_agendado',
+            reembolso: 'reembolso_integral',
+        };
+    }
+
+    const horasAntecedencia =
+        (agendadoPara.getTime() - Date.now()) / (1000 * 60 * 60);
+
+    if (horasAntecedencia >= 2) {
+        return {
+            politica: 'cancelamento_antecipado',
+            reembolso: 'reembolso_integral',
+        };
+    }
+
+    return {
+        politica: 'cancelamento_tardio',
+        reembolso: 'reembolso_parcial',
+    };
+}
+
 function notificarNovoChamado(solicitacao) {
     notificarUsuarioSemBloquear({
         usuarioId: solicitacao.prof_id,
@@ -225,6 +253,46 @@ const SolicitacaoController = {
         }
     },
 
+    uploadFotosConclusao: async (req, res) => {
+        try {
+            const id = Number(req.params.id);
+            const profId = obterIdUsuarioLogado(req);
+            const arquivos = req.files || [];
+
+            if (!profId) {
+                return res.status(401).json({ erro: 'Usuario nao autenticado.' });
+            }
+
+            if (!id) {
+                return res.status(400).json({ erro: 'ID da solicitacao invalido.' });
+            }
+
+            if (arquivos.length === 0) {
+                return res.status(400).json({ erro: 'Envie ao menos uma foto do servico concluido.' });
+            }
+
+            const fotos = arquivos.map((arquivo) => `/uploads/${arquivo.filename}`);
+            const solicitacao = await ServicoModel.adicionarFotosConclusao(id, profId, fotos);
+
+            if (!solicitacao) {
+                return res.status(404).json({
+                    erro: 'Solicitacao nao encontrada ou nao permite anexar fotos.',
+                });
+            }
+
+            return res.status(200).json({
+                mensagem: 'Fotos de conclusao anexadas com sucesso.',
+                solicitacao,
+                servico: solicitacao,
+            });
+        } catch (erro) {
+            console.error('Erro ao anexar fotos de conclusao:', erro);
+            return res.status(500).json({
+                erro: 'Erro interno ao anexar fotos de conclusao.',
+            });
+        }
+    },
+
     cancelarPeloCliente: async (req, res) => {
         try {
             const id = Number(req.params.id);
@@ -235,7 +303,21 @@ const SolicitacaoController = {
                 return res.status(400).json({ erro: 'ID da solicitacao invalido.' });
             }
 
-            const solicitacao = await ServicoModel.cancelarPeloCliente(id, cidadaoId, motivo);
+            const solicitacaoAtual = await ServicoModel.buscarPorId(id);
+            if (!solicitacaoAtual || Number(solicitacaoAtual.cidadao_id) !== Number(cidadaoId)) {
+                return res.status(404).json({
+                    erro: 'Solicitacao nao encontrada ou nao pode ser cancelada.',
+                });
+            }
+
+            const politica = calcularPoliticaCancelamento(solicitacaoAtual);
+            const solicitacao = await ServicoModel.cancelarPeloCliente(
+                id,
+                cidadaoId,
+                motivo,
+                politica.politica,
+                politica.reembolso
+            );
             if (!solicitacao) {
                 return res.status(404).json({
                     erro: 'Solicitacao nao encontrada ou nao pode ser cancelada.',
@@ -255,6 +337,8 @@ const SolicitacaoController = {
 
             return res.status(200).json({
                 mensagem: 'Solicitacao cancelada com sucesso.',
+                politica_cancelamento: politica.politica,
+                reembolso_status: politica.reembolso,
                 solicitacao,
             });
         } catch (erro) {

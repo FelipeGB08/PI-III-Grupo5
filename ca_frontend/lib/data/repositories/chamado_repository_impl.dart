@@ -77,6 +77,17 @@ class ChamadoRepositoryImpl implements ChamadoRepository {
   }
 
   @override
+  Future<Chamado> uploadFotosConclusao({
+    required int chamadoId,
+    required List<String> filePaths,
+  }) {
+    return _api.uploadFotosConclusao(
+      chamadoId: chamadoId,
+      filePaths: filePaths,
+    );
+  }
+
+  @override
   Future<Chamado> aceitarRemarcacao({required int chamadoId}) {
     return _api.aceitarRemarcacao(chamadoId: chamadoId);
   }

@@ -15,10 +15,14 @@ class ChamadoModel extends Chamado {
     super.enderecoAtendimento,
     super.agendadoPara,
     super.fotoUrl,
+    super.fotosConclusao,
     super.duracaoMinutos,
     super.remarcacaoSolicitadaPara,
     super.motivoRemarcacao,
     super.motivoCancelamento,
+    super.politicaCancelamento,
+    super.reembolsoStatus,
+    super.canceladoEm,
   });
 
   factory ChamadoModel.fromJson(Map<String, dynamic> json) {
@@ -37,11 +41,14 @@ class ChamadoModel extends Chamado {
       enderecoAtendimento: json['endereco_atendimento']?.toString(),
       agendadoPara: json['agendado_para']?.toString(),
       fotoUrl: json['foto_url']?.toString(),
+      fotosConclusao: _parseStringList(json['fotos_conclusao']),
       duracaoMinutos: _parseIntNullable(json['duracao_minutos']),
-      remarcacaoSolicitadaPara:
-          json['remarcacao_solicitada_para']?.toString(),
+      remarcacaoSolicitadaPara: json['remarcacao_solicitada_para']?.toString(),
       motivoRemarcacao: json['motivo_remarcacao']?.toString(),
       motivoCancelamento: json['motivo_cancelamento']?.toString(),
+      politicaCancelamento: json['politica_cancelamento']?.toString(),
+      reembolsoStatus: json['reembolso_status']?.toString(),
+      canceladoEm: json['cancelado_em']?.toString(),
     );
   }
 
@@ -82,5 +89,15 @@ class ChamadoModel extends Chamado {
   static double? _parseDoubleNullable(dynamic v) {
     if (v == null) return null;
     return v is num ? v.toDouble() : double.tryParse(v.toString());
+  }
+
+  static List<String> _parseStringList(dynamic value) {
+    if (value is List) {
+      return value
+          .map((item) => item?.toString() ?? '')
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+    return const [];
   }
 }

@@ -5,6 +5,7 @@ const senha = 'Teste123456';
 const cidade = 'Concordia';
 
 const cidadaoEmail = `cidadao.e2e.${runId}@amauc.com`;
+const intrusoEmail = `intruso.e2e.${runId}@amauc.com`;
 const profissionalEmail = `profissional.e2e.${runId}@amauc.com`;
 
 function proximoDiaUtilComHorario(horario = '10:00') {
@@ -60,6 +61,32 @@ async function request(path, options = {}) {
   return data;
 }
 
+async function uploadFotoConclusao({ solicitacaoId, token }) {
+  const formData = new FormData();
+  formData.append(
+    'fotos',
+    new Blob(['foto-e2e'], { type: 'image/jpeg' }),
+    'evidencia-e2e.jpg'
+  );
+
+  const response = await fetch(`${API_BASE_URL}/solicitacoes/${solicitacaoId}/fotos-conclusao`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    throw new Error(`POST /solicitacoes/${solicitacaoId}/fotos-conclusao -> ${response.status}: ${text}`);
+  }
+
+  return data;
+}
+
 async function registrarUsuario({ nome, email, perfil_tipo }) {
   const isProfissional = perfil_tipo === 'profissional';
   const data = await request('/auth/register', {
@@ -110,6 +137,12 @@ async function main() {
     perfil_tipo: 'cidadao',
   });
 
+  await registrarUsuario({
+    nome: 'Intruso E2E',
+    email: intrusoEmail,
+    perfil_tipo: 'cidadao',
+  });
+
   const profissional = await registrarUsuario({
     nome: 'Profissional E2E',
     email: profissionalEmail,
@@ -118,8 +151,38 @@ async function main() {
 
   console.log('[E2E] Login...');
   const cidadaoToken = await login(cidadaoEmail);
+  const intrusoToken = await login(intrusoEmail);
   const profissionalToken = await login(profissionalEmail);
   await renovarSessao(cidadaoToken);
+
+  console.log('[E2E] Atualizando Curriculo Vivo com portfolio...');
+  await request('/perfil', {
+    method: 'PATCH',
+    token: profissionalToken,
+    body: JSON.stringify({
+      biografia: 'Profissional E2E com atendimento regional AMAUC e portfolio ativo.',
+      anos_experiencia: 7,
+      curriculo_texto: 'Atua com servicos residenciais, atendimento rural e manutencao preventiva.',
+      portfolio_url: 'https://example.com/portfolio-e2e',
+      portfolio_fotos: [
+        'https://example.com/trabalho-1.jpg',
+        'https://example.com/trabalho-2.jpg',
+      ],
+      certificacoes: ['https://example.com/certificado-e2e.jpg'],
+      cidades_atendidas: [cidade],
+      atende_rural: true,
+      atende_emergencia: true,
+      possui_veiculo: true,
+    }),
+  });
+
+  const perfilPublico = await request(`/profissionais/${profissional.id}`);
+  if (
+    !perfilPublico.portfolio_fotos?.length ||
+    !perfilPublico.certificacoes?.length
+  ) {
+    throw new Error('Perfil publico nao retornou portfolio/certificacoes.');
+  }
 
   const dataAgendada = proximoDiaUtilComHorario('10:00');
   const agendadoPara = timestampLocal(dataAgendada);
@@ -173,6 +236,75 @@ async function main() {
     throw new Error('Backend confiou em preço/nome enviados pelo app.');
   }
 
+  console.log('[E2E] Cliente cancela solicitacao com politica registrada...');
+  const dataParaCancelar = proximoDiaUtilComHorario('14:00');
+  const solicitacaoCancelamentoResponse = await request('/solicitacoes', {
+    method: 'POST',
+    token: cidadaoToken,
+    body: JSON.stringify({
+      profissional_id: profissional.id,
+      agenda_servico_id: agendaServico.id,
+      descricao: 'Fluxo E2E: servico para cancelamento',
+      endereco_atendimento: 'Rua das Flores, 123',
+      agendado_para: timestampLocal(dataParaCancelar),
+    }),
+  });
+
+  const cancelamentoResponse = await request(
+    `/solicitacoes/${solicitacaoCancelamentoResponse.solicitacao.id}/cancelar`,
+    {
+      method: 'PATCH',
+      token: cidadaoToken,
+      body: JSON.stringify({ motivo: 'Teste de politica de cancelamento' }),
+    }
+  );
+  if (
+    cancelamentoResponse.solicitacao?.status !== 'cancelado_cliente' ||
+    !cancelamentoResponse.solicitacao?.politica_cancelamento ||
+    !cancelamentoResponse.solicitacao?.reembolso_status
+  ) {
+    throw new Error('Cancelamento nao registrou politica e reembolso.');
+  }
+
+  console.log('[E2E] Validando chat do chamado...');
+  await request(`/solicitacoes/${solicitacao.id}/mensagens`, {
+    method: 'POST',
+    token: cidadaoToken,
+    body: JSON.stringify({ mensagem: 'Ola, podemos confirmar os detalhes?' }),
+  });
+  const historicoChat = await request(`/solicitacoes/${solicitacao.id}/mensagens`, {
+    token: profissionalToken,
+  });
+  if (!historicoChat.mensagens?.some((item) => item.mensagem.includes('confirmar'))) {
+    throw new Error('Historico do chat nao retornou a mensagem enviada.');
+  }
+  await request(`/solicitacoes/${solicitacao.id}/mensagens`, {
+    method: 'POST',
+    token: intrusoToken,
+    expectedStatus: 404,
+    body: JSON.stringify({ mensagem: 'Tentativa sem permissao' }),
+  });
+
+  console.log('[E2E] Validando busca por raio no mapa...');
+  const profissionaisNoRaio = await request('/profissionais?lat=-27.2342&lng=-52.0277&raio_km=80&limit=10', {
+    token: cidadaoToken,
+  });
+  if (!profissionaisNoRaio.some((item) => item.id === profissional.id && item.distancia_km !== null)) {
+    throw new Error('Busca por raio nao retornou distancia do profissional.');
+  }
+
+  console.log('[E2E] Validando bloqueio de avaliacao antes da conclusao...');
+  await request('/avaliacoes', {
+    method: 'POST',
+    token: cidadaoToken,
+    expectedStatus: 403,
+    body: JSON.stringify({
+      servico_id: solicitacao.id,
+      nota_estrelas: 5,
+      comentario: 'Tentativa antes da conclusao',
+    }),
+  });
+
   console.log('[E2E] Prestador visualiza chamado recebido...');
   const minhasSolicitacoes = await request('/solicitacoes/minhas-solicitacoes', {
     token: profissionalToken,
@@ -181,6 +313,22 @@ async function main() {
   if (!listaPrestador.some((item) => item.id === solicitacao.id)) {
     throw new Error('Prestador nao recebeu a solicitacao criada pelo cliente.');
   }
+
+  console.log('[E2E] Validando bloqueio de horario indisponivel...');
+  const dataIndisponivel = new Date(dataAgendada);
+  dataIndisponivel.setHours(15, 30, 0, 0);
+  await request('/solicitacoes', {
+    method: 'POST',
+    token: cidadaoToken,
+    expectedStatus: 400,
+    body: JSON.stringify({
+      profissional_id: profissional.id,
+      agenda_servico_id: agendaServico.id,
+      descricao: 'Tentativa fora da agenda',
+      endereco_atendimento: 'Rua das Flores, 123',
+      agendado_para: timestampLocal(dataIndisponivel),
+    }),
+  });
 
   console.log('[E2E] Validando bloqueio de conflito de horário...');
   await request('/solicitacoes', {
@@ -196,12 +344,29 @@ async function main() {
     }),
   });
 
+  console.log('[E2E] Validando bloqueio de permissao no status...');
+  await request(`/solicitacoes/${solicitacao.id}/status`, {
+    method: 'PATCH',
+    token: cidadaoToken,
+    expectedStatus: 404,
+    body: JSON.stringify({ status: 'aceito' }),
+  });
+
   console.log('[E2E] Prestador aceita...');
   await request(`/solicitacoes/${solicitacao.id}/status`, {
     method: 'PATCH',
     token: profissionalToken,
     body: JSON.stringify({ status: 'aceito' }),
   });
+
+  console.log('[E2E] Prestador anexa evidencia do servico...');
+  const uploadConclusao = await uploadFotoConclusao({
+    solicitacaoId: solicitacao.id,
+    token: profissionalToken,
+  });
+  if (!uploadConclusao.solicitacao?.fotos_conclusao?.length) {
+    throw new Error('Upload de evidencia nao retornou fotos_conclusao.');
+  }
 
   console.log('[E2E] Prestador propoe remarcacao...');
   const novaData = new Date(dataAgendada);
@@ -245,6 +410,18 @@ async function main() {
       servico_id: solicitacao.id,
       nota_estrelas: 5,
       comentario: 'Fluxo E2E de agenda OK',
+    }),
+  });
+
+  console.log('[E2E] Validando bloqueio de avaliacao duplicada...');
+  await request('/avaliacoes', {
+    method: 'POST',
+    token: cidadaoToken,
+    expectedStatus: 400,
+    body: JSON.stringify({
+      servico_id: solicitacao.id,
+      nota_estrelas: 4,
+      comentario: 'Tentativa duplicada',
     }),
   });
 

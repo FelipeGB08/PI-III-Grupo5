@@ -63,10 +63,14 @@ class Chamado {
     this.enderecoAtendimento,
     this.agendadoPara,
     this.fotoUrl,
+    this.fotosConclusao = const [],
     this.duracaoMinutos,
     this.remarcacaoSolicitadaPara,
     this.motivoRemarcacao,
     this.motivoCancelamento,
+    this.politicaCancelamento,
+    this.reembolsoStatus,
+    this.canceladoEm,
   });
 
   final int id;
@@ -82,12 +86,20 @@ class Chamado {
   final String? enderecoAtendimento;
   final String? agendadoPara;
   final String? fotoUrl;
+  final List<String> fotosConclusao;
   final int? duracaoMinutos;
   final String? remarcacaoSolicitadaPara;
   final String? motivoRemarcacao;
   final String? motivoCancelamento;
+  final String? politicaCancelamento;
+  final String? reembolsoStatus;
+  final String? canceladoEm;
 
-  Chamado copyWith({ChamadoStatus? status, double? preco}) {
+  Chamado copyWith({
+    ChamadoStatus? status,
+    double? preco,
+    List<String>? fotosConclusao,
+  }) {
     return Chamado(
       id: id,
       descricao: descricao,
@@ -102,10 +114,14 @@ class Chamado {
       enderecoAtendimento: enderecoAtendimento,
       agendadoPara: agendadoPara,
       fotoUrl: fotoUrl,
+      fotosConclusao: fotosConclusao ?? this.fotosConclusao,
       duracaoMinutos: duracaoMinutos,
       remarcacaoSolicitadaPara: remarcacaoSolicitadaPara,
       motivoRemarcacao: motivoRemarcacao,
       motivoCancelamento: motivoCancelamento,
+      politicaCancelamento: politicaCancelamento,
+      reembolsoStatus: reembolsoStatus,
+      canceladoEm: canceladoEm,
     );
   }
 }

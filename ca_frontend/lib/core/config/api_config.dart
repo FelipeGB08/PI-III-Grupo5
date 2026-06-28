@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'app_env.dart';
+
 /// Configuração centralizada da API REST do Conecta AMAUC.
 class ApiConfig {
   ApiConfig._();
@@ -10,7 +12,7 @@ class ApiConfig {
   ///
   /// Dispositivo físico Android: use `--dart-define=API_BASE_URL=http://SEU_IP:3000`
   static String get baseUrl {
-    const fromEnv = String.fromEnvironment('API_BASE_URL');
+    final fromEnv = AppEnv.apiBaseUrl;
     if (fromEnv.isNotEmpty) return fromEnv;
 
     if (kIsWeb) return 'http://localhost:3000';
@@ -58,6 +60,8 @@ class ApiConfig {
 
   static String servicoStatus(int id) => '$servicos/$id/status';
   static String chamadoStatus(int id) => '$chamados/$id/status';
+  static String fotosConclusaoSolicitacao(int id) =>
+      '$chamados/$id/fotos-conclusao';
   static String cancelarSolicitacao(int id) => '$chamados/$id/cancelar';
   static String remarcarSolicitacao(int id) => '$chamados/$id/remarcar';
   static String aceitarRemarcacao(int id) => '$chamados/$id/remarcacao/aceitar';

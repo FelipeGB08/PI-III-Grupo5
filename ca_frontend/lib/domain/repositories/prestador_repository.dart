@@ -6,6 +6,7 @@ abstract class PrestadorRepository {
     String? categoria,
     double? lat,
     double? lng,
+    double? raioKm,
   });
 
   Future<Prestador?> buscarPorId(int id);

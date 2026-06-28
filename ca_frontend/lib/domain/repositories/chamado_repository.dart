@@ -20,7 +20,12 @@ abstract class ChamadoRepository {
     double? preco,
   });
 
-    Future<Chamado> cancelarSolicitacao({
+  Future<Chamado> uploadFotosConclusao({
+    required int chamadoId,
+    required List<String> filePaths,
+  });
+
+  Future<Chamado> cancelarSolicitacao({
     required int chamadoId,
     String? motivo,
   });

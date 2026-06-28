@@ -14,6 +14,7 @@ import '../../data/repositories/auth_repository_impl.dart';
 import '../../data/repositories/avaliacao_repository_impl.dart';
 import '../../data/repositories/chamado_repository_impl.dart';
 import '../../data/repositories/prestador_repository_impl.dart';
+import '../../data/services/chat_socket_service.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/avaliacao_repository.dart';
@@ -40,6 +41,12 @@ final dioClientProvider = Provider<DioClient>((ref) {
 
 final apiServiceProvider = Provider<ApiService>((ref) {
   return ApiService(ref.watch(dioClientProvider).instance);
+});
+
+final chatSocketServiceProvider = Provider<ChatSocketService>((ref) {
+  final service = ChatSocketService(ref.watch(tokenStorageProvider));
+  ref.onDispose(service.dispose);
+  return service;
 });
 
 // ─── Repositories ───────────────────────────────────────────────────────────
@@ -192,6 +199,8 @@ class CurriculoNotifier extends StateNotifier<CurriculoState> {
     required int anosExperiencia,
     String? curriculoTexto,
     String? portfolioUrl,
+    List<String> portfolioFotos = const [],
+    List<String> certificacoes = const [],
     List<String> cidadesAtendidas = const [],
     bool? atendeRural,
     bool? atendeEmergencia,
@@ -205,6 +214,8 @@ class CurriculoNotifier extends StateNotifier<CurriculoState> {
         anosExperiencia: anosExperiencia,
         curriculoTexto: curriculoTexto,
         portfolioUrl: portfolioUrl,
+        portfolioFotos: portfolioFotos,
+        certificacoes: certificacoes,
         cidadesAtendidas: cidadesAtendidas,
         atendeRural: atendeRural,
         atendeEmergencia: atendeEmergencia,
@@ -578,6 +589,9 @@ class PrestadoresState {
     this.cidadeSelecionada = 'Concórdia',
     this.categoriaSelecionada,
     this.busca = '',
+    this.lat,
+    this.lng,
+    this.raioKm = 30,
   });
 
   final List<Prestador> prestadores;
@@ -586,6 +600,9 @@ class PrestadoresState {
   final String cidadeSelecionada;
   final String? categoriaSelecionada;
   final String busca;
+  final double? lat;
+  final double? lng;
+  final double raioKm;
 
   PrestadoresState copyWith({
     List<Prestador>? prestadores,
@@ -594,6 +611,9 @@ class PrestadoresState {
     String? cidadeSelecionada,
     String? categoriaSelecionada,
     String? busca,
+    double? lat,
+    double? lng,
+    double? raioKm,
     bool clearCategoria = false,
     bool clearErro = false,
   }) {
@@ -606,6 +626,9 @@ class PrestadoresState {
           ? null
           : (categoriaSelecionada ?? this.categoriaSelecionada),
       busca: busca ?? this.busca,
+      lat: lat ?? this.lat,
+      lng: lng ?? this.lng,
+      raioKm: raioKm ?? this.raioKm,
     );
   }
 }
@@ -616,13 +639,21 @@ class PrestadoresNotifier extends StateNotifier<PrestadoresState> {
   final PrestadorRepository _repo;
 
   Future<void> carregar({double? lat, double? lng}) async {
-    state = state.copyWith(isLoading: true, clearErro: true);
+    final latBusca = lat ?? state.lat;
+    final lngBusca = lng ?? state.lng;
+    state = state.copyWith(
+      isLoading: true,
+      clearErro: true,
+      lat: latBusca,
+      lng: lngBusca,
+    );
     try {
       final result = await _repo.listar(
         cidade: state.cidadeSelecionada,
         categoria: state.categoriaSelecionada,
-        lat: lat,
-        lng: lng,
+        lat: latBusca,
+        lng: lngBusca,
+        raioKm: state.raioKm,
       );
 
       state = state.copyWith(
@@ -653,6 +684,11 @@ class PrestadoresNotifier extends StateNotifier<PrestadoresState> {
 
   void setBusca(String busca) {
     state = state.copyWith(busca: busca);
+  }
+
+  void setRaio(double raioKm) {
+    state = state.copyWith(raioKm: raioKm);
+    carregar();
   }
 }
 

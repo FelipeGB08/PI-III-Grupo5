@@ -16,13 +16,17 @@ class PrestadorRepositoryImpl implements PrestadorRepository {
     String? categoria,
     double? lat,
     double? lng,
+    double? raioKm,
   }) async {
     final categoriaFiltro =
         AmaucConstants.categoriaNomePorId(categoria) ?? categoria;
 
     return _api.buscarPrestadores(
-      cidade: cidade,
+      cidade: lat != null && lng != null ? null : cidade,
       categoria: categoriaFiltro,
+      lat: lat,
+      lng: lng,
+      raioKm: raioKm,
     );
   }
 

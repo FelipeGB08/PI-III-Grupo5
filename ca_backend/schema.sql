@@ -2,6 +2,7 @@
 -- Execute: npm run db:migrate
 
 DROP TABLE IF EXISTS avaliacoes CASCADE;
+DROP TABLE IF EXISTS chat_mensagens CASCADE;
 DROP TABLE IF EXISTS notificacoes CASCADE;
 DROP TABLE IF EXISTS dispositivo_tokens CASCADE;
 DROP TABLE IF EXISTS profissional_agenda_horarios CASCADE;
@@ -31,6 +32,8 @@ CREATE TABLE perfis_profissionais (
     biografia TEXT,
     curriculo_texto TEXT,
     portfolio_url VARCHAR(500),
+    portfolio_fotos TEXT[] NOT NULL DEFAULT '{}',
+    certificacoes TEXT[] NOT NULL DEFAULT '{}',
     anos_experiencia INTEGER DEFAULT 0,
     verificado BOOLEAN DEFAULT FALSE,
     atende_rural BOOLEAN NOT NULL DEFAULT FALSE,
@@ -82,6 +85,7 @@ CREATE TABLE servicos_solicitados (
     agendado_para TIMESTAMP,
     duracao_minutos INTEGER,
     foto_url VARCHAR(500),
+    fotos_conclusao TEXT[] NOT NULL DEFAULT '{}',
     status VARCHAR(30) NOT NULL DEFAULT 'pendente'
         CHECK (
             status IN (
@@ -95,6 +99,10 @@ CREATE TABLE servicos_solicitados (
         ),
     preco NUMERIC(10, 2),
     motivo_cancelamento TEXT,
+    cancelado_em TIMESTAMP,
+    cancelado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+    politica_cancelamento VARCHAR(40),
+    reembolso_status VARCHAR(40),
     motivo_remarcacao TEXT,
     remarcacao_solicitada_para TIMESTAMP,
     criado_em TIMESTAMP DEFAULT NOW(),
@@ -108,6 +116,22 @@ CREATE TABLE avaliacoes (
     comentario TEXT,
     criado_em TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE chat_mensagens (
+    id SERIAL PRIMARY KEY,
+    servico_id INTEGER NOT NULL REFERENCES servicos_solicitados(id) ON DELETE CASCADE,
+    remetente_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    mensagem TEXT NOT NULL,
+    lida_em TIMESTAMP,
+    criado_em TIMESTAMP DEFAULT NOW(),
+    CHECK (char_length(trim(mensagem)) BETWEEN 1 AND 1000)
+);
+
+CREATE INDEX idx_chat_mensagens_servico_criado
+    ON chat_mensagens (servico_id, criado_em ASC);
+
+CREATE INDEX idx_chat_mensagens_remetente
+    ON chat_mensagens (remetente_id);
 
 CREATE TABLE dispositivo_tokens (
     id SERIAL PRIMARY KEY,

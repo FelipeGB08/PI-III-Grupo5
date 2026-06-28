@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/config/api_config.dart';
 import '../../../core/network/api_error_formatter.dart';
@@ -7,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/chamado.dart';
 import '../../../domain/entities/user.dart';
 import '../../providers/providers.dart';
+import '../chat/chat_screen.dart';
 import '../../widgets/avaliacao_bottom_sheet.dart';
 
 class AgendamentoDetalhesScreen extends ConsumerStatefulWidget {
@@ -39,6 +41,79 @@ class _AgendamentoDetalhesScreenState
       setState(() => _chamado = updated);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Agendamento atualizado.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(formatApiError(e))),
+      );
+    } finally {
+      if (mounted) setState(() => _processando = false);
+    }
+  }
+
+  Future<void> _concluirServico() async {
+    final anexarFotos = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Concluir servico'),
+        content: const Text(
+          'Deseja anexar fotos do servico concluido como evidencia para o cliente?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Voltar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Concluir sem fotos'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.add_photo_alternate_outlined),
+            label: const Text('Anexar fotos'),
+          ),
+        ],
+      ),
+    );
+
+    if (anexarFotos == null) return;
+
+    var fotos = <XFile>[];
+    if (anexarFotos) {
+      fotos = await ImagePicker().pickMultiImage(
+        imageQuality: 82,
+        maxWidth: 1600,
+      );
+
+      if (fotos.isEmpty) return;
+
+      if (fotos.length > 5) {
+        fotos = fotos.take(5).toList();
+      }
+    }
+
+    setState(() => _processando = true);
+    try {
+      if (fotos.isNotEmpty) {
+        final withFotos =
+            await ref.read(chamadoRepositoryProvider).uploadFotosConclusao(
+                  chamadoId: _chamado.id,
+                  filePaths: fotos.map((foto) => foto.path).toList(),
+                );
+        if (mounted) setState(() => _chamado = withFotos);
+      }
+
+      final updated = await ref.read(chamadoRepositoryProvider).atualizarStatus(
+            chamadoId: _chamado.id,
+            status: ChamadoStatus.concluido,
+          );
+      await ref.read(chamadosProvider.notifier).carregar();
+      if (!mounted) return;
+      setState(() => _chamado = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Servico concluido.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -100,13 +175,23 @@ class _AgendamentoDetalhesScreenState
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Cancelar solicitacao'),
-        content: TextField(
-          controller: controller,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            labelText: 'Motivo opcional',
-            hintText: 'Ex: resolvi de outra forma',
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Politica: cancelamentos com 2h ou mais de antecedencia ficam com reembolso integral. Abaixo disso, o reembolso fica parcial.',
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: controller,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Motivo opcional',
+                hintText: 'Ex: resolvi de outra forma',
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -125,10 +210,11 @@ class _AgendamentoDetalhesScreenState
 
     setState(() => _processando = true);
     try {
-      final updated = await ref.read(chamadoRepositoryProvider).cancelarSolicitacao(
-            chamadoId: _chamado.id,
-            motivo: motivo.isEmpty ? null : motivo,
-          );
+      final updated =
+          await ref.read(chamadoRepositoryProvider).cancelarSolicitacao(
+                chamadoId: _chamado.id,
+                motivo: motivo.isEmpty ? null : motivo,
+              );
       await ref.read(chamadosProvider.notifier).carregar();
       if (!mounted) return;
       setState(() => _chamado = updated);
@@ -182,7 +268,8 @@ class _AgendamentoDetalhesScreenState
                       ),
                       Text(
                         _statusMessage(_chamado.status),
-                        style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12),
+                        style:
+                            theme.textTheme.bodyMedium?.copyWith(fontSize: 12),
                       ),
                     ],
                   ),
@@ -293,6 +380,30 @@ class _AgendamentoDetalhesScreenState
                     value: _chamado.motivoCancelamento!,
                   ),
                 ],
+                if (_chamado.politicaCancelamento?.isNotEmpty == true) ...[
+                  const SizedBox(height: 10),
+                  _DetailRow(
+                    icon: Icons.policy_outlined,
+                    label: 'Politica aplicada',
+                    value: _cancelPolicyLabel(_chamado.politicaCancelamento!),
+                  ),
+                ],
+                if (_chamado.reembolsoStatus?.isNotEmpty == true) ...[
+                  const SizedBox(height: 10),
+                  _DetailRow(
+                    icon: Icons.payments_outlined,
+                    label: 'Reembolso',
+                    value: _refundLabel(_chamado.reembolsoStatus!),
+                  ),
+                ],
+                if (_chamado.canceladoEm?.isNotEmpty == true) ...[
+                  const SizedBox(height: 10),
+                  _DetailRow(
+                    icon: Icons.history_rounded,
+                    label: 'Cancelado em',
+                    value: _formatDateTime(_chamado.canceladoEm!),
+                  ),
+                ],
               ],
             ),
           ),
@@ -311,28 +422,57 @@ class _AgendamentoDetalhesScreenState
               ),
             ),
           ],
+          if (_chamado.fotosConclusao.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            _SectionLabel('Fotos do servico concluido'),
+            SizedBox(
+              height: 118,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _chamado.fotosConclusao.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (context, index) {
+                  final url = _chamado.fotosConclusao[index];
+                  return _EvidenceImage(url: url);
+                },
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
+          FilledButton.tonalIcon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ChatScreen(chamado: _chamado),
+                ),
+              );
+            },
+            icon: const Icon(Icons.chat_bubble_outline_rounded),
+            label: const Text('Abrir Chat'),
+          ),
+          const SizedBox(height: 10),
           if (_isPrestador && _chamado.status == ChamadoStatus.pendente) ...[
             FilledButton.icon(
-              onPressed:
-                  _processando ? null : () => _atualizar(ChamadoStatus.emAndamento),
+              onPressed: _processando
+                  ? null
+                  : () => _atualizar(ChamadoStatus.emAndamento),
               icon: const Icon(Icons.check_rounded),
               label: const Text('Aceitar Agendamento'),
             ),
             const SizedBox(height: 10),
             OutlinedButton.icon(
-              onPressed:
-                  _processando ? null : () => _atualizar(ChamadoStatus.recusado),
+              onPressed: _processando
+                  ? null
+                  : () => _atualizar(ChamadoStatus.recusado),
               icon: const Icon(Icons.close_rounded),
               label: const Text('Recusar Agendamento'),
             ),
           ],
           if (_isPrestador && _chamado.status == ChamadoStatus.emAndamento)
             FilledButton.icon(
-              onPressed:
-                  _processando ? null : () => _atualizar(ChamadoStatus.concluido),
+              onPressed: _processando ? null : _concluirServico,
               icon: const Icon(Icons.task_alt_rounded),
-              label: const Text('Marcar como Concluido'),
+              label: const Text('Concluir Servico'),
             ),
           if (!_isPrestador && _chamado.status == ChamadoStatus.concluido)
             FilledButton.icon(
@@ -404,12 +544,26 @@ class _AgendamentoDetalhesScreenState
 
   String _statusMessage(ChamadoStatus status) => switch (status) {
         ChamadoStatus.pendente => 'Aguardando confirmacao do profissional.',
-        ChamadoStatus.emAndamento => 'O profissional confirmou sua solicitacao.',
+        ChamadoStatus.emAndamento =>
+          'O profissional confirmou sua solicitacao.',
         ChamadoStatus.remarcacaoSolicitada =>
           'O profissional sugeriu um novo horario.',
         ChamadoStatus.concluido => 'Servico concluido. Avalie sua experiencia.',
         ChamadoStatus.recusado => 'Solicitacao recusada pelo profissional.',
         ChamadoStatus.cancelado => 'Solicitacao cancelada.',
+      };
+
+  String _cancelPolicyLabel(String value) => switch (value) {
+        'cancelamento_antecipado' => 'Cancelamento antecipado',
+        'cancelamento_tardio' => 'Cancelamento tardio',
+        'sem_horario_agendado' => 'Sem horario agendado',
+        _ => value,
+      };
+
+  String _refundLabel(String value) => switch (value) {
+        'reembolso_integral' => 'Integral',
+        'reembolso_parcial' => 'Parcial',
+        _ => value,
       };
 }
 
@@ -489,6 +643,34 @@ class _InfoPanel extends StatelessWidget {
         border: Border.all(color: AppColors.darkBorder),
       ),
       child: child,
+    );
+  }
+}
+
+class _EvidenceImage extends StatelessWidget {
+  const _EvidenceImage({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: 118,
+        height: 118,
+        color: AppColors.darkCard,
+        child: Image.network(
+          ApiConfig.resolveAssetUrl(url),
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => const Center(
+            child: Icon(
+              Icons.broken_image_outlined,
+              color: AppColors.muted,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

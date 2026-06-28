@@ -6,6 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../../core/config/amauc_constants.dart';
+import '../../../core/config/app_env.dart';
 import '../../../core/validation/form_validators.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/repositories/auth_repository.dart';
@@ -35,11 +36,10 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
   bool _handledInitialLink = false;
   bool _googleInitialized = false;
 
-  static const _googleClientId = String.fromEnvironment('GOOGLE_CLIENT_ID');
-  static const _googleServerClientId =
-      String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
-  static const _appleClientId = String.fromEnvironment('APPLE_CLIENT_ID');
-  static const _appleRedirectUri = String.fromEnvironment('APPLE_REDIRECT_URI');
+  String get _googleClientId => AppEnv.googleClientId;
+  String get _googleServerClientId => AppEnv.googleServerClientId;
+  String get _appleClientId => AppEnv.appleClientId;
+  String get _appleRedirectUri => AppEnv.appleRedirectUri;
 
   final _regNome = TextEditingController();
   final _regEmail = TextEditingController();

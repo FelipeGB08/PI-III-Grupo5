@@ -1,7 +1,9 @@
 require('dotenv').config();
+const http = require('http');
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const { Server } = require('socket.io');
 require('./config/db');
 
 const authRoutes = require('./routes/authRoutes');
@@ -17,19 +19,30 @@ const relatorioRoutes = require('./routes/relatorioRoutes');
 const profissionalRoutes = require('./routes/profissionalRoutes');
 const agendaRoutes = require('./routes/agendaRoutes');
 const dispositivoRoutes = require('./routes/dispositivoRoutes');
+const { initChatSocket } = require('./services/chatSocketService');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: '*',
+        methods: ['GET', 'POST'],
+    },
+});
+
+initChatSocket(io);
 
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Limit', 'X-Total-Pages'],
 }));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-app.use('/uploads', express.static(path.resolve(__dirname, '..', 'uploads')));
+app.use('/uploads', express.static(path.resolve(__dirname, '..', '..', 'uploads')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/usuarios', userRoutes);
@@ -62,6 +75,6 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
 });

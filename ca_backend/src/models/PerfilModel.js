@@ -16,6 +16,8 @@ const PerfilModel = {
                 anos_experiencia,
                 curriculo_texto,
                 portfolio_url,
+                portfolio_fotos,
+                certificacoes,
                 verificado,
                 atende_rural,
                 atende_emergencia,
@@ -23,7 +25,7 @@ const PerfilModel = {
                 cidades_atendidas,
                 taxa_deslocamento
             )
-            VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7, $8, $9, $10)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE, $8, $9, $10, $11, $12)
             RETURNING *;
         `;
         const values = [
@@ -32,6 +34,8 @@ const PerfilModel = {
             anosExperiencia || 0,
             curriculoTexto,
             portfolioUrl,
+            regional.portfolio_fotos || [],
+            regional.certificacoes || [],
             regional.atende_rural || false,
             regional.atende_emergencia || false,
             regional.possui_veiculo || false,
@@ -50,11 +54,13 @@ const PerfilModel = {
                 anos_experiencia = COALESCE($3, anos_experiencia),
                 curriculo_texto = COALESCE($4, curriculo_texto),
                 portfolio_url = COALESCE($5, portfolio_url),
-                atende_rural = COALESCE($6, atende_rural),
-                atende_emergencia = COALESCE($7, atende_emergencia),
-                possui_veiculo = COALESCE($8, possui_veiculo),
-                cidades_atendidas = COALESCE($9, cidades_atendidas),
-                taxa_deslocamento = COALESCE($10, taxa_deslocamento)
+                portfolio_fotos = COALESCE($6, portfolio_fotos),
+                certificacoes = COALESCE($7, certificacoes),
+                atende_rural = COALESCE($8, atende_rural),
+                atende_emergencia = COALESCE($9, atende_emergencia),
+                possui_veiculo = COALESCE($10, possui_veiculo),
+                cidades_atendidas = COALESCE($11, cidades_atendidas),
+                taxa_deslocamento = COALESCE($12, taxa_deslocamento)
             WHERE usuario_id = $1
             RETURNING *;
         `;
@@ -64,6 +70,8 @@ const PerfilModel = {
             dados.anos_experiencia,
             dados.curriculo_texto,
             dados.portfolio_url,
+            dados.portfolio_fotos,
+            dados.certificacoes,
             dados.atende_rural,
             dados.atende_emergencia,
             dados.possui_veiculo,
@@ -94,29 +102,8 @@ const PerfilModel = {
         return resultado.rows[0];
     },
 
-    listarTodos: async (filtros) => {
-        let query = `
-            SELECT
-                u.id,
-                u.nome,
-                u.email,
-                u.telefone,
-                u.foto_url,
-                u.cidade_amauc,
-                pp.biografia,
-                pp.curriculo_texto,
-                pp.portfolio_url,
-                pp.anos_experiencia,
-                pp.verificado,
-                pp.atende_rural,
-                pp.atende_emergencia,
-                pp.possui_veiculo,
-                pp.cidades_atendidas,
-                pp.taxa_deslocamento,
-                COALESCE(
-                    json_agg(DISTINCT c.nome_servico) FILTER (WHERE c.nome_servico IS NOT NULL),
-                    '[]'
-                ) AS categorias
+    listarTodos: async (filtros, { limit = 20, offset = 0 } = {}) => {
+        let fromWhere = `
             FROM perfis_profissionais pp
             JOIN usuarios u ON pp.usuario_id = u.id
             LEFT JOIN profissional_categorias pc ON pc.profissional_id = u.id
@@ -129,28 +116,65 @@ const PerfilModel = {
         if (filtros.categoria) {
             const categoriaNumerica = Number(filtros.categoria);
             if (!Number.isNaN(categoriaNumerica)) {
-                query += ` AND pc.categoria_id = $${contador}`;
+                fromWhere += ` AND pc.categoria_id = $${contador}`;
                 values.push(categoriaNumerica);
             } else {
-                query += ` AND c.nome_servico ILIKE $${contador}`;
+                fromWhere += ` AND c.nome_servico ILIKE $${contador}`;
                 values.push(filtros.categoria);
             }
             contador++;
         }
 
         if (filtros.cidade) {
-            query += ` AND (u.cidade_amauc = $${contador} OR $${contador} = ANY(pp.cidades_atendidas))`;
+            fromWhere += ` AND (u.cidade_amauc = $${contador} OR $${contador} = ANY(pp.cidades_atendidas))`;
             values.push(filtros.cidade);
             contador++;
         }
 
         if (filtros.atende_rural === 'true') {
-            query += ' AND pp.atende_rural = TRUE';
+            fromWhere += ' AND pp.atende_rural = TRUE';
         }
 
-        query += ' GROUP BY u.id, pp.id ORDER BY pp.verificado DESC, u.nome ASC;';
-        const resultado = await pool.query(query, values);
-        return resultado.rows;
+        const totalResult = await pool.query(
+            `SELECT COUNT(DISTINCT u.id) AS total ${fromWhere}`,
+            values
+        );
+
+        const query = `
+            SELECT
+                u.id,
+                u.nome,
+                u.email,
+                u.telefone,
+                u.foto_url,
+                u.cidade_amauc,
+                pp.biografia,
+                pp.curriculo_texto,
+                pp.portfolio_url,
+                pp.portfolio_fotos,
+                pp.certificacoes,
+                pp.anos_experiencia,
+                pp.verificado,
+                pp.atende_rural,
+                pp.atende_emergencia,
+                pp.possui_veiculo,
+                pp.cidades_atendidas,
+                pp.taxa_deslocamento,
+                COALESCE(
+                    json_agg(DISTINCT c.nome_servico) FILTER (WHERE c.nome_servico IS NOT NULL),
+                    '[]'
+                ) AS categorias
+            ${fromWhere}
+            GROUP BY u.id, pp.id
+            ORDER BY pp.verificado DESC, u.nome ASC
+            LIMIT $${contador} OFFSET $${contador + 1};
+        `;
+
+        const resultado = await pool.query(query, [...values, limit, offset]);
+        return {
+            rows: resultado.rows,
+            total: Number(totalResult.rows[0]?.total || 0),
+        };
     },
 };
 

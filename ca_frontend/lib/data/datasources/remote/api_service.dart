@@ -10,6 +10,7 @@ import '../../../domain/entities/chamado.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import '../../models/avaliacao_model.dart';
+import '../../models/chat_message_model.dart';
 import '../../models/chamado_model.dart';
 import '../../models/prestador_model.dart';
 import '../../models/user_model.dart';
@@ -171,6 +172,8 @@ class ApiService {
     required int anosExperiencia,
     String? curriculoTexto,
     String? portfolioUrl,
+    List<String> portfolioFotos = const [],
+    List<String> certificacoes = const [],
     List<String> cidadesAtendidas = const [],
     bool? atendeRural,
     bool? atendeEmergencia,
@@ -182,6 +185,8 @@ class ApiService {
       'anos_experiencia': anosExperiencia,
       'curriculo_texto': curriculoTexto ?? '',
       'portfolio_url': portfolioUrl ?? '',
+      'portfolio_fotos': portfolioFotos,
+      'certificacoes': certificacoes,
       'cidades_atendidas': cidadesAtendidas,
       if (atendeRural != null) 'atende_rural': atendeRural,
       if (atendeEmergencia != null) 'atende_emergencia': atendeEmergencia,
@@ -292,10 +297,17 @@ class ApiService {
   Future<List<PrestadorModel>> listarPrestadoresPorGps({
     required double lat,
     required double lng,
+    int page = 1,
+    int limit = 20,
   }) async {
     final response = await _dio.get(
       ApiConfig.prestadores,
-      queryParameters: {'lat': lat, 'lng': lng},
+      queryParameters: {
+        'lat': lat,
+        'lng': lng,
+        'page': page,
+        'limit': limit,
+      },
     );
     return (response.data as List<dynamic>)
         .map((e) => PrestadorModel.fromJson(e as Map<String, dynamic>))
@@ -317,12 +329,22 @@ class ApiService {
   Future<List<PrestadorModel>> buscarPrestadores({
     String? cidade,
     String? categoria,
+    double? lat,
+    double? lng,
+    double? raioKm,
+    int page = 1,
+    int limit = 20,
   }) async {
     final response = await _dio.get(
       ApiConfig.prestadores,
       queryParameters: {
         if (cidade != null) 'cidade': cidade,
         if (categoria != null) 'categoria': categoria,
+        if (lat != null) 'lat': lat,
+        if (lng != null) 'lng': lng,
+        if (raioKm != null) 'raio_km': raioKm,
+        'page': page,
+        'limit': limit,
       },
     );
     return (response.data as List<dynamic>)
@@ -373,6 +395,28 @@ class ApiService {
     );
   }
 
+  Future<List<ChatMessageModel>> listarMensagensChat(int chamadoId) async {
+    final response =
+        await _dio.get('${ApiConfig.chamados}/$chamadoId/mensagens');
+    final data = response.data as Map<String, dynamic>;
+    final mensagens = (data['mensagens'] as List<dynamic>?) ?? const [];
+    return mensagens
+        .map((item) => ChatMessageModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<ChatMessageModel> enviarMensagemChat({
+    required int chamadoId,
+    required String mensagem,
+  }) async {
+    final response = await _dio.post(
+      '${ApiConfig.chamados}/$chamadoId/mensagens',
+      data: {'mensagem': mensagem},
+    );
+    final data = response.data as Map<String, dynamic>;
+    return ChatMessageModel.fromJson(data['mensagem'] as Map<String, dynamic>);
+  }
+
   /// Lista chamados do Prestador. Opcionalmente filtra por status (pendente, aceito, etc).
   Future<List<ChamadoModel>> listarChamadosPrestador({String? status}) async {
     final response = await _dio.get(
@@ -413,6 +457,31 @@ class ApiService {
         status: status,
         profissionalId: 0,
       ).toStatusJson(status, preco: preco),
+    );
+    final data = response.data as Map<String, dynamic>;
+    return ChamadoModel.fromJson(
+      (data['solicitacao'] as Map<String, dynamic>?) ?? data,
+    );
+  }
+
+  Future<ChamadoModel> uploadFotosConclusao({
+    required int chamadoId,
+    required List<String> filePaths,
+  }) async {
+    final arquivos = <MultipartFile>[];
+
+    for (final path in filePaths) {
+      arquivos.add(
+        await MultipartFile.fromFile(
+          path,
+          filename: path.split(RegExp(r'[/\\]')).last,
+        ),
+      );
+    }
+
+    final response = await _dio.post(
+      ApiConfig.fotosConclusaoSolicitacao(chamadoId),
+      data: FormData.fromMap({'fotos': arquivos}),
     );
     final data = response.data as Map<String, dynamic>;
     return ChamadoModel.fromJson(

@@ -12,7 +12,11 @@ class Prestador {
     this.verificado = false,
     this.fotoUrl,
     this.portfolioUrls = const [],
+    this.certificacoes = const [],
+    this.avaliacoesPositivas = 0,
     this.distanciaKm,
+    this.latitude,
+    this.longitude,
     this.telefone,
     this.anosExperiencia,
     this.curriculoTexto,
@@ -36,7 +40,11 @@ class Prestador {
   final bool verificado;
   final String? fotoUrl;
   final List<String> portfolioUrls;
+  final List<String> certificacoes;
+  final int avaliacoesPositivas;
   final double? distanciaKm;
+  final double? latitude;
+  final double? longitude;
   final String? telefone;
   final int? anosExperiencia;
   final String? curriculoTexto;
@@ -65,7 +73,11 @@ class Prestador {
       verificado: verificado,
       fotoUrl: fotoUrl,
       portfolioUrls: portfolioUrls ?? this.portfolioUrls,
+      certificacoes: certificacoes,
+      avaliacoesPositivas: avaliacoesPositivas,
       distanciaKm: distanciaKm,
+      latitude: latitude,
+      longitude: longitude,
       telefone: telefone,
       anosExperiencia: anosExperiencia,
       curriculoTexto: curriculoTexto,
