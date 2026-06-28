@@ -16,6 +16,7 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const relatorioRoutes = require('./routes/relatorioRoutes');
 const profissionalRoutes = require('./routes/profissionalRoutes');
 const agendaRoutes = require('./routes/agendaRoutes');
+const dispositivoRoutes = require('./routes/dispositivoRoutes');
 
 const app = express();
 
@@ -42,6 +43,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/admin/relatorios', relatorioRoutes);
 app.use('/api/profissionais', profissionalRoutes);
 app.use('/api/agenda', agendaRoutes);
+app.use('/api/dispositivos', dispositivoRoutes);
 
 app.get('/api/status', (req, res) => {
     res.json({ mensagem: 'API do Conecta Amauc rodando !' });

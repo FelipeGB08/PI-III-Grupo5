@@ -1,6 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 
-import '../../core/config/amauc_constants.dart';
 import '../../core/network/dio_client.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -50,25 +51,23 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<AuthResult> refreshSession() async {
+    try {
+      final response = await _api.refreshSession();
+      final result = AuthResult(token: response.token, user: response.user);
+      await saveSession(result);
+      return result;
+    } on DioException catch (e) {
+      throw DioClient.unwrapError(e);
+    }
+  }
+
+  @override
   Future<AuthResult> register(RegisterParams params) async {
     try {
       await _api.register(params);
     } on DioException catch (e) {
       throw DioClient.unwrapError(e);
-    }
-
-    if (params.tipo.isPrestador &&
-        params.cidades.isNotEmpty &&
-        params.categorias.isNotEmpty) {
-      final loginResult = await login(email: params.email, senha: params.senha);
-      await _api.criarPerfilProfissional(
-        bio: params.bio ?? 'Profissional autônomo na região AMAUC.',
-        telefoneComercial: params.telefoneComercial ?? '',
-        cidade: params.cidadeAmauc,
-        categoria: AmaucConstants.categoriaNomePorId(params.categorias.first) ??
-            params.categorias.first,
-      );
-      return loginResult;
     }
 
     return login(email: params.email, senha: params.senha);
@@ -170,6 +169,21 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<String> uploadAvatar(String filePath) async {
     try {
       return await _api.uploadFotoPerfil(filePath);
+    } on DioException catch (e) {
+      throw DioClient.unwrapError(e);
+    }
+  }
+
+  @override
+  Future<String> uploadAvatarBytes({
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    try {
+      return await _api.uploadFotoPerfilBytes(
+        bytes: Uint8List.fromList(bytes),
+        filename: filename,
+      );
     } on DioException catch (e) {
       throw DioClient.unwrapError(e);
     }

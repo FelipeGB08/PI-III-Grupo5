@@ -1,16 +1,14 @@
-import 'dart:io';
-
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../core/config/api_config.dart';
 import '../../../core/network/api_error_formatter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/user.dart';
 import '../../providers/providers.dart';
+import '../../widgets/profile_avatar.dart';
 
 class MinhaContaScreen extends ConsumerStatefulWidget {
   const MinhaContaScreen({super.key});
@@ -28,7 +26,8 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
   bool _carregandoPerfil = true;
   bool _notificacoes = true;
   bool _altoContraste = true;
-  File? _fotoLocal;
+  XFile? _fotoLocal;
+  Uint8List? _fotoPreviewBytes;
   String? _fotoUrlRemota;
 
   @override
@@ -46,9 +45,7 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
 
   Future<void> _carregarPerfil() async {
     final user = ref.read(authStateProvider).user;
-    if (user != null) {
-      _preencherCampos(user);
-    }
+    if (user != null) _preencherCampos(user);
 
     final atualizado =
         await ref.read(authStateProvider.notifier).refreshProfile();
@@ -56,9 +53,7 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
 
     setState(() {
       _carregandoPerfil = false;
-      if (atualizado != null) {
-        _preencherCampos(atualizado);
-      }
+      if (atualizado != null) _preencherCampos(atualizado);
     });
   }
 
@@ -69,20 +64,50 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
   }
 
   Future<void> _trocarFoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppColors.darkCard,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded),
+                title: const Text('Escolher da galeria'),
+                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_rounded),
+                title: const Text('Usar camera'),
+                onTap: () => Navigator.pop(ctx, ImageSource.camera),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (source == null) return;
+
     final imagem = await _picker.pickImage(
-      source: ImageSource.gallery,
+      source: source,
       maxWidth: 1024,
       imageQuality: 85,
     );
-    if (imagem != null && mounted) {
-      setState(() => _fotoLocal = File(imagem.path));
-    }
+    if (imagem == null || !mounted) return;
+
+    final bytes = await imagem.readAsBytes();
+    setState(() {
+      _fotoLocal = imagem;
+      _fotoPreviewBytes = bytes;
+    });
   }
 
   Future<void> _salvar() async {
     final nome = _nomeController.text.trim();
     if (nome.length < 2) {
-      _mostrarErro('Informe um nome válido.');
+      _mostrarErro('Informe um nome valido.');
       return;
     }
 
@@ -90,15 +115,21 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
 
     String? fotoUrl = _fotoUrlRemota;
     if (_fotoLocal != null) {
-      fotoUrl = await ref.read(authStateProvider.notifier).uploadAvatar(
-            _fotoLocal!.path,
-          );
+      if (kIsWeb) {
+        fotoUrl = await ref.read(authStateProvider.notifier).uploadAvatarBytes(
+              bytes: _fotoPreviewBytes ?? await _fotoLocal!.readAsBytes(),
+              filename: _fotoLocal!.name,
+            );
+      } else {
+        fotoUrl = await ref
+            .read(authStateProvider.notifier)
+            .uploadAvatar(_fotoLocal!.path);
+      }
+
       if (fotoUrl == null || fotoUrl.isEmpty) {
-        if (mounted) {
-          setState(() => _salvando = false);
-          _mostrarErro(
-              ref.read(authStateProvider).error ?? 'Falha ao enviar foto.');
-        }
+        if (!mounted) return;
+        setState(() => _salvando = false);
+        _mostrarErro(ref.read(authStateProvider).error ?? 'Falha ao enviar foto.');
         return;
       }
     }
@@ -115,6 +146,7 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
       _salvando = false;
       if (ok) {
         _fotoLocal = null;
+        _fotoPreviewBytes = null;
         _fotoUrlRemota = ref.read(authStateProvider).user?.fotoUrl;
       }
     });
@@ -124,8 +156,7 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
         const SnackBar(content: Text('Perfil atualizado com sucesso!')),
       );
     } else {
-      _mostrarErro(
-          ref.read(authStateProvider).error ?? 'Não foi possível salvar.');
+      _mostrarErro(ref.read(authStateProvider).error ?? 'Nao foi possivel salvar.');
     }
   }
 
@@ -135,19 +166,47 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
     );
   }
 
+  Future<void> _mostrarPrivacidade() {
+    return showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Privacidade'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'O Conecta AMAUC utiliza seus dados de cadastro, cidade, foto, '
+            'agenda e historico de solicitacoes apenas para operar a '
+            'plataforma, autenticar o usuario, exibir profissionais, registrar '
+            'servicos e enviar notificacoes. As informacoes podem ser revisadas '
+            'pela equipe do projeto para suporte, seguranca e demonstracao '
+            'academica. Evite compartilhar senhas ou dados sensiveis nas '
+            'observacoes dos agendamentos.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Fechar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _sair() async {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Sair da conta'),
-        content: const Text('Deseja encerrar sua sessão neste dispositivo?'),
+        content: const Text('Deseja encerrar sua sessao neste dispositivo?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Sair')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sair'),
+          ),
         ],
       ),
     );
@@ -161,149 +220,101 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
   Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).user;
     final theme = Theme.of(context);
+    final cidade = user?.cidadeAmauc;
 
     if (_carregandoPerfil && user == null) {
       return const Center(
-          child: CircularProgressIndicator(color: AppColors.primary));
-    }
-
-    ImageProvider? fotoExibicao;
-    if (_fotoLocal != null) {
-      fotoExibicao = FileImage(_fotoLocal!);
-    } else if (_fotoUrlRemota != null && _fotoUrlRemota!.isNotEmpty) {
-      fotoExibicao = CachedNetworkImageProvider(
-        ApiConfig.resolveAssetUrl(_fotoUrlRemota),
+        child: CircularProgressIndicator(color: AppColors.primary),
       );
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
             'Perfil',
-            style: theme.textTheme.headlineMedium
-                ?.copyWith(fontWeight: FontWeight.w900),
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: AppColors.textPrimaryDark,
+            ),
           ).animate().fadeIn().slideY(begin: 0.1),
           const SizedBox(height: 8),
           Text(
-            'Gerencie seus dados, preferencias e seguranca.',
+            'Gerencie seus dados, foto e preferencias.',
             style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.muted),
           ),
-          const SizedBox(height: 28),
-          Center(
-            child: Stack(
-              children: [
-                CircleAvatar(
-                  radius: 52,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-                  backgroundImage: fotoExibicao,
-                  child: fotoExibicao == null
-                      ? Text(
-                          user?.nome.isNotEmpty == true
-                              ? user!.nome[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.primary,
-                          ),
-                        )
-                      : null,
+          const SizedBox(height: 22),
+          _ProfileHeader(
+            user: user,
+            fotoUrl: _fotoUrlRemota,
+            previewBytes: _fotoPreviewBytes,
+            salvando: _salvando,
+            onTrocarFoto: _trocarFoto,
+          ),
+          const SizedBox(height: 22),
+          _FormPanel(
+            children: [
+              TextField(
+                controller: _nomeController,
+                decoration: const InputDecoration(
+                  labelText: 'Nome completo',
+                  prefixIcon: Icon(Icons.person_outline_rounded),
                 ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Material(
-                    color: AppColors.primary,
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      onTap: _salvando ? null : _trocarFoto,
-                      child: const Padding(
-                        padding: EdgeInsets.all(10),
-                        child: Icon(Icons.camera_alt_rounded,
-                            color: Colors.white, size: 20),
-                      ),
-                    ),
-                  ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _telefoneController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'Telefone',
+                  prefixIcon: Icon(Icons.phone_outlined),
+                ),
+              ),
+              const SizedBox(height: 14),
+              _ReadonlyField(
+                icon: Icons.email_outlined,
+                label: 'E-mail',
+                value: user?.email ?? '',
+              ),
+              if (cidade != null && cidade.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                _ReadonlyField(
+                  icon: Icons.location_city_outlined,
+                  label: 'Cidade AMAUC',
+                  value: cidade,
                 ),
               ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Center(
-            child: Text(
-              user?.tipo.isPrestador == true
-                  ? 'Prestador AMAUC'
-                  : 'Cidadão AMAUC',
-              style: theme.textTheme.labelLarge
-                  ?.copyWith(color: AppColors.primary),
-            ),
-          ),
-          const SizedBox(height: 28),
-          TextField(
-            controller: _nomeController,
-            decoration: const InputDecoration(
-              labelText: 'Nome completo',
-              prefixIcon: Icon(Icons.person_outline_rounded),
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _telefoneController,
-            keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(
-              labelText: 'Telefone',
-              prefixIcon: Icon(Icons.phone_outlined),
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            enabled: false,
-            controller: TextEditingController(text: user?.email ?? ''),
-            decoration: const InputDecoration(
-              labelText: 'E-mail',
-              prefixIcon: Icon(Icons.email_outlined),
-            ),
-          ),
-          if (user?.cidadeAmauc != null && user!.cidadeAmauc!.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            TextField(
-              enabled: false,
-              controller: TextEditingController(text: user.cidadeAmauc),
-              decoration: const InputDecoration(
-                labelText: 'Cidade AMAUC',
-                prefixIcon: Icon(Icons.location_city_outlined),
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: _salvando ? null : _salvar,
+                icon: _salvando
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.save_rounded),
+                label: Text(_salvando ? 'Salvando...' : 'Salvar alteracoes'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                ),
               ),
-            ),
-          ],
-          const SizedBox(height: 28),
-          FilledButton(
-            onPressed: _salvando ? null : _salvar,
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-            ),
-            child: _salvando
-                ? const SizedBox(
-                    height: 22,
-                    width: 22,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
-                  )
-                : const Text('Salvar alterações',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 22),
           _SettingsSection(
             title: 'Endereco principal',
             children: [
               _SettingsTile(
                 icon: Icons.location_on_outlined,
-                title: user?.cidadeAmauc ?? 'Cidade AMAUC',
+                title: cidade ?? 'Cidade AMAUC',
                 subtitle: 'Base para buscas e agendamentos',
                 onTap: () => _mostrarErro('Edite a cidade pelo cadastro.'),
               ),
@@ -340,7 +351,7 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
                 title: 'Alterar senha',
                 subtitle: 'Use a recuperacao de senha no login',
                 onTap: () =>
-                    _mostrarErro('Fluxo de senha ainda nao implementado.'),
+                    _mostrarErro('Fluxo de senha disponivel pela tela de login.'),
               ),
             ],
           ),
@@ -351,8 +362,7 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
                 icon: Icons.privacy_tip_outlined,
                 title: 'Privacidade',
                 subtitle: 'Dados usados somente no Conecta AMAUC',
-                onTap: () =>
-                    _mostrarErro('Documento de privacidade pendente.'),
+                onTap: _mostrarPrivacidade,
               ),
               const _SettingsTile(
                 icon: Icons.info_outline_rounded,
@@ -361,13 +371,179 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: _sair,
             icon: const Icon(Icons.logout_rounded),
             label: const Text('Sair da conta'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.statusRecusado,
+              side: BorderSide(
+                color: AppColors.statusRecusado.withValues(alpha: 0.45),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ProfileHeader extends StatelessWidget {
+  const _ProfileHeader({
+    required this.user,
+    required this.fotoUrl,
+    required this.previewBytes,
+    required this.salvando,
+    required this.onTrocarFoto,
+  });
+
+  final User? user;
+  final String? fotoUrl;
+  final Uint8List? previewBytes;
+  final bool salvando;
+  final VoidCallback onTrocarFoto;
+
+  @override
+  Widget build(BuildContext context) {
+    final tipo = user?.tipo.isPrestador == true
+        ? 'Prestador AMAUC'
+        : user?.tipo.isAdmin == true
+            ? 'Administrador'
+            : 'Cidadao AMAUC';
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.darkCard,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Row(
+        children: [
+          ProfileAvatar(
+            name: user?.nome ?? 'Usuario',
+            imageUrl: fotoUrl,
+            previewBytes: previewBytes,
+            radius: 42,
+            showEdit: true,
+            onEdit: salvando ? null : onTrocarFoto,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user?.nome ?? 'Usuario',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppColors.textPrimaryDark,
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _InfoPill(icon: Icons.verified_user_outlined, label: tipo),
+                    if (user?.cidadeAmauc?.isNotEmpty == true)
+                      _InfoPill(
+                        icon: Icons.location_on_outlined,
+                        label: user!.cidadeAmauc!,
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoPill extends StatelessWidget {
+  const _InfoPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.11),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.primary),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textPrimaryDark,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FormPanel extends StatelessWidget {
+  const _FormPanel({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Column(children: children),
+    );
+  }
+}
+
+class _ReadonlyField extends StatelessWidget {
+  const _ReadonlyField({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        enabled: false,
+      ),
+      child: Text(
+        value,
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: AppColors.textPrimaryDark,
+              fontWeight: FontWeight.w700,
+            ),
       ),
     );
   }

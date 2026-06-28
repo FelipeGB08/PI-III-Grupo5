@@ -1,9 +1,13 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 
+import '../../../core/config/amauc_constants.dart';
 import '../../../core/config/api_config.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../domain/entities/agenda_config.dart';
 import '../../../domain/entities/chamado.dart';
+import '../../../domain/entities/user.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import '../../models/avaliacao_model.dart';
 import '../../models/chamado_model.dart';
@@ -52,7 +56,16 @@ class ApiService {
     return AuthResponseModel.fromJson(response.data as Map<String, dynamic>);
   }
 
+  Future<AuthResponseModel> refreshSession() async {
+    final response = await _dio.post(ApiConfig.authRefresh);
+    return AuthResponseModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
   Future<Map<String, dynamic>> register(RegisterParams params) async {
+    final categoriaPrincipal = params.categorias.isNotEmpty
+        ? AmaucConstants.categoriaNomePorId(params.categorias.first)
+        : null;
+
     final response = await _dio.post(
       ApiConfig.authRegister,
       data: {
@@ -62,6 +75,16 @@ class ApiService {
         'telefone': params.telefoneComercial ?? '',
         'cidade_amauc': params.cidadeAmauc,
         'perfil_tipo': params.tipo.name,
+        if (params.tipo.isPrestador) ...{
+          'biografia': params.bio ?? '',
+          'bio': params.bio ?? '',
+          'categoria': categoriaPrincipal,
+          'categorias': params.categorias
+              .map((id) => AmaucConstants.categoriaNomePorId(id) ?? id)
+              .toList(),
+          'cidades_atendidas':
+              params.cidades.isNotEmpty ? params.cidades : [params.cidadeAmauc],
+        },
       },
     );
     return response.data as Map<String, dynamic>;
@@ -113,6 +136,11 @@ class ApiService {
     required String telefoneComercial,
     required String cidade,
     required String categoria,
+    List<String> cidadesAtendidas = const [],
+    bool atendeRural = false,
+    bool atendeEmergencia = false,
+    bool possuiVeiculo = false,
+    double? taxaDeslocamento,
   }) async {
     await _dio.post(
       ApiConfig.perfil,
@@ -122,6 +150,12 @@ class ApiService {
         'anos_experiencia': 0,
         'categoria': categoria,
         'cidade_amauc': cidade,
+        'cidades_atendidas':
+            cidadesAtendidas.isEmpty ? [cidade] : cidadesAtendidas,
+        'atende_rural': atendeRural,
+        'atende_emergencia': atendeEmergencia,
+        'possui_veiculo': possuiVeiculo,
+        if (taxaDeslocamento != null) 'taxa_deslocamento': taxaDeslocamento,
       },
     );
   }
@@ -137,12 +171,22 @@ class ApiService {
     required int anosExperiencia,
     String? curriculoTexto,
     String? portfolioUrl,
+    List<String> cidadesAtendidas = const [],
+    bool? atendeRural,
+    bool? atendeEmergencia,
+    bool? possuiVeiculo,
+    double? taxaDeslocamento,
   }) async {
     final data = {
       'biografia': biografia,
       'anos_experiencia': anosExperiencia,
       'curriculo_texto': curriculoTexto ?? '',
       'portfolio_url': portfolioUrl ?? '',
+      'cidades_atendidas': cidadesAtendidas,
+      if (atendeRural != null) 'atende_rural': atendeRural,
+      if (atendeEmergencia != null) 'atende_emergencia': atendeEmergencia,
+      if (possuiVeiculo != null) 'possui_veiculo': possuiVeiculo,
+      if (taxaDeslocamento != null) 'taxa_deslocamento': taxaDeslocamento,
     };
 
     try {
@@ -198,6 +242,31 @@ class ApiService {
     return data['foto_url']?.toString() ?? '';
   }
 
+  Future<String> uploadFotoPerfilBytes({
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    final formData = FormData.fromMap({
+      'foto': MultipartFile.fromBytes(bytes, filename: filename),
+    });
+    final response = await _dio.post(ApiConfig.upload, data: formData);
+    final data = response.data as Map<String, dynamic>;
+    return data['foto_url']?.toString() ?? '';
+  }
+
+  Future<void> registrarDeviceToken({
+    required String token,
+    required String plataforma,
+  }) async {
+    await _dio.post(
+      ApiConfig.dispositivoToken,
+      data: {
+        'token': token,
+        'plataforma': plataforma,
+      },
+    );
+  }
+
   Future<AgendaConfig> buscarAgendaProfissional(int profissionalId) async {
     final response =
         await _dio.get(ApiConfig.agendaProfissional(profissionalId));
@@ -231,6 +300,17 @@ class ApiService {
     return (response.data as List<dynamic>)
         .map((e) => PrestadorModel.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  List<dynamic> _asListResponse(dynamic data, List<String> keys) {
+    if (data is List<dynamic>) return data;
+    if (data is Map<String, dynamic>) {
+      for (final key in keys) {
+        final value = data[key];
+        if (value is List<dynamic>) return value;
+      }
+    }
+    return const [];
   }
 
   /// Busca prestadores por filtros de cidade ou categoria.
@@ -267,6 +347,7 @@ class ApiService {
     double? preco,
     DateTime? agendadoPara,
     String? enderecoAtendimento,
+    String? fotoUrl,
   }) async {
     final response = await _dio.post(
       ApiConfig.chamados,
@@ -283,6 +364,7 @@ class ApiService {
         preco: preco,
         agendadoPara: agendadoPara,
         enderecoAtendimento: enderecoAtendimento,
+        fotoUrl: fotoUrl,
       ),
     );
     final data = response.data as Map<String, dynamic>;
@@ -294,12 +376,12 @@ class ApiService {
   /// Lista chamados do Prestador. Opcionalmente filtra por status (pendente, aceito, etc).
   Future<List<ChamadoModel>> listarChamadosPrestador({String? status}) async {
     final response = await _dio.get(
-      ApiConfig.chamadosMeus,
+      ApiConfig.chamadosPrestador,
       queryParameters: {
         if (status != null) 'status': status,
       },
     );
-    return (response.data as List<dynamic>)
+    return _asListResponse(response.data, const ['solicitacoes', 'pedidos'])
         .map((e) => ChamadoModel.fromJson(e as Map<String, dynamic>))
         .toList();
   }
@@ -312,7 +394,7 @@ class ApiService {
         if (status != null) 'status': status,
       },
     );
-    return (response.data as List<dynamic>)
+    return _asListResponse(response.data, const ['pedidos', 'solicitacoes'])
         .map((e) => ChamadoModel.fromJson(e as Map<String, dynamic>))
         .toList();
   }
@@ -338,15 +420,14 @@ class ApiService {
     );
   }
 
-    Future<ChamadoModel> cancelarSolicitacao({
+  Future<ChamadoModel> cancelarSolicitacao({
     required int chamadoId,
     String? motivo,
   }) async {
     final response = await _dio.patch(
       ApiConfig.cancelarSolicitacao(chamadoId),
       data: {
-        if (motivo != null && motivo.trim().isNotEmpty)
-          'motivo': motivo.trim(),
+        if (motivo != null && motivo.trim().isNotEmpty) 'motivo': motivo.trim(),
       },
     );
 
@@ -365,8 +446,7 @@ class ApiService {
       ApiConfig.remarcarSolicitacao(chamadoId),
       data: {
         'nova_data_hora': novaDataHora.toIso8601String(),
-        if (motivo != null && motivo.trim().isNotEmpty)
-          'motivo': motivo.trim(),
+        if (motivo != null && motivo.trim().isNotEmpty) 'motivo': motivo.trim(),
       },
     );
 

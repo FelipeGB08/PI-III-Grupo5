@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// Placeholder estruturado para CAPTCHA invisível (Turnstile / reCAPTCHA v3).
+/// Verificacao anti-bot local para o MVP.
 ///
-/// Integração futura:
-/// 1. Injete o script do provedor via WebView ou plugin nativo.
-/// 2. Chame [CaptchaPlaceholderController.markVerified] ao receber o token.
-/// 3. Envie o token junto ao payload de registro/login no backend.
+/// A API atual valida rate limit no backend. Este componente evita envio
+/// acidental do formulario sem uma acao explicita do usuario.
 class CaptchaPlaceholderController {
   VoidCallback? _onReset;
 
@@ -17,9 +15,9 @@ class CaptchaPlaceholderController {
     _onReset = null;
   }
 
-  /// Marca o CAPTCHA como verificado (chamado após callback do provedor).
+  /// Marca a verificacao como concluida.
   void markVerified({String? token}) {
-    // Token será utilizado na integração com a API.
+    // Mantem assinatura flexivel caso um provedor real seja conectado depois.
   }
 
   /// Reseta o estado de verificação.
@@ -74,7 +72,7 @@ class _CaptchaPlaceholderState extends State<CaptchaPlaceholder> {
 
     setState(() => _isLoading = true);
 
-    // Simula latência do provedor de CAPTCHA invisível.
+    // Pequena latencia para dar feedback visual da verificacao.
     await Future<void>.delayed(const Duration(milliseconds: 600));
 
     if (!mounted) return;
@@ -83,7 +81,7 @@ class _CaptchaPlaceholderState extends State<CaptchaPlaceholder> {
       _isLoading = false;
       _isVerified = true;
     });
-    widget.controller?.markVerified(token: 'captcha-placeholder-token');
+    widget.controller?.markVerified();
     widget.onVerifiedChanged?.call(true);
   }
 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 /// Municípios associados à AMAUC (Alto Uruguai Catarinense).
-/// Fonte: associação oficial — Chapecó e demais cidades fora da AMAUC foram excluídas.
 class AmaucConstants {
   AmaucConstants._();
 
@@ -36,6 +35,30 @@ class AmaucConstants {
       cor: Color(0xFFF59E0B),
     ),
     ServicoCategoria(
+      id: 'eletricista_rural',
+      nome: 'Eletricista Rural',
+      icon: Icons.electrical_services_outlined,
+      cor: Color(0xFF22D3EE),
+    ),
+    ServicoCategoria(
+      id: 'manutencao_rural',
+      nome: 'Manutenção Rural',
+      icon: Icons.agriculture_rounded,
+      cor: Color(0xFF84CC16),
+    ),
+    ServicoCategoria(
+      id: 'mecanica_agricola',
+      nome: 'Mecânica Agrícola',
+      icon: Icons.precision_manufacturing_rounded,
+      cor: Color(0xFF14B8A6),
+    ),
+    ServicoCategoria(
+      id: 'fretes_carretos',
+      nome: 'Fretes e Carretos',
+      icon: Icons.local_shipping_rounded,
+      cor: Color(0xFFF97316),
+    ),
+    ServicoCategoria(
       id: 'ti',
       nome: 'TI',
       icon: Icons.computer_rounded,
@@ -46,6 +69,18 @@ class AmaucConstants {
       nome: 'Limpeza',
       icon: Icons.cleaning_services_rounded,
       cor: Color(0xFF10B981),
+    ),
+    ServicoCategoria(
+      id: 'limpeza_pos_obra',
+      nome: 'Limpeza Pós-Obra',
+      icon: Icons.clean_hands_rounded,
+      cor: Color(0xFF06B6D4),
+    ),
+    ServicoCategoria(
+      id: 'refrigeracao',
+      nome: 'Refrigeração',
+      icon: Icons.ac_unit_rounded,
+      cor: Color(0xFF38BDF8),
     ),
     ServicoCategoria(
       id: 'construcao',

@@ -1,23 +1,32 @@
 const pool = require('../config/db');
 
+const CAMPOS_PROFISSIONAL = `
+    u.id,
+    u.nome,
+    u.email,
+    u.telefone,
+    u.foto_url,
+    u.cidade_amauc,
+    pp.biografia,
+    pp.curriculo_texto,
+    pp.portfolio_url,
+    pp.anos_experiencia,
+    pp.verificado,
+    pp.atende_rural,
+    pp.atende_emergencia,
+    pp.possui_veiculo,
+    pp.cidades_atendidas,
+    pp.taxa_deslocamento,
+    COALESCE(
+        json_agg(DISTINCT c.nome_servico) FILTER (WHERE c.nome_servico IS NOT NULL),
+        '[]'
+    ) AS categorias
+`;
+
 const ProfissionalModel = {
-    buscarPorFiltros: async (cidade, categoria) => {
+    buscarPorFiltros: async (cidade, categoria, atendeRural = null) => {
         let query = `
-            SELECT
-                u.id,
-                u.nome,
-                u.email,
-                u.telefone,
-                u.cidade_amauc,
-                pp.biografia,
-                pp.curriculo_texto,
-                pp.portfolio_url,
-                pp.anos_experiencia,
-                pp.verificado,
-                COALESCE(
-                    json_agg(DISTINCT c.nome_servico) FILTER (WHERE c.nome_servico IS NOT NULL),
-                    '[]'
-                ) AS categorias
+            SELECT ${CAMPOS_PROFISSIONAL}
             FROM usuarios u
             INNER JOIN perfis_profissionais pp ON pp.usuario_id = u.id
             LEFT JOIN profissional_categorias pc ON pc.profissional_id = u.id
@@ -28,7 +37,7 @@ const ProfissionalModel = {
         let indice = 1;
 
         if (cidade) {
-            query += ` AND u.cidade_amauc = $${indice}`;
+            query += ` AND (u.cidade_amauc = $${indice} OR $${indice} = ANY(pp.cidades_atendidas))`;
             valores.push(cidade);
             indice++;
         }
@@ -45,9 +54,13 @@ const ProfissionalModel = {
             indice++;
         }
 
+        if (atendeRural === 'true') {
+            query += ' AND pp.atende_rural = TRUE';
+        }
+
         query += `
             GROUP BY u.id, pp.id
-            ORDER BY pp.verificado DESC, u.nome ASC;
+            ORDER BY pp.verificado DESC, pp.atende_rural DESC, u.nome ASC;
         `;
 
         const resultado = await pool.query(query, valores);
@@ -56,21 +69,7 @@ const ProfissionalModel = {
 
     buscarPorId: async (id) => {
         const query = `
-            SELECT
-                u.id,
-                u.nome,
-                u.email,
-                u.telefone,
-                u.cidade_amauc,
-                pp.biografia,
-                pp.curriculo_texto,
-                pp.portfolio_url,
-                pp.anos_experiencia,
-                pp.verificado,
-                COALESCE(
-                    json_agg(DISTINCT c.nome_servico) FILTER (WHERE c.nome_servico IS NOT NULL),
-                    '[]'
-                ) AS categorias
+            SELECT ${CAMPOS_PROFISSIONAL}
             FROM usuarios u
             INNER JOIN perfis_profissionais pp ON pp.usuario_id = u.id
             LEFT JOIN profissional_categorias pc ON pc.profissional_id = u.id

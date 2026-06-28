@@ -38,6 +38,7 @@ abstract class AuthRepository {
     required String token,
     required String cidadeAmauc,
   });
+  Future<AuthResult> refreshSession();
   Future<AuthResult> register(RegisterParams params);
   Future<String?> requestMagicLink({required String email});
   Future<AuthResult> verifyMagicLink({required String token});
@@ -57,5 +58,9 @@ abstract class AuthRepository {
     String? fotoUrl,
   });
   Future<String> uploadAvatar(String filePath);
+  Future<String> uploadAvatarBytes({
+    required List<int> bytes,
+    required String filename,
+  });
   Future<void> persistUser(User user);
 }

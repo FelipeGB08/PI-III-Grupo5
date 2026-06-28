@@ -79,7 +79,11 @@ class _ChamadosScreenState extends ConsumerState<ChamadosScreen>
                   controller: _tabController,
                   children: [
                     _ChamadosList(
-                      chamados: _filter(state.chamados, ChamadoStatus.pendente),
+                      chamados: state.chamados
+                          .where((c) =>
+                              c.status == ChamadoStatus.pendente ||
+                              c.status == ChamadoStatus.remarcacaoSolicitada)
+                          .toList(),
                       isPrestador: isPrestador,
                     ),
                     _ChamadosList(
@@ -92,7 +96,8 @@ class _ChamadosScreenState extends ConsumerState<ChamadosScreen>
                       chamados: state.chamados
                           .where((c) =>
                               c.status == ChamadoStatus.concluido ||
-                              c.status == ChamadoStatus.recusado)
+                              c.status == ChamadoStatus.recusado ||
+                              c.status == ChamadoStatus.cancelado)
                           .toList(),
                       isPrestador: isPrestador,
                       showAvaliar: !isPrestador,
@@ -148,17 +153,19 @@ class _ChamadosList extends ConsumerWidget {
       ? () => ref.read(chamadosProvider.notifier).concluir(c.id)
       : null,
   onCancelar: !isPrestador && c.status == ChamadoStatus.pendente
-      ? () => ref.read(chamadosProvider.notifier).cancelarSolicitacao(c.id)
+      ? () => _cancelarSolicitacao(context, ref, c)
       : null,
   onRemarcar: isPrestador && c.status == ChamadoStatus.emAndamento
-      ? () async {
-          final novaData = DateTime.now().add(const Duration(days: 1));
-          await ref.read(chamadosProvider.notifier).solicitarRemarcacao(
-                c.id,
-                novaDataHora: novaData,
-              );
-        }
+      ? () => _solicitarRemarcacao(context, ref, c)
       : null,
+  onAceitarRemarcacao:
+      !isPrestador && c.status == ChamadoStatus.remarcacaoSolicitada
+          ? () => ref.read(chamadosProvider.notifier).aceitarRemarcacao(c.id)
+          : null,
+  onRecusarRemarcacao:
+      !isPrestador && c.status == ChamadoStatus.remarcacaoSolicitada
+          ? () => ref.read(chamadosProvider.notifier).recusarRemarcacao(c.id)
+          : null,
   onAvaliar: showAvaliar && c.status == ChamadoStatus.concluido
       ? () => AvaliacaoBottomSheet.show(context, c)
       : null,
@@ -172,5 +179,79 @@ class _ChamadosList extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  Future<void> _solicitarRemarcacao(
+    BuildContext context,
+    WidgetRef ref,
+    Chamado chamado,
+  ) async {
+    final initial = DateTime.now().add(const Duration(days: 1));
+    final data = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 90)),
+    );
+    if (data == null || !context.mounted) return;
+
+    final hora = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 9, minute: 0),
+    );
+    if (hora == null) return;
+
+    final novaDataHora = DateTime(
+      data.year,
+      data.month,
+      data.day,
+      hora.hour,
+      hora.minute,
+    );
+
+    await ref.read(chamadosProvider.notifier).solicitarRemarcacao(
+          chamado.id,
+          novaDataHora: novaDataHora,
+          motivo: 'Proposta enviada pelo prestador.',
+        );
+  }
+
+  Future<void> _cancelarSolicitacao(
+    BuildContext context,
+    WidgetRef ref,
+    Chamado chamado,
+  ) async {
+    final controller = TextEditingController();
+    final motivo = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancelar solicitacao'),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Motivo opcional',
+            hintText: 'Ex: resolvi de outra forma',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Cancelar solicitacao'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+
+    if (motivo == null) return;
+    await ref.read(chamadosProvider.notifier).cancelarSolicitacao(
+          chamado.id,
+          motivo: motivo.isEmpty ? null : motivo,
+        );
   }
 }

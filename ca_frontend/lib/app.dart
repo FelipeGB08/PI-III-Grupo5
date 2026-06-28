@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/firebase/firebase_messaging_service.dart';
 import 'core/theme/app_theme.dart';
+import 'presentation/providers/providers.dart';
 import 'presentation/screens/home/home_shell.dart';
 
 class ConectaAmaucApp extends ConsumerStatefulWidget {
@@ -13,6 +15,10 @@ class ConectaAmaucApp extends ConsumerStatefulWidget {
 }
 
 class _ConectaAmaucAppState extends ConsumerState<ConectaAmaucApp> {
+  int? _ultimoUsuarioRegistrado;
+  String? _ultimoTokenRegistrado;
+  bool _registrandoToken = false;
+
   @override
   void initState() {
     super.initState();
@@ -22,14 +28,61 @@ class _ConectaAmaucAppState extends ConsumerState<ConectaAmaucApp> {
   Future<void> _initFirebase() async {
     FirebaseMessagingService.instance.onNotificationTap = (data) {
       final tipo = FirebaseMessagingService.eventType(data);
-      debugPrint('[FCM] Notificação tocada: $tipo');
-      // Navega para Central de Chamados quando receber push de chamado
+      debugPrint('[FCM] Notificacao tocada: $tipo');
     };
+
+    FirebaseMessagingService.instance.onTokenRefresh = (token) {
+      _registrarTokenPush(token);
+    };
+
     await FirebaseMessagingService.instance.initialize();
+    await _registrarTokenPush(FirebaseMessagingService.instance.currentToken);
+  }
+
+  Future<void> _registrarTokenPush(String? token) async {
+    if (!mounted || token == null || token.isEmpty || _registrandoToken) return;
+
+    final user = ref.read(authStateProvider).user;
+    if (user == null) return;
+
+    if (_ultimoUsuarioRegistrado == user.id && _ultimoTokenRegistrado == token) {
+      return;
+    }
+
+    _registrandoToken = true;
+    try {
+      await ref.read(apiServiceProvider).registrarDeviceToken(
+            token: token,
+            plataforma: _plataformaAtual(),
+          );
+      _ultimoUsuarioRegistrado = user.id;
+      _ultimoTokenRegistrado = token;
+    } catch (e) {
+      debugPrint('[FCM] Falha ao registrar token no backend: $e');
+    } finally {
+      _registrandoToken = false;
+    }
+  }
+
+  String _plataformaAtual() {
+    if (kIsWeb) return 'web';
+    if (defaultTargetPlatform == TargetPlatform.android) return 'android';
+    if (defaultTargetPlatform == TargetPlatform.iOS) return 'ios';
+    return 'flutter';
   }
 
   @override
   Widget build(BuildContext context) {
+    final auth = ref.watch(authStateProvider);
+    if (auth.user == null) {
+      _ultimoUsuarioRegistrado = null;
+      _ultimoTokenRegistrado = null;
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _registrarTokenPush(FirebaseMessagingService.instance.currentToken);
+      });
+    }
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Conecta AMAUC',

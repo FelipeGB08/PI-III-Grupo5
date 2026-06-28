@@ -11,7 +11,9 @@ import 'firebase_options.dart';
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  debugPrint('[FCM Background] ${message.notification?.title}');
+  if (kDebugMode) {
+    debugPrint('[FCM Background] ${message.notification?.title}');
+  }
 }
 
 typedef NotificationTapCallback = void Function(Map<String, dynamic> data);
@@ -26,7 +28,11 @@ class FirebaseMessagingService {
       FlutterLocalNotificationsPlugin();
 
   bool _initialized = false;
+  String? _currentToken;
   NotificationTapCallback? onNotificationTap;
+  ValueChanged<String>? onTokenRefresh;
+
+  String? get currentToken => _currentToken;
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -92,9 +98,20 @@ class FirebaseMessagingService {
     final messaging = _messaging;
     if (messaging == null) return;
     final token = await messaging.getToken();
-    debugPrint('[FCM] Token: $token');
-    messaging.onTokenRefresh
-        .listen((t) => debugPrint('[FCM] Token refresh: $t'));
+    _currentToken = token;
+    if (kDebugMode) {
+      debugPrint('[FCM] Token recebido.');
+    }
+    if (token != null && token.isNotEmpty) {
+      onTokenRefresh?.call(token);
+    }
+    messaging.onTokenRefresh.listen((t) {
+      _currentToken = t;
+      if (kDebugMode) {
+        debugPrint('[FCM] Token atualizado.');
+      }
+      onTokenRefresh?.call(t);
+    });
   }
 
   void _onForegroundMessage(RemoteMessage message) {

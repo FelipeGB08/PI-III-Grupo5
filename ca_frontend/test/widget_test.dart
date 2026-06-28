@@ -20,12 +20,14 @@ void main() {
       ),
     );
 
-    expect(find.text('Conecta AMAUC'), findsOneWidget);
-    expect(find.text('Cadastrar'), findsOneWidget);
+    expect(find.text('AMAUC'), findsOneWidget);
+    expect(find.text('Entrar'), findsOneWidget);
+    expect(find.text('Criar conta'), findsOneWidget);
 
-    await tester.tap(find.text('Cadastrar'));
+    await tester.tap(find.text('Criar conta'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Crie sua conta'), findsOneWidget);
     expect(find.text('Quero Contratar'), findsOneWidget);
     expect(find.text('Quero Trabalhar'), findsOneWidget);
   });

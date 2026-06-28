@@ -35,8 +35,10 @@ class ChamadoCard extends StatelessWidget {
   Color get _statusColor => switch (chamado.status) {
         ChamadoStatus.pendente => AppColors.statusPendente,
         ChamadoStatus.emAndamento => AppColors.statusEmAndamento,
+        ChamadoStatus.remarcacaoSolicitada => AppColors.primary,
         ChamadoStatus.concluido => AppColors.statusConcluido,
         ChamadoStatus.recusado => AppColors.statusRecusado,
+        ChamadoStatus.cancelado => AppColors.muted,
       };
 
   @override
@@ -75,7 +77,7 @@ class ChamadoCard extends StatelessWidget {
                 const Spacer(),
                 if (chamado.dataSolicitacao != null)
                   Text(
-                    chamado.dataSolicitacao!.substring(0, 10),
+                    _formatShortDate(chamado.dataSolicitacao!),
                     style: theme.textTheme.bodyMedium?.copyWith(fontSize: 11),
                   ),
               ],
@@ -87,87 +89,55 @@ class ChamadoCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  chamado.descricao,
+                  chamado.servicoNome?.isNotEmpty == true
+                      ? chamado.servicoNome!
+                      : chamado.descricao,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleLarge?.copyWith(fontSize: 15),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   isPrestador
-                      ? 'Cliente: ${chamado.cidadaoNome ?? "—"}'
+                      ? 'Cliente: ${chamado.cidadaoNome ?? "-"}'
                       : 'Prestador: ${chamado.profissionalNome ?? "#${chamado.profissionalId}"}',
                   style: theme.textTheme.bodyMedium,
                 ),
-                if (!isPrestador && chamado.status == ChamadoStatus.pendente && onCancelar != null) ...[
-  const SizedBox(height: 14),
-  _ActionButton(
-    label: 'Cancelar solicitação',
-    color: AppColors.statusRecusado,
-    icon: Icons.cancel_outlined,
-    onTap: onCancelar,
-    outlined: true,
-  ),
-],
-if (isPrestador && chamado.status == ChamadoStatus.emAndamento && onRemarcar != null) ...[
-  const SizedBox(height: 14),
-  _ActionButton(
-    label: 'Remarcar horário',
-    color: AppColors.primary,
-    icon: Icons.event_repeat_rounded,
-    onTap: onRemarcar,
-    outlined: true,
-  ),
-],
-                if (isPrestador &&
-                    chamado.status == ChamadoStatus.pendente) ...[
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _ActionButton(
-                          label: 'Aceitar',
-                          color: AppColors.statusConcluido,
-                          icon: Icons.check_rounded,
-                          onTap: onAceitar,
-                        ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (chamado.agendadoPara != null)
+                      _MetaChip(
+                        icon: Icons.event_rounded,
+                        label: _formatDateTime(context, chamado.agendadoPara!),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _ActionButton(
-                          label: 'Recusar',
-                          color: AppColors.statusRecusado,
-                          icon: Icons.close_rounded,
-                          onTap: onRecusar,
-                          outlined: true,
-                        ),
+                    if (chamado.preco != null)
+                      _MetaChip(
+                        icon: Icons.payments_outlined,
+                        label: 'R\$ ${chamado.preco!.toStringAsFixed(2)}',
                       ),
-                    ],
+                    if (chamado.fotoUrl?.isNotEmpty == true)
+                      const _MetaChip(
+                        icon: Icons.image_outlined,
+                        label: 'Com foto',
+                      ),
+                  ],
+                ),
+                if (chamado.status == ChamadoStatus.remarcacaoSolicitada &&
+                    chamado.remarcacaoSolicitadaPara != null) ...[
+                  const SizedBox(height: 12),
+                  _NoticeBox(
+                    text:
+                        'Novo horario proposto: ${_formatDateTime(context, chamado.remarcacaoSolicitadaPara!)}',
                   ),
                 ],
-                if (isPrestador &&
-                    chamado.status == ChamadoStatus.emAndamento) ...[
-                  const SizedBox(height: 14),
-                  _ActionButton(
-                    label: 'Marcar como Concluído',
-                    color: AppColors.statusConcluido,
-                    icon: Icons.task_alt_rounded,
-                    onTap: onConcluir,
-                  ),
-                ],
-                if (!isPrestador &&
-                    chamado.status == ChamadoStatus.concluido &&
-                    onAvaliar != null) ...[
-                  const SizedBox(height: 14),
-                  _ActionButton(
-                    label: 'Avaliar servico',
-                    color: AppColors.primary,
-                    icon: Icons.star_rounded,
-                    onTap: onAvaliar,
-                  ),
-                ],
+                ..._actions(),
                 if (onDetalhes != null) ...[
                   const SizedBox(height: 12),
                   _ActionButton(
-                    label: 'Ver Detalhes',
+                    label: 'Ver detalhes',
                     color: AppColors.primary,
                     icon: Icons.receipt_long_outlined,
                     onTap: onDetalhes,
@@ -180,6 +150,203 @@ if (isPrestador && chamado.status == ChamadoStatus.emAndamento && onRemarcar != 
         ],
       ),
     ).animate().fadeIn().slideX(begin: 0.05, end: 0);
+  }
+
+  List<Widget> _actions() {
+    if (!isPrestador &&
+        chamado.status == ChamadoStatus.remarcacaoSolicitada) {
+      return [
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: _ActionButton(
+                label: 'Aceitar novo horario',
+                color: AppColors.statusConcluido,
+                icon: Icons.check_rounded,
+                onTap: onAceitarRemarcacao,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _ActionButton(
+                label: 'Recusar',
+                color: AppColors.statusRecusado,
+                icon: Icons.close_rounded,
+                onTap: onRecusarRemarcacao,
+                outlined: true,
+              ),
+            ),
+          ],
+        ),
+      ];
+    }
+
+    if (!isPrestador &&
+        chamado.status == ChamadoStatus.pendente &&
+        onCancelar != null) {
+      return [
+        const SizedBox(height: 14),
+        _ActionButton(
+          label: 'Cancelar solicitacao',
+          color: AppColors.statusRecusado,
+          icon: Icons.cancel_outlined,
+          onTap: onCancelar,
+          outlined: true,
+        ),
+      ];
+    }
+
+    if (isPrestador && chamado.status == ChamadoStatus.pendente) {
+      return [
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: _ActionButton(
+                label: 'Aceitar',
+                color: AppColors.statusConcluido,
+                icon: Icons.check_rounded,
+                onTap: onAceitar,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _ActionButton(
+                label: 'Recusar',
+                color: AppColors.statusRecusado,
+                icon: Icons.close_rounded,
+                onTap: onRecusar,
+                outlined: true,
+              ),
+            ),
+          ],
+        ),
+      ];
+    }
+
+    if (isPrestador && chamado.status == ChamadoStatus.emAndamento) {
+      return [
+        if (onRemarcar != null) ...[
+          const SizedBox(height: 14),
+          _ActionButton(
+            label: 'Propor remarcacao',
+            color: AppColors.primary,
+            icon: Icons.event_repeat_rounded,
+            onTap: onRemarcar,
+            outlined: true,
+          ),
+        ],
+        if (onConcluir != null) ...[
+          const SizedBox(height: 10),
+          _ActionButton(
+            label: 'Marcar como concluido',
+            color: AppColors.statusConcluido,
+            icon: Icons.task_alt_rounded,
+            onTap: onConcluir,
+          ),
+        ],
+      ];
+    }
+
+    if (!isPrestador &&
+        chamado.status == ChamadoStatus.concluido &&
+        onAvaliar != null) {
+      return [
+        const SizedBox(height: 14),
+        _ActionButton(
+          label: 'Avaliar servico',
+          color: AppColors.primary,
+          icon: Icons.star_rounded,
+          onTap: onAvaliar,
+        ),
+      ];
+    }
+
+    return const [];
+  }
+
+  String _formatShortDate(String raw) {
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return raw.length >= 10 ? raw.substring(0, 10) : raw;
+    return '${parsed.day.toString().padLeft(2, '0')}/${parsed.month.toString().padLeft(2, '0')}';
+  }
+
+  String _formatDateTime(BuildContext context, String raw) {
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return raw;
+    final date =
+        '${parsed.day.toString().padLeft(2, '0')}/${parsed.month.toString().padLeft(2, '0')}';
+    final time = TimeOfDay.fromDateTime(parsed).format(context);
+    return '$date as $time';
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.primary),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondaryDark,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NoticeBox extends StatelessWidget {
+  const _NoticeBox({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.event_repeat_rounded, color: AppColors.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: AppColors.textPrimaryDark,
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -208,20 +375,20 @@ class _ActionButtonState extends State<_ActionButton> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () async {
-        if (widget.label == 'Aceitar' && !_confirmed) {
-          setState(() => _confirmed = true);
-          await Future<void>.delayed(const Duration(milliseconds: 400));
-        }
-        widget.onTap?.call();
-      },
+      onTap: widget.onTap == null
+          ? null
+          : () async {
+              if (widget.label == 'Aceitar' && !_confirmed) {
+                setState(() => _confirmed = true);
+                await Future<void>.delayed(const Duration(milliseconds: 250));
+              }
+              widget.onTap?.call();
+            },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        duration: const Duration(milliseconds: 220),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color: widget.outlined
-              ? Colors.transparent
-              : (_confirmed ? widget.color : widget.color),
+          color: widget.outlined ? Colors.transparent : widget.color,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: widget.color),
         ),
@@ -236,14 +403,18 @@ class _ActionButtonState extends State<_ActionButton> {
               color: widget.outlined ? widget.color : Colors.white,
             ),
             const SizedBox(width: 6),
-            Text(
-              _confirmed && widget.label == 'Aceitar'
-                  ? 'Confirmado!'
-                  : widget.label,
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 13,
-                color: widget.outlined ? widget.color : Colors.white,
+            Flexible(
+              child: Text(
+                _confirmed && widget.label == 'Aceitar'
+                    ? 'Confirmado'
+                    : widget.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: widget.outlined ? widget.color : Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                ),
               ),
             ),
           ],

@@ -7,6 +7,46 @@ function isProfissional(usuarioLogado) {
     return perfil === 'profissional';
 }
 
+function normalizarBoolean(valor) {
+    if (valor === undefined || valor === null) return undefined;
+    if (typeof valor === 'boolean') return valor;
+    return ['true', '1', 'sim', 's'].includes(String(valor).toLowerCase());
+}
+
+function normalizarCidades(cidades) {
+    const lista = Array.isArray(cidades)
+        ? cidades
+        : String(cidades || '')
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean);
+
+    const validadas = [];
+    for (const cidade of lista) {
+        const validada = cidadePermitida(cidade);
+        if (validada && !validadas.includes(validada)) {
+            validadas.push(validada);
+        }
+    }
+    return validadas;
+}
+
+function montarDadosRegionais(body) {
+    const taxa = body.taxa_deslocamento !== undefined && body.taxa_deslocamento !== ''
+        ? Number(body.taxa_deslocamento)
+        : undefined;
+
+    return {
+        atende_rural: normalizarBoolean(body.atende_rural),
+        atende_emergencia: normalizarBoolean(body.atende_emergencia),
+        possui_veiculo: normalizarBoolean(body.possui_veiculo),
+        cidades_atendidas: body.cidades_atendidas !== undefined
+            ? normalizarCidades(body.cidades_atendidas)
+            : undefined,
+        taxa_deslocamento: Number.isFinite(taxa) ? taxa : undefined,
+    };
+}
+
 const PerfilController = {
     criar: async (req, res) => {
         try {
@@ -23,21 +63,19 @@ const PerfilController = {
             const portfolioUrl = req.body.portfolio_url || req.body.portfolio || null;
             const categoriaNome = req.body.categoria || req.body.nome_servico;
             const cidade = req.body.cidade || req.body.cidade_amauc;
+            const regional = montarDadosRegionais(req.body);
 
             if (!biografia) {
-                return res.status(400).json({ erro: 'biografia é obrigatória.' });
+                return res.status(400).json({ erro: 'biografia e obrigatoria.' });
             }
 
-            if (cidade) {
-                const cidadeValidada = cidadePermitida(cidade);
-                if (!cidadeValidada) {
-                    return res.status(403).json({ erro: 'Cidade informada não pertence à região AMAUC.' });
-                }
+            if (cidade && !cidadePermitida(cidade)) {
+                return res.status(403).json({ erro: 'Cidade informada nao pertence a regiao AMAUC.' });
             }
 
             const perfilExistente = await PerfilModel.buscarPorUsuarioId(usuarioId);
             if (perfilExistente) {
-                return res.status(400).json({ erro: 'Este usuário já possui um perfil profissional cadastrado.' });
+                return res.status(400).json({ erro: 'Este usuario ja possui um perfil profissional cadastrado.' });
             }
 
             const novoPerfil = await PerfilModel.criarPerfil(
@@ -45,7 +83,8 @@ const PerfilController = {
                 biografia,
                 anosExperiencia,
                 curriculoTexto,
-                portfolioUrl
+                portfolioUrl,
+                regional
             );
 
             if (categoriaNome) {
@@ -75,7 +114,7 @@ const PerfilController = {
             const perfil = await PerfilModel.buscarPorUsuarioId(usuarioId);
 
             if (!perfil) {
-                return res.status(404).json({ erro: 'Perfil não encontrado.' });
+                return res.status(404).json({ erro: 'Perfil nao encontrado.' });
             }
 
             return res.status(200).json(perfil);
@@ -94,7 +133,7 @@ const PerfilController = {
             const usuarioId = req.usuarioLogado.id;
             const perfilExistente = await PerfilModel.buscarPorUsuarioId(usuarioId);
             if (!perfilExistente) {
-                return res.status(404).json({ erro: 'Perfil nÃ£o encontrado.' });
+                return res.status(404).json({ erro: 'Perfil nao encontrado.' });
             }
 
             const anosExperiencia = req.body.anos_experiencia !== undefined
@@ -102,18 +141,20 @@ const PerfilController = {
                 : undefined;
 
             if (anosExperiencia !== undefined && (Number.isNaN(anosExperiencia) || anosExperiencia < 0)) {
-                return res.status(400).json({ erro: 'anos_experiencia deve ser um nÃºmero maior ou igual a zero.' });
+                return res.status(400).json({ erro: 'anos_experiencia deve ser um numero maior ou igual a zero.' });
             }
 
+            const regional = montarDadosRegionais(req.body);
             const perfilAtualizado = await PerfilModel.atualizarPerfil(usuarioId, {
                 biografia: req.body.biografia ?? req.body.bio,
                 anos_experiencia: anosExperiencia,
                 curriculo_texto: req.body.curriculo_texto ?? req.body.curriculo,
                 portfolio_url: req.body.portfolio_url ?? req.body.portfolio,
+                ...regional,
             });
 
             return res.status(200).json({
-                mensagem: 'CurrÃ­culo Vivo atualizado com sucesso!',
+                mensagem: 'Curriculo Vivo atualizado com sucesso!',
                 perfil: perfilAtualizado,
             });
         } catch (erro) {
@@ -124,8 +165,12 @@ const PerfilController = {
 
     listarProfissionais: async (req, res) => {
         try {
-            const { categoria, cidade } = req.query;
-            const profissionais = await PerfilModel.listarTodos({ categoria, cidade });
+            const { categoria, cidade, atende_rural } = req.query;
+            const profissionais = await PerfilModel.listarTodos({
+                categoria,
+                cidade,
+                atende_rural,
+            });
             return res.status(200).json(profissionais);
         } catch (erro) {
             console.error('Erro ao buscar profissionais:', erro);

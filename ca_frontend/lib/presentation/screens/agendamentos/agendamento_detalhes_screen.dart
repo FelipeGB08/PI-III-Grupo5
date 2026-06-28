@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/api_config.dart';
 import '../../../core/network/api_error_formatter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/chamado.dart';
@@ -38,6 +39,101 @@ class _AgendamentoDetalhesScreenState
       setState(() => _chamado = updated);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Agendamento atualizado.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(formatApiError(e))),
+      );
+    } finally {
+      if (mounted) setState(() => _processando = false);
+    }
+  }
+
+  Future<void> _aceitarRemarcacao() async {
+    setState(() => _processando = true);
+    try {
+      final updated = await ref
+          .read(chamadoRepositoryProvider)
+          .aceitarRemarcacao(chamadoId: _chamado.id);
+      await ref.read(chamadosProvider.notifier).carregar();
+      if (!mounted) return;
+      setState(() => _chamado = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Remarcacao aceita.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(formatApiError(e))),
+      );
+    } finally {
+      if (mounted) setState(() => _processando = false);
+    }
+  }
+
+  Future<void> _recusarRemarcacao() async {
+    setState(() => _processando = true);
+    try {
+      final updated = await ref
+          .read(chamadoRepositoryProvider)
+          .recusarRemarcacao(chamadoId: _chamado.id);
+      await ref.read(chamadosProvider.notifier).carregar();
+      if (!mounted) return;
+      setState(() => _chamado = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Remarcacao recusada.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(formatApiError(e))),
+      );
+    } finally {
+      if (mounted) setState(() => _processando = false);
+    }
+  }
+
+  Future<void> _cancelarSolicitacao() async {
+    final controller = TextEditingController();
+    final motivo = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancelar solicitacao'),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Motivo opcional',
+            hintText: 'Ex: resolvi de outra forma',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Cancelar solicitacao'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (motivo == null) return;
+
+    setState(() => _processando = true);
+    try {
+      final updated = await ref.read(chamadoRepositoryProvider).cancelarSolicitacao(
+            chamadoId: _chamado.id,
+            motivo: motivo.isEmpty ? null : motivo,
+          );
+      await ref.read(chamadosProvider.notifier).carregar();
+      if (!mounted) return;
+      setState(() => _chamado = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Solicitacao cancelada.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -127,7 +223,9 @@ class _AgendamentoDetalhesScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _servicoTitulo(_chamado.descricao),
+                  _chamado.servicoNome?.isNotEmpty == true
+                      ? _chamado.servicoNome!
+                      : _servicoTitulo(_chamado.descricao),
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: AppColors.textPrimaryDark,
                     fontWeight: FontWeight.w900,
@@ -147,9 +245,72 @@ class _AgendamentoDetalhesScreenState
                     ),
                   ),
                 ],
+                if (_chamado.duracaoMinutos != null) ...[
+                  const SizedBox(height: 10),
+                  _DetailRow(
+                    icon: Icons.timer_outlined,
+                    label: 'Duracao',
+                    value: '${_chamado.duracaoMinutos} min',
+                  ),
+                ],
+                if (_chamado.agendadoPara != null) ...[
+                  const SizedBox(height: 10),
+                  _DetailRow(
+                    icon: Icons.event_rounded,
+                    label: 'Data e horario',
+                    value: _formatDateTime(_chamado.agendadoPara!),
+                  ),
+                ],
+                if (_chamado.enderecoAtendimento?.isNotEmpty == true) ...[
+                  const SizedBox(height: 10),
+                  _DetailRow(
+                    icon: Icons.location_on_outlined,
+                    label: 'Endereco',
+                    value: _chamado.enderecoAtendimento!,
+                  ),
+                ],
+                if (_chamado.remarcacaoSolicitadaPara != null) ...[
+                  const SizedBox(height: 10),
+                  _DetailRow(
+                    icon: Icons.event_repeat_rounded,
+                    label: 'Nova proposta',
+                    value: _formatDateTime(_chamado.remarcacaoSolicitadaPara!),
+                  ),
+                ],
+                if (_chamado.motivoRemarcacao?.isNotEmpty == true) ...[
+                  const SizedBox(height: 10),
+                  _DetailRow(
+                    icon: Icons.notes_rounded,
+                    label: 'Motivo',
+                    value: _chamado.motivoRemarcacao!,
+                  ),
+                ],
+                if (_chamado.motivoCancelamento?.isNotEmpty == true) ...[
+                  const SizedBox(height: 10),
+                  _DetailRow(
+                    icon: Icons.cancel_outlined,
+                    label: 'Motivo do cancelamento',
+                    value: _chamado.motivoCancelamento!,
+                  ),
+                ],
               ],
             ),
           ),
+          if (_chamado.fotoUrl?.isNotEmpty == true) ...[
+            const SizedBox(height: 18),
+            _SectionLabel('Foto anexada'),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Image.network(
+                ApiConfig.resolveAssetUrl(_chamado.fotoUrl),
+                height: 210,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const _InfoPanel(
+                  child: Text('Nao foi possivel carregar a foto anexada.'),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           if (_isPrestador && _chamado.status == ChamadoStatus.pendente) ...[
             FilledButton.icon(
@@ -179,6 +340,26 @@ class _AgendamentoDetalhesScreenState
               icon: const Icon(Icons.star_rounded),
               label: const Text('Avaliar Servico'),
             ),
+          if (!_isPrestador && _chamado.status == ChamadoStatus.pendente)
+            OutlinedButton.icon(
+              onPressed: _processando ? null : _cancelarSolicitacao,
+              icon: const Icon(Icons.cancel_outlined),
+              label: const Text('Cancelar Solicitacao'),
+            ),
+          if (!_isPrestador &&
+              _chamado.status == ChamadoStatus.remarcacaoSolicitada) ...[
+            FilledButton.icon(
+              onPressed: _processando ? null : _aceitarRemarcacao,
+              icon: const Icon(Icons.check_rounded),
+              label: const Text('Aceitar Novo Horario'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _processando ? null : _recusarRemarcacao,
+              icon: const Icon(Icons.close_rounded),
+              label: const Text('Recusar Remarcacao'),
+            ),
+          ],
         ],
       ),
     );
@@ -194,26 +375,82 @@ class _AgendamentoDetalhesScreenState
     return nome.trim()[0].toUpperCase();
   }
 
+  String _formatDateTime(String raw) {
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return raw;
+    final data =
+        '${parsed.day.toString().padLeft(2, '0')}/${parsed.month.toString().padLeft(2, '0')}/${parsed.year}';
+    final hora = TimeOfDay.fromDateTime(parsed).format(context);
+    return '$data as $hora';
+  }
+
   Color _statusColor(ChamadoStatus status) => switch (status) {
         ChamadoStatus.pendente => AppColors.statusPendente,
-        ChamadoStatus.emAndamento => AppColors.statusConcluido,
+        ChamadoStatus.emAndamento => AppColors.statusEmAndamento,
+        ChamadoStatus.remarcacaoSolicitada => AppColors.primary,
         ChamadoStatus.concluido => AppColors.primary,
         ChamadoStatus.recusado => AppColors.statusRecusado,
+        ChamadoStatus.cancelado => AppColors.muted,
       };
 
   IconData _statusIcon(ChamadoStatus status) => switch (status) {
         ChamadoStatus.pendente => Icons.pending_actions_rounded,
         ChamadoStatus.emAndamento => Icons.check_circle_rounded,
+        ChamadoStatus.remarcacaoSolicitada => Icons.event_repeat_rounded,
         ChamadoStatus.concluido => Icons.verified_rounded,
         ChamadoStatus.recusado => Icons.cancel_rounded,
+        ChamadoStatus.cancelado => Icons.event_busy_rounded,
       };
 
   String _statusMessage(ChamadoStatus status) => switch (status) {
         ChamadoStatus.pendente => 'Aguardando confirmacao do profissional.',
         ChamadoStatus.emAndamento => 'O profissional confirmou sua solicitacao.',
+        ChamadoStatus.remarcacaoSolicitada =>
+          'O profissional sugeriu um novo horario.',
         ChamadoStatus.concluido => 'Servico concluido. Avalie sua experiencia.',
         ChamadoStatus.recusado => 'Solicitacao recusada pelo profissional.',
+        ChamadoStatus.cancelado => 'Solicitacao cancelada.',
       };
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: AppColors.primary, size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              style: Theme.of(context).textTheme.bodyMedium,
+              children: [
+                TextSpan(
+                  text: '$label: ',
+                  style: const TextStyle(
+                    color: AppColors.textPrimaryDark,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                TextSpan(text: value),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _SectionLabel extends StatelessWidget {

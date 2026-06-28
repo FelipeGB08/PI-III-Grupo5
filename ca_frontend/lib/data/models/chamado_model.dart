@@ -14,6 +14,11 @@ class ChamadoModel extends Chamado {
     super.servicoNome,
     super.enderecoAtendimento,
     super.agendadoPara,
+    super.fotoUrl,
+    super.duracaoMinutos,
+    super.remarcacaoSolicitadaPara,
+    super.motivoRemarcacao,
+    super.motivoCancelamento,
   });
 
   factory ChamadoModel.fromJson(Map<String, dynamic> json) {
@@ -31,6 +36,12 @@ class ChamadoModel extends Chamado {
       servicoNome: json['servico_nome']?.toString(),
       enderecoAtendimento: json['endereco_atendimento']?.toString(),
       agendadoPara: json['agendado_para']?.toString(),
+      fotoUrl: json['foto_url']?.toString(),
+      duracaoMinutos: _parseIntNullable(json['duracao_minutos']),
+      remarcacaoSolicitadaPara:
+          json['remarcacao_solicitada_para']?.toString(),
+      motivoRemarcacao: json['motivo_remarcacao']?.toString(),
+      motivoCancelamento: json['motivo_cancelamento']?.toString(),
     );
   }
 
@@ -42,6 +53,7 @@ class ChamadoModel extends Chamado {
     double? preco,
     DateTime? agendadoPara,
     String? enderecoAtendimento,
+    String? fotoUrl,
   }) =>
       {
         'profissional_id': profissionalId,
@@ -54,6 +66,7 @@ class ChamadoModel extends Chamado {
           'agendado_para': agendadoPara.toIso8601String(),
         if (enderecoAtendimento != null && enderecoAtendimento.isNotEmpty)
           'endereco_atendimento': enderecoAtendimento,
+        if (fotoUrl != null && fotoUrl.isNotEmpty) 'foto_url': fotoUrl,
       };
 
   Map<String, dynamic> toStatusJson(ChamadoStatus status, {double? preco}) => {

@@ -5,8 +5,9 @@ const ProfissionalController = {
         try {
             const cidade = req.query.cidade || null;
             const categoria = req.query.categoria || null;
+            const atendeRural = req.query.atende_rural || null;
 
-            const profissionais = await ProfissionalModel.buscarPorFiltros(cidade, categoria);
+            const profissionais = await ProfissionalModel.buscarPorFiltros(cidade, categoria, atendeRural);
             return res.status(200).json(profissionais);
         } catch (erro) {
             console.error('Erro ao buscar profissionais:', erro);

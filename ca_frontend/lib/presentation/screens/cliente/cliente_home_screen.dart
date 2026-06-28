@@ -5,6 +5,7 @@ import '../../../core/config/amauc_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/prestador.dart';
 import '../../providers/providers.dart';
+import '../../widgets/profile_avatar.dart';
 import '../prestador/prestador_profile_screen.dart';
 
 class ClienteHomeScreen extends ConsumerStatefulWidget {
@@ -302,17 +303,11 @@ class _NearbyCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.16),
-                  child: Text(
-                    prestador.nome.isNotEmpty
-                        ? prestador.nome[0].toUpperCase()
-                        : '?',
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
+                ProfileAvatar(
+                  name: prestador.nome,
+                  imageUrl: prestador.fotoUrl,
+                  radius: 20,
+                  isOnline: prestador.disponivel,
                 ),
                 const Spacer(),
                 const Icon(Icons.star_rounded, color: Colors.amber, size: 16),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/amauc_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../providers/providers.dart';
 
@@ -18,6 +19,11 @@ class _CurriculoProfissionalScreenState
   final _anosController = TextEditingController();
   final _curriculoController = TextEditingController();
   final _portfolioController = TextEditingController();
+  final _taxaController = TextEditingController();
+  final Set<String> _cidadesAtendidas = {};
+  bool _atendeRural = false;
+  bool _atendeEmergencia = false;
+  bool _possuiVeiculo = false;
   bool _preencheuCampos = false;
 
   @override
@@ -34,6 +40,7 @@ class _CurriculoProfissionalScreenState
     _anosController.dispose();
     _curriculoController.dispose();
     _portfolioController.dispose();
+    _taxaController.dispose();
     super.dispose();
   }
 
@@ -43,12 +50,25 @@ class _CurriculoProfissionalScreenState
     _anosController.text = data['anos_experiencia']?.toString() ?? '0';
     _curriculoController.text = data['curriculo_texto']?.toString() ?? '';
     _portfolioController.text = data['portfolio_url']?.toString() ?? '';
+    _taxaController.text = data['taxa_deslocamento']?.toString() ?? '';
+    _atendeRural = data['atende_rural'] == true;
+    _atendeEmergencia = data['atende_emergencia'] == true;
+    _possuiVeiculo = data['possui_veiculo'] == true;
+    final cidades = data['cidades_atendidas'];
+    if (cidades is List) {
+      _cidadesAtendidas
+        ..clear()
+        ..addAll(cidades.map((cidade) => cidade.toString()));
+    }
     _preencheuCampos = true;
   }
 
   Future<void> _salvar() async {
     final bio = _bioController.text.trim();
     final anos = int.tryParse(_anosController.text.trim()) ?? 0;
+    final taxa = double.tryParse(
+      _taxaController.text.trim().replaceAll(',', '.'),
+    );
 
     if (bio.length < 10) {
       _mostrarMensagem('Informe uma biografia com pelo menos 10 caracteres.');
@@ -60,6 +80,11 @@ class _CurriculoProfissionalScreenState
           anosExperiencia: anos,
           curriculoTexto: _curriculoController.text.trim(),
           portfolioUrl: _portfolioController.text.trim(),
+          cidadesAtendidas: _cidadesAtendidas.toList(),
+          atendeRural: _atendeRural,
+          atendeEmergencia: _atendeEmergencia,
+          possuiVeiculo: _possuiVeiculo,
+          taxaDeslocamento: taxa,
         );
 
     if (!mounted) return;
@@ -151,6 +176,71 @@ class _CurriculoProfissionalScreenState
                 labelText: 'Link de portfolio',
                 hintText: 'https://...',
                 prefixIcon: Icon(Icons.link_outlined),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Atendimento regional AMAUC',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Marque as cidades onde voce atende e destaque diferenciais importantes para clientes do interior.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.muted,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: AmaucConstants.cidades.map((cidade) {
+                final selected = _cidadesAtendidas.contains(cidade);
+                return FilterChip(
+                  label: Text(cidade),
+                  selected: selected,
+                  onSelected: (value) {
+                    setState(() {
+                      if (value) {
+                        _cidadesAtendidas.add(cidade);
+                      } else {
+                        _cidadesAtendidas.remove(cidade);
+                      }
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+            SwitchListTile(
+              value: _atendeRural,
+              onChanged: (value) => setState(() => _atendeRural = value),
+              title: const Text('Atende interior / area rural'),
+              secondary: const Icon(Icons.agriculture_outlined),
+            ),
+            SwitchListTile(
+              value: _atendeEmergencia,
+              onChanged: (value) => setState(() => _atendeEmergencia = value),
+              title: const Text('Atende emergencia'),
+              secondary: const Icon(Icons.flash_on_outlined),
+            ),
+            SwitchListTile(
+              value: _possuiVeiculo,
+              onChanged: (value) => setState(() => _possuiVeiculo = value),
+              title: const Text('Possui veiculo proprio'),
+              secondary: const Icon(Icons.local_shipping_outlined),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _taxaController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Taxa de deslocamento base',
+                hintText: 'Ex: 40,00',
+                prefixIcon: Icon(Icons.route_outlined),
               ),
             ),
             const SizedBox(height: 28),

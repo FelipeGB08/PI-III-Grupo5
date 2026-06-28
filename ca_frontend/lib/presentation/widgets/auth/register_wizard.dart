@@ -65,6 +65,25 @@ class _RegisterWizardState extends State<RegisterWizard> {
       ? null
       : widget.cidadesSelecionadas.first;
 
+  Future<void> _showLegalDialog({
+    required String title,
+    required String body,
+  }) {
+    return showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: SingleChildScrollView(child: Text(body)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Fechar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   bool _validateStep(int step) {
     final form = widget.formKey.currentState;
     if (form == null) return false;
@@ -424,19 +443,27 @@ class _RegisterWizardState extends State<RegisterWizard> {
             });
           },
           onTermsTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Termos de Uso — integração com URL em breve.'),
-              ),
+            _showLegalDialog(
+              title: 'Termos de Uso',
+              body: 'Ao usar o Conecta AMAUC, voce declara que as informacoes '
+                  'fornecidas sao verdadeiras e concorda em utilizar a '
+                  'plataforma apenas para solicitar ou oferecer servicos reais '
+                  'na regiao da AMAUC. Solicitacoes falsas, dados incorretos, '
+                  'uso abusivo ou tentativa de fraude podem causar bloqueio da '
+                  'conta. Valores, prazos e execucao do servico devem ser '
+                  'confirmados entre cliente e profissional.',
             );
           },
           onPrivacyTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Política de Privacidade — integração com URL em breve.',
-                ),
-              ),
+            _showLegalDialog(
+              title: 'Politica de Privacidade',
+              body: 'O Conecta AMAUC utiliza nome, e-mail, telefone, cidade, '
+                  'perfil de usuario e dados de agendamento para autenticar '
+                  'usuarios, exibir profissionais, registrar solicitacoes e '
+                  'enviar notificacoes. Fotos enviadas pelo usuario sao usadas '
+                  'apenas para perfil ou detalhes do atendimento. Os dados nao '
+                  'devem ser vendidos e podem ser revisados pela equipe do '
+                  'projeto para suporte, seguranca e demonstracao academica.',
             );
           },
         ),

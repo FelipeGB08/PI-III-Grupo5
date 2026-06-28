@@ -29,6 +29,12 @@ class _ClienteDashboardScreenState
     WidgetsBinding.instance.addPostFrameCallback((_) => _carregar());
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _carregar() async {
     Position? position;
     try {
@@ -37,7 +43,9 @@ class _ClienteDashboardScreenState
         await Geolocator.requestPermission();
       }
       position = await Geolocator.getCurrentPosition();
-    } catch (_) {}
+    } catch (_) {
+      position = null;
+    }
 
     await ref.read(prestadoresProvider.notifier).carregar(
           lat: position?.latitude,
@@ -45,70 +53,66 @@ class _ClienteDashboardScreenState
         );
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
   List<Prestador> _filtrar(List<Prestador> lista, String busca) {
-    if (busca.isEmpty) return lista;
-    final q = busca.toLowerCase();
-    return lista
-        .where((p) =>
-            p.nome.toLowerCase().contains(q) ||
-            p.cidade.toLowerCase().contains(q) ||
-            (p.categoria?.toLowerCase().contains(q) ?? false))
-        .toList();
+    if (busca.trim().isEmpty) return lista;
+    final q = busca.toLowerCase().trim();
+    return lista.where((p) {
+      final categorias = p.categorias.join(' ').toLowerCase();
+      return p.nome.toLowerCase().contains(q) ||
+          p.cidade.toLowerCase().contains(q) ||
+          categorias.contains(q) ||
+          (p.categoria?.toLowerCase().contains(q) ?? false);
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(prestadoresProvider);
     final filtrados = _filtrar(state.prestadores, state.busca);
-    final theme = Theme.of(context);
+    final selecionados = state.prestadores.where((p) => p.disponivel).length;
 
     return RefreshIndicator(
       onRefresh: _carregar,
       color: AppColors.primary,
       child: CustomScrollView(
         slivers: [
-          SliverToBoxAdapter(child: _CidadeSelector(state: state)),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-              child: TextField(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+              child: _ExploreHeader(
+                total: state.prestadores.length,
+                disponiveis: selecionados,
+                cidade: state.cidadeSelecionada,
+              ).animate().fadeIn().slideY(begin: -0.05),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              child: _CitySelector(state: state),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              child: _SearchField(
                 controller: _searchController,
+                busca: state.busca,
                 onChanged: ref.read(prestadoresProvider.notifier).setBusca,
-                decoration: InputDecoration(
-                  hintText: 'Buscar prestador ou serviço...',
-                  prefixIcon: const Icon(Icons.search_rounded),
-                  suffixIcon: state.busca.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () {
-                            _searchController.clear();
-                            ref.read(prestadoresProvider.notifier).setBusca('');
-                          },
-                        )
-                      : null,
-                ),
+                onClear: () {
+                  _searchController.clear();
+                  ref.read(prestadoresProvider.notifier).setBusca('');
+                },
               ),
             ),
           ),
-          SliverToBoxAdapter(child: _CategoriaCarousel(state: state)),
+          SliverToBoxAdapter(child: _CategoryStrip(state: state)),
           if (state.erro != null)
             SliverToBoxAdapter(
               child: Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: Text(
-                  state.erro!,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.statusRecusado,
-                    fontSize: 12,
-                  ),
-                ),
+                child: _InlineError(message: state.erro!),
               ),
             ),
           SliverPadding(
@@ -118,28 +122,24 @@ class _ClienteDashboardScreenState
                     child: SizedBox(height: 400, child: PrestadorListShimmer()),
                   )
                 : filtrados.isEmpty
-                    ? SliverFillRemaining(
+                    ? const SliverFillRemaining(
                         hasScrollBody: false,
-                        child: Center(
-                          child: Text(
-                            'Nenhum prestador encontrado',
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                        ),
+                        child: _EmptyExplore(),
                       )
                     : SliverList.separated(
                         itemCount: filtrados.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 14),
                         itemBuilder: (context, index) {
-                          final p = filtrados[index];
+                          final prestador = filtrados[index];
                           return PrestadorCard(
-                            prestador: p,
+                            prestador: prestador,
                             index: index,
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) =>
-                                    PrestadorProfileScreen(prestador: p),
+                                builder: (_) => PrestadorProfileScreen(
+                                  prestador: prestador,
+                                ),
                               ),
                             ),
                           );
@@ -152,107 +152,249 @@ class _ClienteDashboardScreenState
   }
 }
 
-class _CidadeSelector extends ConsumerWidget {
-  const _CidadeSelector({required this.state});
+class _ExploreHeader extends StatelessWidget {
+  const _ExploreHeader({
+    required this.total,
+    required this.disponiveis,
+    required this.cidade,
+  });
 
-  final PrestadoresState state;
+  final int total;
+  final int disponiveis;
+  final String cidade;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: AppColors.amaucGradient,
+        color: AppColors.darkCard,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.3),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  gradient: AppColors.amaucGradient,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.explore_rounded,
+                  color: AppColors.darkBackground,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Explorar servicos',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: AppColors.textPrimaryDark,
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Profissionais locais em $cidade',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: AppColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _StatBadge(
+                  label: 'Encontrados',
+                  value: '$total',
+                  icon: Icons.groups_rounded,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _StatBadge(
+                  label: 'Disponiveis',
+                  value: '$disponiveis',
+                  icon: Icons.bolt_rounded,
+                  color: AppColors.accent,
+                ),
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _StatBadge extends StatelessWidget {
+  const _StatBadge({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.color = AppColors.primary,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
       child: Row(
         children: [
-          const Icon(Icons.location_on_rounded, color: Colors.black, size: 28),
-          const SizedBox(width: 12),
+          Icon(icon, color: color, size: 19),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Sua cidade AMAUC',
+                Text(
+                  value,
                   style: TextStyle(
-                    color: Colors.black54,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    color: color,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
-                DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: state.cidadeSelecionada,
-                    isExpanded: true,
-                    dropdownColor: AppColors.darkCard,
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                    ),
-                    items: AmaucConstants.cidades
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null) {
-                        ref.read(prestadoresProvider.notifier).setCidade(v);
-                      }
-                    },
-                  ),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: AppColors.muted, fontSize: 11),
                 ),
               ],
             ),
           ),
         ],
       ),
-    ).animate().fadeIn().slideY(begin: -0.1, end: 0);
+    );
   }
 }
 
-class _CategoriaCarousel extends ConsumerWidget {
-  const _CategoriaCarousel({required this.state});
+class _CitySelector extends ConsumerWidget {
+  const _CitySelector({required this.state});
+
+  final PrestadoresState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return DropdownButtonFormField<String>(
+      initialValue: state.cidadeSelecionada,
+      dropdownColor: AppColors.darkCard,
+      decoration: InputDecoration(
+        labelText: 'Cidade AMAUC',
+        prefixIcon: const Icon(Icons.location_on_outlined),
+        filled: true,
+        fillColor: AppColors.darkSurface,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: AppColors.darkBorder),
+        ),
+      ),
+      items: AmaucConstants.cidades
+          .map((cidade) => DropdownMenuItem(
+                value: cidade,
+                child: Text(cidade, overflow: TextOverflow.ellipsis),
+              ))
+          .toList(),
+      onChanged: (cidade) {
+        if (cidade != null) {
+          ref.read(prestadoresProvider.notifier).setCidade(cidade);
+        }
+      },
+    );
+  }
+}
+
+class _SearchField extends StatelessWidget {
+  const _SearchField({
+    required this.controller,
+    required this.busca,
+    required this.onChanged,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final String busca;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        hintText: 'Buscar por nome, cidade ou servico',
+        prefixIcon: const Icon(Icons.search_rounded),
+        suffixIcon: busca.isNotEmpty
+            ? IconButton(
+                tooltip: 'Limpar busca',
+                icon: const Icon(Icons.close_rounded),
+                onPressed: onClear,
+              )
+            : const Icon(Icons.tune_rounded),
+      ),
+    );
+  }
+}
+
+class _CategoryStrip extends ConsumerWidget {
+  const _CategoryStrip({required this.state});
 
   final PrestadoresState state;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return SizedBox(
-      height: 110,
+      height: 66,
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
         scrollDirection: Axis.horizontal,
         itemCount: AmaucConstants.categorias.length + 1,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
           if (index == 0) {
-            final selected = state.categoriaSelecionada == null;
-            return _CategoriaItem(
-              nome: 'Todos',
+            return _CategoryChip(
+              label: 'Todos',
               icon: Icons.apps_rounded,
-              cor: AppColors.primary,
-              selected: selected,
+              color: AppColors.primary,
+              selected: state.categoriaSelecionada == null,
               onTap: () =>
                   ref.read(prestadoresProvider.notifier).setCategoria(null),
             );
           }
-          final cat = AmaucConstants.categorias[index - 1];
-          final selected = state.categoriaSelecionada == cat.id;
-          return _CategoriaItem(
-            nome: cat.nome,
-            icon: cat.icon,
-            cor: cat.cor,
-            selected: selected,
-            onTap: () =>
-                ref.read(prestadoresProvider.notifier).setCategoria(cat.id),
+          final categoria = AmaucConstants.categorias[index - 1];
+          return _CategoryChip(
+            label: categoria.nome,
+            icon: categoria.icon,
+            color: categoria.cor,
+            selected: state.categoriaSelecionada == categoria.id,
+            onTap: () => ref
+                .read(prestadoresProvider.notifier)
+                .setCategoria(categoria.id),
           );
         },
       ),
@@ -260,68 +402,123 @@ class _CategoriaCarousel extends ConsumerWidget {
   }
 }
 
-class _CategoriaItem extends StatefulWidget {
-  const _CategoriaItem({
-    required this.nome,
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({
+    required this.label,
     required this.icon,
-    required this.cor,
+    required this.color,
     required this.selected,
     required this.onTap,
   });
 
-  final String nome;
+  final String label;
   final IconData icon;
-  final Color cor;
+  final Color color;
   final bool selected;
   final VoidCallback onTap;
 
   @override
-  State<_CategoriaItem> createState() => _CategoriaItemState();
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.18) : AppColors.darkCard,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? color : AppColors.darkBorder,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 17),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? AppColors.textPrimaryDark : AppColors.muted,
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-class _CategoriaItemState extends State<_CategoriaItem> {
-  bool _pressed = false;
+class _InlineError extends StatelessWidget {
+  const _InlineError({required this.message});
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: widget.onTap,
-      child: AnimatedScale(
-        scale: _pressed ? 0.92 : 1,
-        duration: const Duration(milliseconds: 150),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          width: 80,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: widget.selected
-                ? widget.cor.withValues(alpha: 0.2)
-                : Theme.of(context).cardTheme.color,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: widget.selected ? widget.cor : Colors.transparent,
-              width: 2,
-            ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(widget.icon, color: widget.cor, size: 28),
-              const SizedBox(height: 6),
-              Text(
-                widget.nome,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: widget.selected ? widget.cor : null,
-                ),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.statusRecusado.withValues(alpha: 0.11),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.statusRecusado.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Text(
+        message,
+        style: const TextStyle(
+          color: AppColors.statusRecusado,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyExplore extends StatelessWidget {
+  const _EmptyExplore();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
               ),
-            ],
-          ),
+              child: const Icon(
+                Icons.search_off_rounded,
+                color: AppColors.primary,
+                size: 30,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Nenhum prestador encontrado',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppColors.textPrimaryDark,
+                    fontWeight: FontWeight.w900,
+                  ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Tente mudar a cidade, limpar filtros ou buscar outro servico.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.muted),
+            ),
+          ],
         ),
       ),
     );

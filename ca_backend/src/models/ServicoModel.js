@@ -11,11 +11,12 @@ const ServicoModel = {
                 descricao,
                 endereco_atendimento,
                 agendado_para,
+                duracao_minutos,
                 foto_url,
                 status,
                 preco
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pendente', $9)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pendente', $10)
             RETURNING *;
         `;
         const resultado = await pool.query(query, [
@@ -26,6 +27,7 @@ const ServicoModel = {
             descricao,
             dadosAgenda.endereco_atendimento || null,
             dadosAgenda.agendado_para || null,
+            dadosAgenda.duracao_minutos || null,
             fotoUrl || null,
             dadosAgenda.preco || null,
         ]);
@@ -77,7 +79,14 @@ const ServicoModel = {
     },
 
     atualizarStatus: async (id, profId, status, preco) => {
-        const statusPermitidos = ['pendente', 'aceito', 'recusado', 'concluido'];
+        const statusPermitidos = [
+            'pendente',
+            'aceito',
+            'recusado',
+            'concluido',
+            'cancelado_cliente',
+            'remarcacao_solicitada',
+        ];
         if (status && !statusPermitidos.includes(status)) {
             return null;
         }

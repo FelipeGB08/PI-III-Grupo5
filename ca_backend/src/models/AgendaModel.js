@@ -133,6 +133,37 @@ const AgendaModel = {
         }
     },
 
+    buscarServicoAtivoDoProfissional: async (profissionalId, agendaServicoId) => {
+        const resultado = await pool.query(
+            `SELECT id, profissional_id, nome, duracao_minutos, preco, ativo
+             FROM profissional_agenda_servicos
+             WHERE id = $1
+               AND profissional_id = $2
+               AND ativo = TRUE`,
+            [agendaServicoId, profissionalId]
+        );
+
+        return resultado.rows[0] || null;
+    },
+
+    horarioAtivoDoProfissional: async (profissionalId, diaSemana, horario) => {
+        const horarioNormalizado = normalizarHorario(horario);
+        if (!horarioNormalizado) return false;
+
+        const resultado = await pool.query(
+            `SELECT 1
+             FROM profissional_agenda_horarios
+             WHERE profissional_id = $1
+               AND dia_semana = $2
+               AND horario = $3::time
+               AND ativo = TRUE
+             LIMIT 1`,
+            [profissionalId, diaSemana, horarioNormalizado]
+        );
+
+        return resultado.rows.length > 0;
+    },
+
     normalizarHorario,
 };
 

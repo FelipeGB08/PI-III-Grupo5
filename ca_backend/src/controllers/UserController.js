@@ -3,6 +3,10 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const UserModel = require('../models/UserModel');
 const { cidadePermitida, CIDADES_AMAUC } = require('../config/amaucCidades');
+const {
+    enviarMagicLink,
+    enviarResetSenha,
+} = require('../services/emailService');
 
 function normalizarPerfilTipo(valor) {
     if (!valor) return null;
@@ -13,6 +17,25 @@ function normalizarPerfilTipo(valor) {
         admin: 'admin',
     };
     return mapa[String(valor).toLowerCase()] || null;
+}
+
+function normalizarListaCidades(cidades) {
+    if (!cidades) return [];
+    const lista = Array.isArray(cidades)
+        ? cidades
+        : String(cidades)
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean);
+
+    const validadas = [];
+    for (const cidade of lista) {
+        const cidadeValidada = cidadePermitida(cidade);
+        if (cidadeValidada && !validadas.includes(cidadeValidada)) {
+            validadas.push(cidadeValidada);
+        }
+    }
+    return validadas;
 }
 
 function montarPayloadJwt(usuario) {
@@ -206,12 +229,22 @@ const UserController = {
                 cidade,
                 perfil_tipo,
                 tipo_usuario,
+                biografia,
+                bio,
+                categoria,
+                categorias,
+                cidades,
+                cidades_atendidas,
             } = req.body;
 
             const cidadeInformada = cidade_amauc || cidade;
             const perfilInformado = normalizarPerfilTipo(perfil_tipo || tipo_usuario);
             const emailNormalizado = String(email || '').trim().toLowerCase();
             const nomeNormalizado = String(nome || '').trim();
+            const biografiaProfissional = String(biografia || bio || '').trim();
+            const categoriaProfissional = Array.isArray(categorias)
+                ? categorias[0]
+                : (categoria || categorias);
 
             if (!nomeNormalizado || !emailNormalizado || !senha || !cidadeInformada || !perfilInformado) {
                 return res.status(400).json({
@@ -223,6 +256,20 @@ const UserController = {
                 return res.status(400).json({
                     erro: 'perfil_tipo deve ser "cidadao" ou "profissional".',
                 });
+            }
+
+            if (perfilInformado === 'profissional') {
+                if (biografiaProfissional.length < 10) {
+                    return res.status(400).json({
+                        erro: 'Para cadastro profissional, a biografia deve ter pelo menos 10 caracteres.',
+                    });
+                }
+
+                if (!categoriaProfissional) {
+                    return res.status(400).json({
+                        erro: 'Para cadastro profissional, informe ao menos uma categoria.',
+                    });
+                }
             }
 
             const cidadeValidada = cidadePermitida(cidadeInformada);
@@ -241,14 +288,28 @@ const UserController = {
             const salt = await bcrypt.genSalt(10);
             const senhaHash = await bcrypt.hash(senha, salt);
 
-            const novoUsuario = await UserModel.criarUsuario(
-                nomeNormalizado,
-                emailNormalizado,
-                senhaHash,
-                telefone,
-                cidadeValidada,
-                perfilInformado
-            );
+            const cidadesAtendidas = normalizarListaCidades(cidades_atendidas || cidades);
+            const novoUsuario = perfilInformado === 'profissional'
+                ? await UserModel.criarUsuarioProfissionalCompleto({
+                    nome: nomeNormalizado,
+                    email: emailNormalizado,
+                    senhaHash,
+                    telefone,
+                    cidadeAmauc: cidadeValidada,
+                    biografia: biografiaProfissional,
+                    categoriaNome: categoriaProfissional,
+                    cidadesAtendidas: cidadesAtendidas.length > 0
+                        ? cidadesAtendidas
+                        : [cidadeValidada],
+                })
+                : await UserModel.criarUsuario(
+                    nomeNormalizado,
+                    emailNormalizado,
+                    senhaHash,
+                    telefone,
+                    cidadeValidada,
+                    perfilInformado
+                );
 
             return res.status(201).json({
                 mensagem: 'Usuário cadastrado com sucesso!',
@@ -256,6 +317,9 @@ const UserController = {
             });
         } catch (erro) {
             console.error('Erro no cadastro:', erro);
+            if (erro.message === 'Categoria profissional invalida.') {
+                return res.status(400).json({ erro: erro.message });
+            }
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
         }
     },
@@ -396,6 +460,23 @@ const UserController = {
         }
     },
 
+    renovarSessao: async (req, res) => {
+        try {
+            const usuario = await UserModel.buscarPorId(req.usuarioLogado.id);
+
+            if (!usuario) {
+                return res.status(404).json({ erro: 'Usuario nao encontrado.' });
+            }
+
+            return res.status(200).json(
+                criarRespostaLogin(usuario, 'Sessao renovada com sucesso!')
+            );
+        } catch (erro) {
+            console.error('Erro ao renovar sessao:', erro);
+            return res.status(500).json({ erro: 'Erro interno no servidor.' });
+        }
+    },
+
     solicitarMagicLink: async (req, res) => {
         try {
             const { email } = req.body;
@@ -418,9 +499,20 @@ const UserController = {
                     expiraEm: expiraEmMinutos(15),
                 });
 
-                if (ambienteDesenvolvimento()) {
+                const enviado = await enviarMagicLink(emailNormalizado, token);
+                if (!enviado && !ambienteDesenvolvimento()) {
+                    return res.status(500).json({
+                        erro: 'Servidor de email nao configurado para magic link.',
+                    });
+                }
+
+                if (!enviado && ambienteDesenvolvimento()) {
                     resposta.dev_token = token;
                     console.info(`[DEV] Magic link token para ${emailNormalizado}: ${token}`);
+                }
+
+                if (enviado) {
+                    resposta.email_enviado = true;
                 }
             }
 
@@ -487,9 +579,20 @@ const UserController = {
                     expiraEm: expiraEmMinutos(30),
                 });
 
-                if (ambienteDesenvolvimento()) {
+                const enviado = await enviarResetSenha(emailNormalizado, token);
+                if (!enviado && !ambienteDesenvolvimento()) {
+                    return res.status(500).json({
+                        erro: 'Servidor de email nao configurado para reset de senha.',
+                    });
+                }
+
+                if (!enviado && ambienteDesenvolvimento()) {
                     resposta.dev_token = token;
                     console.info(`[DEV] Reset de senha token para ${emailNormalizado}: ${token}`);
+                }
+
+                if (enviado) {
+                    resposta.email_enviado = true;
                 }
             }
 

@@ -1,11 +1,10 @@
-﻿const ServicoModel = require('../models/ServicoModel');
+const ServicoModel = require('../models/ServicoModel');
 const UserModel = require('../models/UserModel');
+const { validarAgendamento } = require('../services/agendamentoValidator');
+const { notificarUsuarioSemBloquear } = require('../services/notificationService');
 
 const normalizarTexto = (valor) => {
-    if (valor === undefined || valor === null) {
-        return '';
-    }
-
+    if (valor === undefined || valor === null) return '';
     return String(valor).trim();
 };
 
@@ -13,98 +12,132 @@ const obterIdUsuarioLogado = (req) => {
     return req.usuarioLogado?.id || req.usuario?.id || req.user?.id;
 };
 
+function notificarNovoChamado(solicitacao) {
+    notificarUsuarioSemBloquear({
+        usuarioId: solicitacao.prof_id,
+        tipo: 'novo_chamado',
+        titulo: 'Novo chamado recebido',
+        corpo: `Cliente solicitou ${solicitacao.servico_nome || 'um servico'}.`,
+        payload: {
+            solicitacao_id: solicitacao.id,
+            status: solicitacao.status,
+        },
+    });
+}
+
+function notificarStatusCliente(solicitacao) {
+    const eventoPorStatus = {
+        aceito: {
+            tipo: 'chamado_aceito',
+            titulo: 'Chamado aceito',
+            corpo: 'O prestador aceitou sua solicitacao.',
+        },
+        recusado: {
+            tipo: 'chamado_recusado',
+            titulo: 'Chamado recusado',
+            corpo: 'O prestador recusou sua solicitacao.',
+        },
+        concluido: {
+            tipo: 'chamado_concluido',
+            titulo: 'Chamado concluido',
+            corpo: 'Seu atendimento foi marcado como concluido. Avalie o servico.',
+        },
+    };
+
+    const evento = eventoPorStatus[solicitacao.status];
+    if (!evento) return;
+
+    notificarUsuarioSemBloquear({
+        usuarioId: solicitacao.cidadao_id,
+        ...evento,
+        payload: {
+            solicitacao_id: solicitacao.id,
+            status: solicitacao.status,
+        },
+    });
+}
+
 const SolicitacaoController = {
     criarSolicitacao: async (req, res) => {
         try {
             const cidadaoId = obterIdUsuarioLogado(req);
-
             const profId = Number(
                 req.body.prof_id ||
                 req.body.profissional_id ||
                 req.body.prestador_id
             );
-
             const descricao = normalizarTexto(req.body.descricao);
             const enderecoAtendimento = normalizarTexto(
                 req.body.endereco_atendimento || req.body.enderecoAtendimento
             );
-
+            const fotoUrl = normalizarTexto(req.body.foto_url || req.body.fotoUrl) || null;
             const agendaServicoId = req.body.agenda_servico_id
                 ? Number(req.body.agenda_servico_id)
                 : null;
-
             const agendadoPara =
                 req.body.agendado_para ||
                 req.body.agendadoPara ||
                 req.body.data_hora ||
                 null;
 
-            const servicoNome = normalizarTexto(
-                req.body.servico_nome ||
-                req.body.servico ||
-                req.body.nome_servico
-            );
-
-            const preco = req.body.preco !== undefined && req.body.preco !== ''
-                ? Number(req.body.preco)
-                : null;
-
             if (!cidadaoId) {
-                return res.status(401).json({
-                    erro: 'Usuário não autenticado.',
-                });
+                return res.status(401).json({ erro: 'Usuario nao autenticado.' });
             }
 
             if (!profId) {
-                return res.status(400).json({
-                    erro: 'Informe o profissional da solicitação.',
-                });
+                return res.status(400).json({ erro: 'Informe o profissional da solicitacao.' });
             }
 
             if (!descricao) {
-                return res.status(400).json({
-                    erro: 'Informe a descrição da solicitação.',
-                });
+                return res.status(400).json({ erro: 'Informe a descricao da solicitacao.' });
             }
 
             if (cidadaoId === profId) {
                 return res.status(400).json({
-                    erro: 'Você não pode criar uma solicitação para si mesmo.',
+                    erro: 'Voce nao pode criar uma solicitacao para si mesmo.',
                 });
             }
 
             const profissional = await UserModel.buscarPorId(profId);
-
             if (!profissional || profissional.perfil_tipo !== 'profissional') {
-                return res.status(404).json({
-                    erro: 'Profissional não encontrado.',
-                });
+                return res.status(404).json({ erro: 'Profissional nao encontrado.' });
             }
+
+            const dadosAgenda = await validarAgendamento({
+                profId,
+                agendaServicoId,
+                agendadoPara,
+            });
 
             const novaSolicitacao = await ServicoModel.criar(
                 cidadaoId,
                 profId,
                 descricao,
-                null,
+                fotoUrl,
                 {
-                    agenda_servico_id: agendaServicoId,
-                    servico_nome: servicoNome || null,
+                    agenda_servico_id: dadosAgenda.agenda_servico_id,
+                    servico_nome: dadosAgenda.servico_nome,
                     endereco_atendimento: enderecoAtendimento || null,
-                    agendado_para: agendadoPara,
-                    preco,
+                    agendado_para: dadosAgenda.agendado_para,
+                    preco: dadosAgenda.preco,
+                    duracao_minutos: dadosAgenda.duracao_minutos,
                 }
             );
 
+            notificarNovoChamado(novaSolicitacao);
+
             return res.status(201).json({
-                mensagem: 'Solicitação criada com sucesso.',
+                mensagem: 'Solicitacao criada com sucesso.',
                 solicitacao: novaSolicitacao,
                 servico: novaSolicitacao,
             });
         } catch (erro) {
-            console.error('Erro ao criar solicitação:', erro);
+            if (!erro.status || erro.status >= 500) {
+                console.error('Erro ao criar solicitacao:', erro);
+            }
 
-            return res.status(500).json({
-                erro: 'Erro interno ao criar solicitação.',
+            return res.status(erro.status || 500).json({
+                erro: erro.status ? erro.message : 'Erro interno ao criar solicitacao.',
             });
         }
     },
@@ -115,23 +148,14 @@ const SolicitacaoController = {
             const status = req.query.status || null;
 
             if (!cidadaoId) {
-                return res.status(401).json({
-                    erro: 'Usuário não autenticado.',
-                });
+                return res.status(401).json({ erro: 'Usuario nao autenticado.' });
             }
 
             const pedidos = await ServicoModel.buscarPorCidadao(cidadaoId, status);
-
-            return res.status(200).json({
-                pedidos,
-                solicitacoes: pedidos,
-            });
+            return res.status(200).json({ pedidos, solicitacoes: pedidos });
         } catch (erro) {
-            console.error('Erro ao listar pedidos do cidadão:', erro);
-
-            return res.status(500).json({
-                erro: 'Erro interno ao listar pedidos.',
-            });
+            console.error('Erro ao listar pedidos do cidadao:', erro);
+            return res.status(500).json({ erro: 'Erro interno ao listar pedidos.' });
         }
     },
 
@@ -141,23 +165,14 @@ const SolicitacaoController = {
             const status = req.query.status || null;
 
             if (!profId) {
-                return res.status(401).json({
-                    erro: 'Usuário não autenticado.',
-                });
+                return res.status(401).json({ erro: 'Usuario nao autenticado.' });
             }
 
             const solicitacoes = await ServicoModel.buscarPorProfissional(profId, status);
-
-            return res.status(200).json({
-                solicitacoes,
-                pedidos: solicitacoes,
-            });
+            return res.status(200).json({ solicitacoes, pedidos: solicitacoes });
         } catch (erro) {
-            console.error('Erro ao listar solicitações do profissional:', erro);
-
-            return res.status(500).json({
-                erro: 'Erro interno ao listar solicitações.',
-            });
+            console.error('Erro ao listar solicitacoes do profissional:', erro);
+            return res.status(500).json({ erro: 'Erro interno ao listar solicitacoes.' });
         }
     },
 
@@ -171,21 +186,15 @@ const SolicitacaoController = {
                 : null;
 
             if (!profId) {
-                return res.status(401).json({
-                    erro: 'Usuário não autenticado.',
-                });
+                return res.status(401).json({ erro: 'Usuario nao autenticado.' });
             }
 
             if (!id) {
-                return res.status(400).json({
-                    erro: 'ID da solicitação inválido.',
-                });
+                return res.status(400).json({ erro: 'ID da solicitacao invalido.' });
             }
 
             if (!status) {
-                return res.status(400).json({
-                    erro: 'Informe o novo status da solicitação.',
-                });
+                return res.status(400).json({ erro: 'Informe o novo status da solicitacao.' });
             }
 
             const solicitacaoAtualizada = await ServicoModel.atualizarStatus(
@@ -197,9 +206,11 @@ const SolicitacaoController = {
 
             if (!solicitacaoAtualizada) {
                 return res.status(404).json({
-                    erro: 'Solicitação não encontrada ou status inválido.',
+                    erro: 'Solicitacao nao encontrada ou status invalido.',
                 });
             }
+
+            notificarStatusCliente(solicitacaoAtualizada);
 
             return res.status(200).json({
                 mensagem: 'Status atualizado com sucesso.',
@@ -207,38 +218,48 @@ const SolicitacaoController = {
                 servico: solicitacaoAtualizada,
             });
         } catch (erro) {
-            console.error('Erro ao atualizar status da solicitação:', erro);
-
+            console.error('Erro ao atualizar status da solicitacao:', erro);
             return res.status(500).json({
-                erro: 'Erro interno ao atualizar status da solicitação.',
+                erro: 'Erro interno ao atualizar status da solicitacao.',
             });
         }
     },
-        cancelarPeloCliente: async (req, res) => {
+
+    cancelarPeloCliente: async (req, res) => {
         try {
             const id = Number(req.params.id);
             const cidadaoId = req.usuarioLogado.id;
             const motivo = req.body.motivo_cancelamento || req.body.motivo || null;
 
             if (!id) {
-                return res.status(400).json({ erro: 'ID da solicitação inválido.' });
+                return res.status(400).json({ erro: 'ID da solicitacao invalido.' });
             }
 
             const solicitacao = await ServicoModel.cancelarPeloCliente(id, cidadaoId, motivo);
-
             if (!solicitacao) {
                 return res.status(404).json({
-                    erro: 'Solicitação não encontrada ou não pode ser cancelada.',
+                    erro: 'Solicitacao nao encontrada ou nao pode ser cancelada.',
                 });
             }
 
+            notificarUsuarioSemBloquear({
+                usuarioId: solicitacao.prof_id,
+                tipo: 'chamado_cancelado',
+                titulo: 'Chamado cancelado',
+                corpo: 'O cliente cancelou uma solicitacao.',
+                payload: {
+                    solicitacao_id: solicitacao.id,
+                    status: solicitacao.status,
+                },
+            });
+
             return res.status(200).json({
-                mensagem: 'Solicitação cancelada com sucesso.',
+                mensagem: 'Solicitacao cancelada com sucesso.',
                 solicitacao,
             });
         } catch (erro) {
-            console.error('Erro ao cancelar solicitação:', erro);
-            return res.status(500).json({ erro: 'Erro interno ao cancelar solicitação.' });
+            console.error('Erro ao cancelar solicitacao:', erro);
+            return res.status(500).json({ erro: 'Erro interno ao cancelar solicitacao.' });
         }
     },
 
@@ -250,47 +271,78 @@ const SolicitacaoController = {
                 req.body.nova_data_hora ||
                 req.body.remarcacao_solicitada_para ||
                 req.body.agendado_para;
-
             const motivo = req.body.motivo_remarcacao || req.body.motivo || null;
 
             if (!id) {
-                return res.status(400).json({ erro: 'ID da solicitação inválido.' });
+                return res.status(400).json({ erro: 'ID da solicitacao invalido.' });
             }
 
             if (!novaDataHora) {
                 return res.status(400).json({
-                    erro: 'Informe a nova data e horário para remarcação.',
+                    erro: 'Informe a nova data e horario para remarcacao.',
                 });
             }
 
             const dataRemarcacao = new Date(novaDataHora);
-
             if (Number.isNaN(dataRemarcacao.getTime())) {
+                return res.status(400).json({ erro: 'Data ou horario de remarcacao invalido.' });
+            }
+
+            if (dataRemarcacao.getTime() <= Date.now()) {
                 return res.status(400).json({
-                    erro: 'Data ou horário de remarcação inválido.',
+                    erro: 'Nao e permitido remarcar para horario passado.',
                 });
             }
+
+            const solicitacaoAtual = await ServicoModel.buscarPorId(id);
+            if (
+                !solicitacaoAtual ||
+                Number(solicitacaoAtual.prof_id) !== Number(profId) ||
+                !['pendente', 'aceito'].includes(solicitacaoAtual.status)
+            ) {
+                return res.status(404).json({
+                    erro: 'Solicitacao nao encontrada ou nao pode ser remarcada.',
+                });
+            }
+
+            const dadosAgenda = await validarAgendamento({
+                profId,
+                agendaServicoId: solicitacaoAtual.agenda_servico_id,
+                agendadoPara: novaDataHora,
+                ignorarSolicitacaoId: id,
+            });
 
             const solicitacao = await ServicoModel.solicitarRemarcacao(
                 id,
                 profId,
-                novaDataHora,
+                dadosAgenda.agendado_para,
                 motivo
             );
 
             if (!solicitacao) {
                 return res.status(404).json({
-                    erro: 'Solicitação não encontrada ou não pode ser remarcada.',
+                    erro: 'Solicitacao nao encontrada ou nao pode ser remarcada.',
                 });
             }
 
+            notificarUsuarioSemBloquear({
+                usuarioId: solicitacao.cidadao_id,
+                tipo: 'remarcacao_solicitada',
+                titulo: 'Proposta de remarcacao',
+                corpo: 'O prestador sugeriu um novo horario para o atendimento.',
+                payload: {
+                    solicitacao_id: solicitacao.id,
+                    status: solicitacao.status,
+                },
+            });
+
             return res.status(200).json({
-                mensagem: 'Proposta de remarcação enviada ao cliente.',
+                mensagem: 'Proposta de remarcacao enviada ao cliente.',
                 solicitacao,
             });
         } catch (erro) {
-            console.error('Erro ao solicitar remarcação:', erro);
-            return res.status(500).json({ erro: 'Erro interno ao solicitar remarcação.' });
+            console.error('Erro ao solicitar remarcacao:', erro);
+            return res.status(500).json({ erro: 'Erro interno ao solicitar remarcacao.' });
         }
     },
 
@@ -300,24 +352,34 @@ const SolicitacaoController = {
             const cidadaoId = req.usuarioLogado.id;
 
             if (!id) {
-                return res.status(400).json({ erro: 'ID da solicitação inválido.' });
+                return res.status(400).json({ erro: 'ID da solicitacao invalido.' });
             }
 
             const solicitacao = await ServicoModel.aceitarRemarcacao(id, cidadaoId);
-
             if (!solicitacao) {
                 return res.status(404).json({
-                    erro: 'Solicitação não encontrada ou não há remarcação pendente.',
+                    erro: 'Solicitacao nao encontrada ou nao ha remarcacao pendente.',
                 });
             }
 
+            notificarUsuarioSemBloquear({
+                usuarioId: solicitacao.prof_id,
+                tipo: 'remarcacao_aceita',
+                titulo: 'Remarcacao aceita',
+                corpo: 'O cliente aceitou o novo horario proposto.',
+                payload: {
+                    solicitacao_id: solicitacao.id,
+                    status: solicitacao.status,
+                },
+            });
+
             return res.status(200).json({
-                mensagem: 'Remarcação aceita com sucesso.',
+                mensagem: 'Remarcacao aceita com sucesso.',
                 solicitacao,
             });
         } catch (erro) {
-            console.error('Erro ao aceitar remarcação:', erro);
-            return res.status(500).json({ erro: 'Erro interno ao aceitar remarcação.' });
+            console.error('Erro ao aceitar remarcacao:', erro);
+            return res.status(500).json({ erro: 'Erro interno ao aceitar remarcacao.' });
         }
     },
 
@@ -327,24 +389,34 @@ const SolicitacaoController = {
             const cidadaoId = req.usuarioLogado.id;
 
             if (!id) {
-                return res.status(400).json({ erro: 'ID da solicitação inválido.' });
+                return res.status(400).json({ erro: 'ID da solicitacao invalido.' });
             }
 
             const solicitacao = await ServicoModel.recusarRemarcacao(id, cidadaoId);
-
             if (!solicitacao) {
                 return res.status(404).json({
-                    erro: 'Solicitação não encontrada ou não há remarcação pendente.',
+                    erro: 'Solicitacao nao encontrada ou nao ha remarcacao pendente.',
                 });
             }
 
+            notificarUsuarioSemBloquear({
+                usuarioId: solicitacao.prof_id,
+                tipo: 'remarcacao_recusada',
+                titulo: 'Remarcacao recusada',
+                corpo: 'O cliente recusou a remarcacao. O horario original foi mantido.',
+                payload: {
+                    solicitacao_id: solicitacao.id,
+                    status: solicitacao.status,
+                },
+            });
+
             return res.status(200).json({
-                mensagem: 'Remarcação recusada. O horário original foi mantido.',
+                mensagem: 'Remarcacao recusada. O horario original foi mantido.',
                 solicitacao,
             });
         } catch (erro) {
-            console.error('Erro ao recusar remarcação:', erro);
-            return res.status(500).json({ erro: 'Erro interno ao recusar remarcação.' });
+            console.error('Erro ao recusar remarcacao:', erro);
+            return res.status(500).json({ erro: 'Erro interno ao recusar remarcacao.' });
         }
     },
 };

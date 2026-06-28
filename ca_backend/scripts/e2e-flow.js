@@ -7,9 +7,29 @@ const cidade = 'Concordia';
 const cidadaoEmail = `cidadao.e2e.${runId}@amauc.com`;
 const profissionalEmail = `profissional.e2e.${runId}@amauc.com`;
 
-let agendamentoId;
-let servicoId;
-let profissionalId;
+function proximoDiaUtilComHorario(horario = '10:00') {
+  const agora = new Date();
+  const alvo = new Date(agora);
+  alvo.setDate(alvo.getDate() + 1);
+
+  while (alvo.getDay() === 0 || alvo.getDay() === 6) {
+    alvo.setDate(alvo.getDate() + 1);
+  }
+
+  const [hora, minuto] = horario.split(':').map(Number);
+  alvo.setHours(hora, minuto, 0, 0);
+  return alvo;
+}
+
+function diaSemanaAmaUc(data) {
+  const dia = data.getDay();
+  return dia === 0 ? 7 : dia;
+}
+
+function timestampLocal(data) {
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${data.getFullYear()}-${pad(data.getMonth() + 1)}-${pad(data.getDate())}T${pad(data.getHours())}:${pad(data.getMinutes())}:00`;
+}
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -23,16 +43,26 @@ async function request(path, options = {}) {
 
   const text = await response.text();
   const data = text ? JSON.parse(text) : null;
+  const expectedStatus = options.expectedStatus;
+
+  if (expectedStatus && response.status === expectedStatus) {
+    return data;
+  }
 
   if (!response.ok) {
     throw new Error(`${options.method || 'GET'} ${path} -> ${response.status}: ${text}`);
+  }
+
+  if (expectedStatus && response.status !== expectedStatus) {
+    throw new Error(`${options.method || 'GET'} ${path} -> esperado ${expectedStatus}, recebido ${response.status}`);
   }
 
   return data;
 }
 
 async function registrarUsuario({ nome, email, perfil_tipo }) {
-  await request('/auth/register', {
+  const isProfissional = perfil_tipo === 'profissional';
+  const data = await request('/auth/register', {
     method: 'POST',
     body: JSON.stringify({
       nome,
@@ -41,8 +71,15 @@ async function registrarUsuario({ nome, email, perfil_tipo }) {
       telefone: '(49) 99999-0000',
       cidade_amauc: cidade,
       perfil_tipo,
+      ...(isProfissional ? {
+        biografia: 'Profissional E2E com atendimento regional AMAUC.',
+        categoria: 'TI',
+        cidades_atendidas: [cidade],
+      } : {}),
     }),
   });
+
+  return data.usuario;
 }
 
 async function login(email) {
@@ -50,6 +87,17 @@ async function login(email) {
     method: 'POST',
     body: JSON.stringify({ email, senha }),
   });
+  return data.token;
+}
+
+async function renovarSessao(token) {
+  const data = await request('/auth/refresh', {
+    method: 'POST',
+    token,
+  });
+  if (!data.token || !data.usuario?.id) {
+    throw new Error('Refresh de sessao nao retornou token e usuario.');
+  }
   return data.token;
 }
 
@@ -62,7 +110,7 @@ async function main() {
     perfil_tipo: 'cidadao',
   });
 
-  await registrarUsuario({
+  const profissional = await registrarUsuario({
     nome: 'Profissional E2E',
     email: profissionalEmail,
     perfil_tipo: 'profissional',
@@ -71,11 +119,15 @@ async function main() {
   console.log('[E2E] Login...');
   const cidadaoToken = await login(cidadaoEmail);
   const profissionalToken = await login(profissionalEmail);
+  await renovarSessao(cidadaoToken);
 
-  console.log('[E2E] Criando agenda do profissional...');
+  const dataAgendada = proximoDiaUtilComHorario('10:00');
+  const agendadoPara = timestampLocal(dataAgendada);
+  const diaSemana = diaSemanaAmaUc(dataAgendada);
 
-  const agenda = await request('/agenda/minha', {
-    method: 'POST',
+  console.log('[E2E] Configurando agenda do profissional...');
+  const agendaResponse = await request('/agenda/me', {
+    method: 'PUT',
     token: profissionalToken,
     body: JSON.stringify({
       servicos: [
@@ -85,60 +137,114 @@ async function main() {
           preco: 50,
         },
       ],
-      horarios: ['10:00']
+      horarios: [
+        { dia_semana: diaSemana, horario: '10:00' },
+        { dia_semana: diaSemana, horario: '14:00' },
+      ],
     }),
   });
 
-  servicoId = agenda.agenda?.servicos?.[0]?.id || 1;
-  profissionalId = agenda.agenda?.profissional_id || null;
-
-  console.log('[E2E] Buscando profissional...');
-
-  const profissionais = await request(
-    `/profissionais?cidade=${encodeURIComponent('Concordia')}&categoria=TI`
-  );
-
-  const profissional = profissionais.find((p) => p.email === profissionalEmail);
-
-  if (!profissional) {
-    throw new Error('Profissional nao encontrado na busca.');
+  const agendaServico = agendaResponse.agenda?.servicos?.[0];
+  if (!agendaServico?.id) {
+    throw new Error('Serviço da agenda não foi criado.');
   }
 
-  console.log('[E2E] Criando agendamento...');
-
-  const agendamento = await request('/agendamentos', {
+  console.log('[E2E] Cliente agenda serviço...');
+  const solicitacaoResponse = await request('/solicitacoes', {
     method: 'POST',
     token: cidadaoToken,
     body: JSON.stringify({
-      agenda_servico_id: servicoId,
-      data_hora: '2099-06-24T10:00:00',
+      profissional_id: profissional.id,
+      agenda_servico_id: agendaServico.id,
+      servico_nome: 'Nome adulterado pelo app',
+      preco: 9999,
+      descricao: 'Fluxo E2E: serviço agendado',
+      endereco_atendimento: 'Rua das Flores, 123',
+      agendado_para: agendadoPara,
     }),
   });
 
-  agendamentoId = agendamento.id;
+  const solicitacao = solicitacaoResponse.solicitacao;
+  if (!solicitacao?.id) {
+    throw new Error('Solicitação não foi criada.');
+  }
 
-  console.log('[E2E] Aceitando agendamento...');
+  if (Number(solicitacao.preco) !== 50 || solicitacao.servico_nome !== 'Corte de cabelo') {
+    throw new Error('Backend confiou em preço/nome enviados pelo app.');
+  }
 
-  await request(`/agendamentos/${agendamentoId}/aceitar`, {
-    method: 'PUT',
+  console.log('[E2E] Prestador visualiza chamado recebido...');
+  const minhasSolicitacoes = await request('/solicitacoes/minhas-solicitacoes', {
     token: profissionalToken,
   });
+  const listaPrestador = minhasSolicitacoes.solicitacoes || minhasSolicitacoes.pedidos || [];
+  if (!listaPrestador.some((item) => item.id === solicitacao.id)) {
+    throw new Error('Prestador nao recebeu a solicitacao criada pelo cliente.');
+  }
 
-  console.log('[E2E] Concluindo agendamento...');
-
-  await request(`/agendamentos/${agendamentoId}/concluir`, {
-    method: 'PUT',
-    token: profissionalToken,
+  console.log('[E2E] Validando bloqueio de conflito de horário...');
+  await request('/solicitacoes', {
+    method: 'POST',
+    token: cidadaoToken,
+    expectedStatus: 409,
+    body: JSON.stringify({
+      profissional_id: profissional.id,
+      agenda_servico_id: agendaServico.id,
+      descricao: 'Tentativa duplicada',
+      endereco_atendimento: 'Rua das Flores, 123',
+      agendado_para: agendadoPara,
+    }),
   });
 
-  console.log('[E2E] Avaliando...');
+  console.log('[E2E] Prestador aceita...');
+  await request(`/solicitacoes/${solicitacao.id}/status`, {
+    method: 'PATCH',
+    token: profissionalToken,
+    body: JSON.stringify({ status: 'aceito' }),
+  });
 
-  await request(`/agendamentos/${agendamentoId}/avaliar`, {
+  console.log('[E2E] Prestador propoe remarcacao...');
+  const novaData = new Date(dataAgendada);
+  novaData.setHours(14, 0, 0, 0);
+  const remarcacaoResponse = await request(`/solicitacoes/${solicitacao.id}/remarcar`, {
+    method: 'PATCH',
+    token: profissionalToken,
+    body: JSON.stringify({
+      nova_data_hora: timestampLocal(novaData),
+      motivo: 'Fluxo E2E: ajuste de horario',
+    }),
+  });
+
+  if (remarcacaoResponse.solicitacao?.status !== 'remarcacao_solicitada') {
+    throw new Error('Remarcacao nao ficou pendente para aceite do cliente.');
+  }
+
+  console.log('[E2E] Cliente aceita remarcacao...');
+  const aceiteRemarcacao = await request(`/solicitacoes/${solicitacao.id}/remarcacao/aceitar`, {
+    method: 'PATCH',
+    token: cidadaoToken,
+  });
+
+  const horaAplicada = new Date(aceiteRemarcacao.solicitacao?.agendado_para).getHours();
+  if (aceiteRemarcacao.solicitacao?.status !== 'aceito' || horaAplicada !== 14) {
+    throw new Error('Cliente aceitou remarcacao, mas horario novo nao foi aplicado.');
+  }
+
+  console.log('[E2E] Prestador conclui...');
+  await request(`/solicitacoes/${solicitacao.id}/status`, {
+    method: 'PATCH',
+    token: profissionalToken,
+    body: JSON.stringify({ status: 'concluido' }),
+  });
+
+  console.log('[E2E] Cliente avalia...');
+  await request('/avaliacoes', {
     method: 'POST',
     token: cidadaoToken,
     body: JSON.stringify({
-      nota: 5,
-      comentario: 'Fluxo E2E de agendamento OK',
+      servico_id: solicitacao.id,
+      nota_estrelas: 5,
+      comentario: 'Fluxo E2E de agenda OK',
     }),
   });
 

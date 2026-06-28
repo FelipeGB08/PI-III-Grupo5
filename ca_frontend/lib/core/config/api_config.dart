@@ -28,6 +28,7 @@ class ApiConfig {
   static const String authRegister = '$apiPrefix/auth/register';
   static const String authLogin = '$apiPrefix/auth/login';
   static const String authSocialLogin = '$apiPrefix/auth/social-login';
+  static const String authRefresh = '$apiPrefix/auth/refresh';
   static const String authMagicLink = '$apiPrefix/auth/magic-link';
   static const String authMagicLinkVerify = '$apiPrefix/auth/magic-link/verify';
   static const String authPasswordResetRequest =
@@ -38,6 +39,7 @@ class ApiConfig {
   static const String authLoginLegacy = '$apiPrefix/usuarios/login';
   static const String usuariosMe = '$apiPrefix/usuarios/me';
   static const String upload = '$apiPrefix/upload';
+  static const String dispositivoToken = '$apiPrefix/dispositivos/token';
   static const String prestadores = '$apiPrefix/profissionais';
   static const String prestadoresBusca = '$apiPrefix/perfil/busca';
   static const String perfil = '$apiPrefix/perfil';
@@ -45,8 +47,8 @@ class ApiConfig {
   static const String agendaMe = '$apiPrefix/agenda/me';
   static const String servicos = '$apiPrefix/servicos';
   static const String chamados = '$apiPrefix/solicitacoes';
-  static const String chamadosMeus = '$apiPrefix/solicitacoes/meus-pedidos';
-  static const String chamadosCliente =
+  static const String chamadosCliente = '$apiPrefix/solicitacoes/meus-pedidos';
+  static const String chamadosPrestador =
       '$apiPrefix/solicitacoes/minhas-solicitacoes';
   static const String avaliacoes = '$apiPrefix/avaliacoes';
   static const String categorias = '$apiPrefix/categorias';

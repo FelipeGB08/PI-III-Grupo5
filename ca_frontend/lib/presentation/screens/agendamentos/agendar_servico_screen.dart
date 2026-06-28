@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/network/api_error_formatter.dart';
 import '../../../core/theme/app_colors.dart';
@@ -21,10 +22,12 @@ class AgendarServicoScreen extends ConsumerStatefulWidget {
 class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
   final _enderecoController = TextEditingController();
   final _observacaoController = TextEditingController();
+  final _imagePicker = ImagePicker();
 
   int _servicoIndex = 0;
   int _diaIndex = 0;
   String? _horario;
+  XFile? _fotoProblema;
   bool _enviando = false;
 
   @override
@@ -77,6 +80,12 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
     ].join('\n');
 
     try {
+      String? fotoUrl;
+      final foto = _fotoProblema;
+      if (foto != null) {
+        fotoUrl = await ref.read(apiServiceProvider).uploadFotoPerfil(foto.path);
+      }
+
       final chamado = await ref.read(chamadoRepositoryProvider).criar(
             profissionalId: widget.prestador.id,
             descricao: descricao,
@@ -85,6 +94,7 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
             preco: servico.preco,
             agendadoPara: agendadoPara,
             enderecoAtendimento: endereco,
+            fotoUrl: fotoUrl,
           );
       await ref.read(chamadosProvider.notifier).carregar();
       if (!mounted) return;
@@ -155,6 +165,54 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _selecionarFoto(ImageSource source) async {
+    final foto = await _imagePicker.pickImage(
+      source: source,
+      imageQuality: 78,
+      maxWidth: 1600,
+    );
+    if (foto == null || !mounted) return;
+    setState(() => _fotoProblema = foto);
+  }
+
+  Future<void> _abrirOpcoesFoto() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Tirar foto'),
+              onTap: () {
+                Navigator.pop(context);
+                _selecionarFoto(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Escolher da galeria'),
+              onTap: () {
+                Navigator.pop(context);
+                _selecionarFoto(ImageSource.gallery);
+              },
+            ),
+            if (_fotoProblema != null)
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('Remover foto'),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() => _fotoProblema = null);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final agendaAsync =
@@ -196,6 +254,12 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
       children: [
         _ProfessionalHeader(prestador: widget.prestador),
+        if (widget.prestador.atendeRural ||
+            widget.prestador.atendeEmergencia ||
+            widget.prestador.cidadesAtendidas.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _RegionalInfoBanner(prestador: widget.prestador),
+        ],
         if (agenda.usandoPadrao) ...[
           const SizedBox(height: 14),
           const _InfoBanner(
@@ -293,6 +357,21 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
           maxLines: 4,
           decoration: const InputDecoration(
             hintText: 'Detalhes adicionais para o profissional...',
+          ),
+        ),
+        const SizedBox(height: 14),
+        OutlinedButton.icon(
+          onPressed: _enviando ? null : _abrirOpcoesFoto,
+          icon: Icon(
+            _fotoProblema == null
+                ? Icons.add_photo_alternate_outlined
+                : Icons.check_circle_outline,
+          ),
+          label: Text(
+            _fotoProblema == null
+                ? 'Anexar foto do problema'
+                : 'Foto anexada: ${_fotoProblema!.name}',
+            overflow: TextOverflow.ellipsis,
           ),
         ),
         const SizedBox(height: 20),
@@ -517,6 +596,56 @@ class _InfoBanner extends StatelessWidget {
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
       ),
       child: Text(text, style: const TextStyle(fontSize: 12)),
+    );
+  }
+}
+
+class _RegionalInfoBanner extends StatelessWidget {
+  const _RegionalInfoBanner({required this.prestador});
+
+  final Prestador prestador;
+
+  @override
+  Widget build(BuildContext context) {
+    final tags = <String>[
+      if (prestador.atendeRural) 'Atende interior',
+      if (prestador.atendeEmergencia) 'Emergencia',
+      if (prestador.possuiVeiculo) 'Veiculo proprio',
+      if (prestador.taxaDeslocamento != null)
+        'Deslocamento R\$ ${prestador.taxaDeslocamento!.toStringAsFixed(2)}',
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.darkCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: tags
+                .map(
+                  (tag) => Chip(
+                    label: Text(tag),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                )
+                .toList(),
+          ),
+          if (prestador.cidadesAtendidas.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Cidades atendidas: ${prestador.cidadesAtendidas.join(', ')}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

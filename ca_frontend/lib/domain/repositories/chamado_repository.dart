@@ -9,6 +9,7 @@ abstract class ChamadoRepository {
     double? preco,
     DateTime? agendadoPara,
     String? enderecoAtendimento,
+    String? fotoUrl,
   });
 
   Future<List<Chamado>> listarMeusChamados({bool isPrestador = false});
@@ -29,4 +30,8 @@ abstract class ChamadoRepository {
     required DateTime novaDataHora,
     String? motivo,
   });
+
+  Future<Chamado> aceitarRemarcacao({required int chamadoId});
+
+  Future<Chamado> recusarRemarcacao({required int chamadoId});
 }

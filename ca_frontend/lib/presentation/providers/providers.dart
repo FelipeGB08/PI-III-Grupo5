@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -20,9 +19,6 @@ import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/avaliacao_repository.dart';
 import '../../domain/repositories/chamado_repository.dart';
 import '../../domain/repositories/prestador_repository.dart';
-import '../../services/avaliacoes_service.dart';
-import '../../services/profissionais_service.dart';
-import '../../services/servicos_service.dart';
 
 // ─── Infra ────────────────────────────────────────────────────────────────
 
@@ -44,18 +40,6 @@ final dioClientProvider = Provider<DioClient>((ref) {
 
 final apiServiceProvider = Provider<ApiService>((ref) {
   return ApiService(ref.watch(dioClientProvider).instance);
-});
-
-final profissionaisServiceProvider = Provider<ProfissionaisService>((ref) {
-  return ProfissionaisService(ref.watch(dioClientProvider).instance);
-});
-
-final servicosServiceProvider = Provider<ServicosService>((ref) {
-  return ServicosService(ref.watch(dioClientProvider).instance);
-});
-
-final avaliacoesServiceProvider = Provider<AvaliacoesService>((ref) {
-  return AvaliacoesService(ref.watch(dioClientProvider).instance);
 });
 
 // ─── Repositories ───────────────────────────────────────────────────────────
@@ -208,6 +192,11 @@ class CurriculoNotifier extends StateNotifier<CurriculoState> {
     required int anosExperiencia,
     String? curriculoTexto,
     String? portfolioUrl,
+    List<String> cidadesAtendidas = const [],
+    bool? atendeRural,
+    bool? atendeEmergencia,
+    bool? possuiVeiculo,
+    double? taxaDeslocamento,
   }) async {
     state = state.copyWith(isSaving: true, clearError: true);
     try {
@@ -216,6 +205,11 @@ class CurriculoNotifier extends StateNotifier<CurriculoState> {
         anosExperiencia: anosExperiencia,
         curriculoTexto: curriculoTexto,
         portfolioUrl: portfolioUrl,
+        cidadesAtendidas: cidadesAtendidas,
+        atendeRural: atendeRural,
+        atendeEmergencia: atendeEmergencia,
+        possuiVeiculo: possuiVeiculo,
+        taxaDeslocamento: taxaDeslocamento,
       );
       state = state.copyWith(data: data, isSaving: false);
       return true;
@@ -386,16 +380,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> _loadSession() async {
     final token = await _repo.getToken();
-    final user = await _repo.getCurrentUser();
 
-    if (token != null && token.isNotEmpty && user != null) {
-      state = AuthState(user: user);
-      return;
+    if (token != null && token.isNotEmpty) {
+      try {
+        final result = await _repo.refreshSession();
+        state = AuthState(user: result.user);
+        return;
+      } catch (_) {
+        await _repo.logout();
+      }
     }
 
-    if (token != null || user != null) {
-      await _repo.logout();
-    }
     state = const AuthState();
   }
 
@@ -540,6 +535,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  Future<String?> uploadAvatarBytes({
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    try {
+      return await _repo.uploadAvatarBytes(bytes: bytes, filename: filename);
+    } catch (e) {
+      state = state.copyWith(error: formatApiError(e));
+      return null;
+    }
+  }
+
   @override
   void dispose() {
     SessionEvents.removeListener(_onUnauthorized);
@@ -618,17 +625,11 @@ class PrestadoresNotifier extends StateNotifier<PrestadoresState> {
         lng: lng,
       );
 
-      debugPrint("DEBUG: API retornou ${result.length} prestadores.");
-      for (var p in result) {
-        debugPrint("DEBUG: Carregado -> ${p.nome} (ID: ${p.id})");
-      }
-
       state = state.copyWith(
         prestadores: result,
         isLoading: false,
       );
     } catch (e) {
-      debugPrint("DEBUG ERRO API: $e");
       state = state.copyWith(
         prestadores: const [],
         isLoading: false,
@@ -696,10 +697,10 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
     state = ChamadosState(chamados: list);
   }
 
-  Future<void> cancelarSolicitacao(int chamadoId) async {
+  Future<void> cancelarSolicitacao(int chamadoId, {String? motivo}) async {
     state = ChamadosState(isLoading: true, chamados: state.chamados);
 
-    await _repo.cancelarSolicitacao(chamadoId: chamadoId);
+    await _repo.cancelarSolicitacao(chamadoId: chamadoId, motivo: motivo);
 
     await carregar();
   }
@@ -717,6 +718,18 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
       motivo: motivo,
     );
 
+    await carregar();
+  }
+
+  Future<void> aceitarRemarcacao(int chamadoId) async {
+    state = ChamadosState(isLoading: true, chamados: state.chamados);
+    await _repo.aceitarRemarcacao(chamadoId: chamadoId);
+    await carregar();
+  }
+
+  Future<void> recusarRemarcacao(int chamadoId) async {
+    state = ChamadosState(isLoading: true, chamados: state.chamados);
+    await _repo.recusarRemarcacao(chamadoId: chamadoId);
     await carregar();
   }
 

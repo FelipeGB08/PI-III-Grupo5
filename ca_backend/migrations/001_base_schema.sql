@@ -1,31 +1,28 @@
--- Schema oficial do Conecta AMAUC (PostgreSQL)
--- Execute: npm run db:migrate
-
-DROP TABLE IF EXISTS avaliacoes CASCADE;
-DROP TABLE IF EXISTS notificacoes CASCADE;
-DROP TABLE IF EXISTS dispositivo_tokens CASCADE;
-DROP TABLE IF EXISTS profissional_agenda_horarios CASCADE;
-DROP TABLE IF EXISTS profissional_agenda_servicos CASCADE;
-DROP TABLE IF EXISTS servicos_solicitados CASCADE;
-DROP TABLE IF EXISTS profissional_categorias CASCADE;
-DROP TABLE IF EXISTS perfis_profissionais CASCADE;
-DROP TABLE IF EXISTS categorias CASCADE;
-DROP TABLE IF EXISTS usuarios CASCADE;
-
-CREATE TABLE usuarios (
+CREATE TABLE IF NOT EXISTS usuarios (
     id SERIAL PRIMARY KEY,
     nome VARCHAR(150) NOT NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
     senha_hash VARCHAR(255) NOT NULL,
     telefone VARCHAR(30),
     cidade_amauc VARCHAR(100) NOT NULL,
-    perfil_tipo VARCHAR(30) NOT NULL
-        CHECK (perfil_tipo IN ('cidadao', 'profissional', 'admin')),
+    perfil_tipo VARCHAR(30) NOT NULL,
     foto_url VARCHAR(500),
     criado_em TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE perfis_profissionais (
+ALTER TABLE usuarios
+    ADD COLUMN IF NOT EXISTS telefone VARCHAR(30),
+    ADD COLUMN IF NOT EXISTS cidade_amauc VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS perfil_tipo VARCHAR(30),
+    ADD COLUMN IF NOT EXISTS foto_url VARCHAR(500),
+    ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW();
+
+ALTER TABLE usuarios
+    DROP CONSTRAINT IF EXISTS usuarios_perfil_tipo_check,
+    ADD CONSTRAINT usuarios_perfil_tipo_check
+        CHECK (perfil_tipo IN ('cidadao', 'profissional', 'admin'));
+
+CREATE TABLE IF NOT EXISTS perfis_profissionais (
     id SERIAL PRIMARY KEY,
     usuario_id INTEGER NOT NULL UNIQUE REFERENCES usuarios(id) ON DELETE CASCADE,
     biografia TEXT,
@@ -40,18 +37,30 @@ CREATE TABLE perfis_profissionais (
     taxa_deslocamento NUMERIC(10, 2)
 );
 
-CREATE TABLE categorias (
+ALTER TABLE perfis_profissionais
+    ADD COLUMN IF NOT EXISTS biografia TEXT,
+    ADD COLUMN IF NOT EXISTS curriculo_texto TEXT,
+    ADD COLUMN IF NOT EXISTS portfolio_url VARCHAR(500),
+    ADD COLUMN IF NOT EXISTS anos_experiencia INTEGER DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS verificado BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS atende_rural BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS atende_emergencia BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS possui_veiculo BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS cidades_atendidas TEXT[] NOT NULL DEFAULT '{}',
+    ADD COLUMN IF NOT EXISTS taxa_deslocamento NUMERIC(10, 2);
+
+CREATE TABLE IF NOT EXISTS categorias (
     id SERIAL PRIMARY KEY,
     nome_servico VARCHAR(100) NOT NULL UNIQUE
 );
 
-CREATE TABLE profissional_categorias (
+CREATE TABLE IF NOT EXISTS profissional_categorias (
     profissional_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     categoria_id INTEGER NOT NULL REFERENCES categorias(id) ON DELETE CASCADE,
     PRIMARY KEY (profissional_id, categoria_id)
 );
 
-CREATE TABLE profissional_agenda_servicos (
+CREATE TABLE IF NOT EXISTS profissional_agenda_servicos (
     id SERIAL PRIMARY KEY,
     profissional_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     nome VARCHAR(120) NOT NULL,
@@ -62,7 +71,16 @@ CREATE TABLE profissional_agenda_servicos (
     criado_em TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE profissional_agenda_horarios (
+ALTER TABLE profissional_agenda_servicos
+    ADD COLUMN IF NOT EXISTS profissional_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
+    ADD COLUMN IF NOT EXISTS nome VARCHAR(120),
+    ADD COLUMN IF NOT EXISTS duracao_minutos INTEGER NOT NULL DEFAULT 60,
+    ADD COLUMN IF NOT EXISTS preco NUMERIC(10, 2),
+    ADD COLUMN IF NOT EXISTS ativo BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS ordem INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW();
+
+CREATE TABLE IF NOT EXISTS profissional_agenda_horarios (
     id SERIAL PRIMARY KEY,
     profissional_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     dia_semana INTEGER NOT NULL CHECK (dia_semana BETWEEN 1 AND 7),
@@ -71,7 +89,13 @@ CREATE TABLE profissional_agenda_horarios (
     UNIQUE (profissional_id, dia_semana, horario)
 );
 
-CREATE TABLE servicos_solicitados (
+ALTER TABLE profissional_agenda_horarios
+    ADD COLUMN IF NOT EXISTS profissional_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
+    ADD COLUMN IF NOT EXISTS dia_semana INTEGER,
+    ADD COLUMN IF NOT EXISTS horario TIME,
+    ADD COLUMN IF NOT EXISTS ativo BOOLEAN NOT NULL DEFAULT TRUE;
+
+CREATE TABLE IF NOT EXISTS servicos_solicitados (
     id SERIAL PRIMARY KEY,
     cidadao_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     prof_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -82,7 +106,31 @@ CREATE TABLE servicos_solicitados (
     agendado_para TIMESTAMP,
     duracao_minutos INTEGER,
     foto_url VARCHAR(500),
-    status VARCHAR(30) NOT NULL DEFAULT 'pendente'
+    status VARCHAR(30) NOT NULL DEFAULT 'pendente',
+    preco NUMERIC(10, 2),
+    motivo_cancelamento TEXT,
+    motivo_remarcacao TEXT,
+    remarcacao_solicitada_para TIMESTAMP,
+    criado_em TIMESTAMP DEFAULT NOW(),
+    atualizado_em TIMESTAMP
+);
+
+ALTER TABLE servicos_solicitados
+    ADD COLUMN IF NOT EXISTS agenda_servico_id INTEGER REFERENCES profissional_agenda_servicos(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS servico_nome VARCHAR(120),
+    ADD COLUMN IF NOT EXISTS endereco_atendimento TEXT,
+    ADD COLUMN IF NOT EXISTS agendado_para TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS duracao_minutos INTEGER,
+    ADD COLUMN IF NOT EXISTS foto_url VARCHAR(500),
+    ADD COLUMN IF NOT EXISTS preco NUMERIC(10, 2),
+    ADD COLUMN IF NOT EXISTS motivo_cancelamento TEXT,
+    ADD COLUMN IF NOT EXISTS motivo_remarcacao TEXT,
+    ADD COLUMN IF NOT EXISTS remarcacao_solicitada_para TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMP;
+
+ALTER TABLE servicos_solicitados
+    DROP CONSTRAINT IF EXISTS servicos_solicitados_status_check,
+    ADD CONSTRAINT servicos_solicitados_status_check
         CHECK (
             status IN (
                 'pendente',
@@ -92,53 +140,15 @@ CREATE TABLE servicos_solicitados (
                 'cancelado_cliente',
                 'remarcacao_solicitada'
             )
-        ),
-    preco NUMERIC(10, 2),
-    motivo_cancelamento TEXT,
-    motivo_remarcacao TEXT,
-    remarcacao_solicitada_para TIMESTAMP,
-    criado_em TIMESTAMP DEFAULT NOW(),
-    atualizado_em TIMESTAMP
-);
+        );
 
-CREATE TABLE avaliacoes (
+CREATE TABLE IF NOT EXISTS avaliacoes (
     id SERIAL PRIMARY KEY,
     servico_id INTEGER NOT NULL UNIQUE REFERENCES servicos_solicitados(id) ON DELETE CASCADE,
     nota_estrelas INTEGER NOT NULL CHECK (nota_estrelas BETWEEN 1 AND 5),
     comentario TEXT,
     criado_em TIMESTAMP DEFAULT NOW()
 );
-
-CREATE TABLE dispositivo_tokens (
-    id SERIAL PRIMARY KEY,
-    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-    token TEXT NOT NULL UNIQUE,
-    plataforma VARCHAR(30),
-    ativo BOOLEAN NOT NULL DEFAULT TRUE,
-    criado_em TIMESTAMP DEFAULT NOW(),
-    atualizado_em TIMESTAMP DEFAULT NOW()
-);
-
-CREATE INDEX idx_dispositivo_tokens_usuario
-    ON dispositivo_tokens (usuario_id)
-    WHERE ativo = TRUE;
-
-CREATE TABLE notificacoes (
-    id SERIAL PRIMARY KEY,
-    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-    tipo VARCHAR(60) NOT NULL,
-    titulo VARCHAR(160) NOT NULL,
-    corpo TEXT NOT NULL,
-    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-    status VARCHAR(20) NOT NULL DEFAULT 'pendente'
-        CHECK (status IN ('pendente', 'enviada', 'falha')),
-    erro TEXT,
-    criado_em TIMESTAMP DEFAULT NOW(),
-    enviada_em TIMESTAMP
-);
-
-CREATE INDEX idx_notificacoes_usuario_criado
-    ON notificacoes (usuario_id, criado_em DESC);
 
 CREATE OR REPLACE FUNCTION validar_papeis_servico()
 RETURNS TRIGGER AS $$
@@ -161,6 +171,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_validar_papeis_servico ON servicos_solicitados;
 CREATE TRIGGER trg_validar_papeis_servico
 BEFORE INSERT OR UPDATE OF cidadao_id, prof_id ON servicos_solicitados
 FOR EACH ROW
@@ -180,17 +191,18 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_validar_categoria_profissional ON profissional_categorias;
 CREATE TRIGGER trg_validar_categoria_profissional
 BEFORE INSERT OR UPDATE OF profissional_id ON profissional_categorias
 FOR EACH ROW
 EXECUTE FUNCTION validar_categoria_profissional();
 
 INSERT INTO categorias (nome_servico) VALUES
-    ('Hidráulica'),
-    ('Elétrica'),
+    ('Hidraulica'),
+    ('Eletrica'),
     ('TI'),
     ('Limpeza'),
-    ('Construção'),
+    ('Construcao'),
     ('Manutencao Rural'),
     ('Eletricista Rural'),
     ('Mecanica Agricola'),

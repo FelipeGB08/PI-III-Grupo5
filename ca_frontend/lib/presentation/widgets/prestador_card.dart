@@ -1,10 +1,10 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/config/amauc_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../domain/entities/prestador.dart';
+import 'profile_avatar.dart';
 
 class PrestadorCard extends StatelessWidget {
   const PrestadorCard({
@@ -115,26 +115,10 @@ class _Avatar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        CircleAvatar(
+        ProfileAvatar(
+          name: prestador.nome,
+          imageUrl: prestador.fotoUrl,
           radius: 28,
-          backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-          child: prestador.fotoUrl != null
-              ? ClipOval(
-                  child: CachedNetworkImage(
-                    imageUrl: prestador.fotoUrl!,
-                    width: 56,
-                    height: 56,
-                    fit: BoxFit.cover,
-                  ),
-                )
-              : Text(
-                  prestador.nome.isNotEmpty ? prestador.nome[0] : '?',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 22,
-                    color: AppColors.primary,
-                  ),
-                ),
         ),
         if (prestador.disponivel)
           Positioned(

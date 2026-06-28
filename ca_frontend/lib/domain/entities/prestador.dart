@@ -17,6 +17,11 @@ class Prestador {
     this.anosExperiencia,
     this.curriculoTexto,
     this.portfolioUrl,
+    this.atendeRural = false,
+    this.atendeEmergencia = false,
+    this.possuiVeiculo = false,
+    this.cidadesAtendidas = const [],
+    this.taxaDeslocamento,
   });
 
   final int id;
@@ -36,6 +41,11 @@ class Prestador {
   final int? anosExperiencia;
   final String? curriculoTexto;
   final String? portfolioUrl;
+  final bool atendeRural;
+  final bool atendeEmergencia;
+  final bool possuiVeiculo;
+  final List<String> cidadesAtendidas;
+  final double? taxaDeslocamento;
 
   Prestador copyWith({
     double? mediaAvaliacao,
@@ -60,6 +70,11 @@ class Prestador {
       anosExperiencia: anosExperiencia,
       curriculoTexto: curriculoTexto,
       portfolioUrl: portfolioUrl,
+      atendeRural: atendeRural,
+      atendeEmergencia: atendeEmergencia,
+      possuiVeiculo: possuiVeiculo,
+      cidadesAtendidas: cidadesAtendidas,
+      taxaDeslocamento: taxaDeslocamento,
     );
   }
 }

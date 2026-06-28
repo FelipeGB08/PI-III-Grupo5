@@ -19,6 +19,11 @@ class PrestadorModel extends Prestador {
     super.anosExperiencia,
     super.curriculoTexto,
     super.portfolioUrl,
+    super.atendeRural,
+    super.atendeEmergencia,
+    super.possuiVeiculo,
+    super.cidadesAtendidas,
+    super.taxaDeslocamento,
   });
 
   factory PrestadorModel.fromJson(Map<String, dynamic> json) {
@@ -45,6 +50,11 @@ class PrestadorModel extends Prestador {
       anosExperiencia: _parseIntNullable(json['anos_experiencia']),
       curriculoTexto: json['curriculo_texto']?.toString(),
       portfolioUrl: json['portfolio_url']?.toString(),
+      atendeRural: _parseBool(json['atende_rural']),
+      atendeEmergencia: _parseBool(json['atende_emergencia']),
+      possuiVeiculo: _parseBool(json['possui_veiculo']),
+      cidadesAtendidas: _parseStringList(json['cidades_atendidas']),
+      taxaDeslocamento: _parseDoubleNullable(json['taxa_deslocamento']),
     );
   }
 
@@ -58,6 +68,9 @@ class PrestadorModel extends Prestador {
 
   static double? _parseDoubleNullable(dynamic v) =>
       v == null ? null : _parseDouble(v);
+
+  static bool _parseBool(dynamic v) =>
+      v == true || v?.toString().toLowerCase() == 'true';
 
   static List<String> _parseCategorias(
     Map<String, dynamic> json,

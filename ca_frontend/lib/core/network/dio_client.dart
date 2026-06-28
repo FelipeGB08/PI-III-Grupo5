@@ -23,7 +23,9 @@ class DioClient {
                 },
               ),
             ) {
-    debugPrint('[DIO] baseUrl=${ApiConfig.baseUrl}');
+    if (kDebugMode) {
+      debugPrint('[DIO] baseUrl=${ApiConfig.baseUrl}');
+    }
 
     _dio.interceptors.addAll([
       AuthInterceptor(

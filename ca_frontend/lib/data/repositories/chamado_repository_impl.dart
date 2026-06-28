@@ -16,6 +16,7 @@ class ChamadoRepositoryImpl implements ChamadoRepository {
     double? preco,
     DateTime? agendadoPara,
     String? enderecoAtendimento,
+    String? fotoUrl,
   }) {
     return _api.criarChamado(
       profissionalId: profissionalId,
@@ -25,6 +26,7 @@ class ChamadoRepositoryImpl implements ChamadoRepository {
       preco: preco,
       agendadoPara: agendadoPara,
       enderecoAtendimento: enderecoAtendimento,
+      fotoUrl: fotoUrl,
     );
   }
 
@@ -72,5 +74,15 @@ class ChamadoRepositoryImpl implements ChamadoRepository {
       novaDataHora: novaDataHora,
       motivo: motivo,
     );
+  }
+
+  @override
+  Future<Chamado> aceitarRemarcacao({required int chamadoId}) {
+    return _api.aceitarRemarcacao(chamadoId: chamadoId);
+  }
+
+  @override
+  Future<Chamado> recusarRemarcacao({required int chamadoId}) {
+    return _api.recusarRemarcacao(chamadoId: chamadoId);
   }
 }

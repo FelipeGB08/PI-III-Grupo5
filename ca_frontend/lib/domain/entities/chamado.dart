@@ -1,16 +1,20 @@
 enum ChamadoStatus {
   pendente,
   emAndamento,
+  remarcacaoSolicitada,
   concluido,
   recusado,
+  cancelado,
 }
 
 extension ChamadoStatusX on ChamadoStatus {
   String get apiValue => switch (this) {
         ChamadoStatus.pendente => 'pendente',
-        ChamadoStatus.emAndamento => 'em_andamento',
+        ChamadoStatus.emAndamento => 'aceito',
+        ChamadoStatus.remarcacaoSolicitada => 'remarcacao_solicitada',
         ChamadoStatus.concluido => 'concluido',
         ChamadoStatus.recusado => 'recusado',
+        ChamadoStatus.cancelado => 'cancelado_cliente',
       };
 
   static ChamadoStatus fromApi(String? value) {
@@ -19,11 +23,16 @@ extension ChamadoStatusX on ChamadoStatus {
       case 'em andamento':
       case 'aceito':
         return ChamadoStatus.emAndamento;
+      case 'remarcacao_solicitada':
+        return ChamadoStatus.remarcacaoSolicitada;
       case 'concluido':
       case 'concluído':
         return ChamadoStatus.concluido;
       case 'recusado':
         return ChamadoStatus.recusado;
+      case 'cancelado_cliente':
+      case 'cancelado':
+        return ChamadoStatus.cancelado;
       default:
         return ChamadoStatus.pendente;
     }
@@ -31,9 +40,11 @@ extension ChamadoStatusX on ChamadoStatus {
 
   String get label => switch (this) {
         ChamadoStatus.pendente => 'Pendente',
-        ChamadoStatus.emAndamento => 'Em Progresso',
-        ChamadoStatus.concluido => 'Concluído',
+        ChamadoStatus.emAndamento => 'Confirmado',
+        ChamadoStatus.remarcacaoSolicitada => 'Remarcacao',
+        ChamadoStatus.concluido => 'Concluido',
         ChamadoStatus.recusado => 'Recusado',
+        ChamadoStatus.cancelado => 'Cancelado',
       };
 }
 
@@ -51,6 +62,11 @@ class Chamado {
     this.servicoNome,
     this.enderecoAtendimento,
     this.agendadoPara,
+    this.fotoUrl,
+    this.duracaoMinutos,
+    this.remarcacaoSolicitadaPara,
+    this.motivoRemarcacao,
+    this.motivoCancelamento,
   });
 
   final int id;
@@ -65,6 +81,11 @@ class Chamado {
   final String? servicoNome;
   final String? enderecoAtendimento;
   final String? agendadoPara;
+  final String? fotoUrl;
+  final int? duracaoMinutos;
+  final String? remarcacaoSolicitadaPara;
+  final String? motivoRemarcacao;
+  final String? motivoCancelamento;
 
   Chamado copyWith({ChamadoStatus? status, double? preco}) {
     return Chamado(
@@ -80,6 +101,11 @@ class Chamado {
       servicoNome: servicoNome,
       enderecoAtendimento: enderecoAtendimento,
       agendadoPara: agendadoPara,
+      fotoUrl: fotoUrl,
+      duracaoMinutos: duracaoMinutos,
+      remarcacaoSolicitadaPara: remarcacaoSolicitadaPara,
+      motivoRemarcacao: motivoRemarcacao,
+      motivoCancelamento: motivoCancelamento,
     );
   }
 }
