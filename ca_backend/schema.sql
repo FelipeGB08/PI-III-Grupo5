@@ -20,6 +20,9 @@ CREATE TABLE usuarios (
     senha_hash VARCHAR(255) NOT NULL,
     telefone VARCHAR(30),
     cidade_amauc VARCHAR(100) NOT NULL,
+    endereco_principal TEXT,
+    latitude NUMERIC(10, 7),
+    longitude NUMERIC(10, 7),
     perfil_tipo VARCHAR(30) NOT NULL
         CHECK (perfil_tipo IN ('cidadao', 'profissional', 'admin')),
     foto_url VARCHAR(500),
@@ -158,11 +161,31 @@ CREATE TABLE notificacoes (
         CHECK (status IN ('pendente', 'enviada', 'falha')),
     erro TEXT,
     criado_em TIMESTAMP DEFAULT NOW(),
-    enviada_em TIMESTAMP
+    enviada_em TIMESTAMP,
+    lida_em TIMESTAMP
 );
 
 CREATE INDEX idx_notificacoes_usuario_criado
     ON notificacoes (usuario_id, criado_em DESC);
+
+CREATE INDEX idx_notificacoes_usuario_lida
+    ON notificacoes (usuario_id, lida_em)
+    WHERE lida_em IS NULL;
+
+CREATE TABLE favoritos_profissionais (
+    id SERIAL PRIMARY KEY,
+    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    profissional_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    criado_em TIMESTAMP DEFAULT NOW(),
+    UNIQUE (usuario_id, profissional_id),
+    CHECK (usuario_id <> profissional_id)
+);
+
+CREATE INDEX idx_favoritos_usuario
+    ON favoritos_profissionais (usuario_id, criado_em DESC);
+
+CREATE INDEX idx_favoritos_profissional
+    ON favoritos_profissionais (profissional_id);
 
 CREATE OR REPLACE FUNCTION validar_papeis_servico()
 RETURNS TRIGGER AS $$

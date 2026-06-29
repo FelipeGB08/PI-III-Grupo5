@@ -1,0 +1,38 @@
+# Ambiente e segredos
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Dependências
+node_modules/
+**/node_modules/
+
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+coverage/
+**/build/
+**/coverage/
+
+# Android/iOS locais
+**/android/local.properties
+**/android/key.properties
+**/ios/Pods/
+**/ios/Flutter/.last_build_id
+**/ios/Flutter/Generated.xcconfig
+
+# Uploads e arquivos gerados em execução
+ca_backend/uploads/
+uploads/
+*.log
+
+# IDE/SO
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

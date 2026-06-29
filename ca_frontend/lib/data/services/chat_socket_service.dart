@@ -53,10 +53,28 @@ class ChatSocketService {
     required String mensagem,
   }) async {
     await connect();
-    _socket?.emit('chat:send', {
-      'servico_id': servicoId,
-      'mensagem': mensagem,
-    });
+    final socket = _socket;
+    if (socket == null || socket.connected != true) {
+      throw StateError('Socket de chat desconectado.');
+    }
+
+    final completer = Completer<void>();
+    socket.emitWithAck(
+      'chat:send',
+      {
+        'servico_id': servicoId,
+        'mensagem': mensagem,
+      },
+      ack: (data) {
+        if (data is Map && data['erro'] != null) {
+          completer.completeError(StateError(data['erro'].toString()));
+          return;
+        }
+        completer.complete();
+      },
+    );
+
+    return completer.future.timeout(const Duration(seconds: 8));
   }
 
   void dispose() {

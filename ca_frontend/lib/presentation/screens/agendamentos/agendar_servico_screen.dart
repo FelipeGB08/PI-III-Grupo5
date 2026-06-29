@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -34,8 +35,9 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
   void initState() {
     super.initState();
     final user = ref.read(authStateProvider).user;
-    _enderecoController.text =
-        user?.cidadeAmauc != null ? '${user!.cidadeAmauc} - SC' : '';
+    _enderecoController.text = user?.enderecoPrincipal?.isNotEmpty == true
+        ? user!.enderecoPrincipal!
+        : (user?.cidadeAmauc != null ? '${user!.cidadeAmauc} - SC' : '');
   }
 
   @override
@@ -83,7 +85,15 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
       String? fotoUrl;
       final foto = _fotoProblema;
       if (foto != null) {
-        fotoUrl = await ref.read(apiServiceProvider).uploadFotoPerfil(foto.path);
+        if (kIsWeb) {
+          fotoUrl = await ref.read(apiServiceProvider).uploadFotoPerfilBytes(
+                bytes: await foto.readAsBytes(),
+                filename: foto.name,
+              );
+        } else {
+          fotoUrl =
+              await ref.read(apiServiceProvider).uploadFotoPerfil(foto.path);
+        }
       }
 
       final chamado = await ref.read(chamadoRepositoryProvider).criar(

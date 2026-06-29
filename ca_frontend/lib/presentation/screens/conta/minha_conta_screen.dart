@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/network/api_error_formatter.dart';
@@ -9,6 +10,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/user.dart';
 import '../../providers/providers.dart';
 import '../../widgets/profile_avatar.dart';
+import '../financeiro/financeiro_screen.dart';
 
 class MinhaContaScreen extends ConsumerStatefulWidget {
   const MinhaContaScreen({super.key});
@@ -20,15 +22,19 @@ class MinhaContaScreen extends ConsumerStatefulWidget {
 class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
   final _nomeController = TextEditingController();
   final _telefoneController = TextEditingController();
+  final _enderecoController = TextEditingController();
   final _picker = ImagePicker();
 
   bool _salvando = false;
   bool _carregandoPerfil = true;
   bool _notificacoes = true;
   bool _altoContraste = true;
+  bool _capturandoLocalizacao = false;
   XFile? _fotoLocal;
   Uint8List? _fotoPreviewBytes;
   String? _fotoUrlRemota;
+  double? _latitude;
+  double? _longitude;
 
   @override
   void initState() {
@@ -40,6 +46,7 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
   void dispose() {
     _nomeController.dispose();
     _telefoneController.dispose();
+    _enderecoController.dispose();
     super.dispose();
   }
 
@@ -60,7 +67,47 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
   void _preencherCampos(User user) {
     _nomeController.text = user.nome;
     _telefoneController.text = user.telefone ?? '';
+    _enderecoController.text = user.enderecoPrincipal ?? '';
+    _latitude = user.latitude;
+    _longitude = user.longitude;
     _fotoUrlRemota = user.fotoUrl;
+  }
+
+  Future<void> _capturarLocalizacao() async {
+    if (_capturandoLocalizacao) return;
+    setState(() => _capturandoLocalizacao = true);
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        _mostrarErro('Permita a localização para salvar o ponto exato.');
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _latitude = position.latitude;
+        _longitude = position.longitude;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Localização atual capturada.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _mostrarErro('Não foi possível capturar sua localização agora.');
+    } finally {
+      if (mounted) setState(() => _capturandoLocalizacao = false);
+    }
   }
 
   Future<void> _trocarFoto() async {
@@ -129,7 +176,8 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
       if (fotoUrl == null || fotoUrl.isEmpty) {
         if (!mounted) return;
         setState(() => _salvando = false);
-        _mostrarErro(ref.read(authStateProvider).error ?? 'Falha ao enviar foto.');
+        _mostrarErro(
+            ref.read(authStateProvider).error ?? 'Falha ao enviar foto.');
         return;
       }
     }
@@ -137,6 +185,9 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
     final ok = await ref.read(authStateProvider.notifier).updateProfile(
           nome: nome,
           telefone: _telefoneController.text.trim(),
+          enderecoPrincipal: _enderecoController.text.trim(),
+          latitude: _latitude,
+          longitude: _longitude,
           fotoUrl: fotoUrl,
         );
 
@@ -156,7 +207,8 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
         const SnackBar(content: Text('Perfil atualizado com sucesso!')),
       );
     } else {
-      _mostrarErro(ref.read(authStateProvider).error ?? 'Nao foi possivel salvar.');
+      _mostrarErro(
+          ref.read(authStateProvider).error ?? 'Nao foi possivel salvar.');
     }
   }
 
@@ -273,6 +325,30 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
                 ),
               ),
               const SizedBox(height: 14),
+              TextField(
+                controller: _enderecoController,
+                decoration: const InputDecoration(
+                  labelText: 'Endereço principal',
+                  prefixIcon: Icon(Icons.home_outlined),
+                ),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: _capturandoLocalizacao ? null : _capturarLocalizacao,
+                icon: _capturandoLocalizacao
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.my_location_rounded),
+                label: Text(
+                  _latitude != null && _longitude != null
+                      ? 'Atualizar localização exata'
+                      : 'Capturar localização exata',
+                ),
+              ),
+              const SizedBox(height: 14),
               _ReadonlyField(
                 icon: Icons.email_outlined,
                 label: 'E-mail',
@@ -310,13 +386,17 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
           ),
           const SizedBox(height: 22),
           _SettingsSection(
-            title: 'Endereco principal',
+            title: 'Endereço principal',
             children: [
               _SettingsTile(
                 icon: Icons.location_on_outlined,
-                title: cidade ?? 'Cidade AMAUC',
-                subtitle: 'Base para buscas e agendamentos',
-                onTap: () => _mostrarErro('Edite a cidade pelo cadastro.'),
+                title: _enderecoController.text.trim().isNotEmpty
+                    ? _enderecoController.text.trim()
+                    : (cidade ?? 'Cidade AMAUC'),
+                subtitle: _latitude != null && _longitude != null
+                    ? 'Ponto exato salvo para mapa e agendamentos'
+                    : 'Use o botao acima para salvar o ponto exato',
+                onTap: _capturarLocalizacao,
               ),
             ],
           ),
@@ -350,14 +430,25 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
                 icon: Icons.lock_outline_rounded,
                 title: 'Alterar senha',
                 subtitle: 'Use a recuperacao de senha no login',
-                onTap: () =>
-                    _mostrarErro('Fluxo de senha disponivel pela tela de login.'),
+                onTap: () => _mostrarErro(
+                    'Fluxo de senha disponivel pela tela de login.'),
               ),
             ],
           ),
           _SettingsSection(
             title: 'Mais',
             children: [
+              _SettingsTile(
+                icon: Icons.account_balance_wallet_outlined,
+                title: 'Financeiro e orçamentos',
+                subtitle: 'Valores, status e histórico de serviços',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const FinanceiroScreen(),
+                  ),
+                ),
+              ),
               _SettingsTile(
                 icon: Icons.privacy_tip_outlined,
                 title: 'Privacidade',

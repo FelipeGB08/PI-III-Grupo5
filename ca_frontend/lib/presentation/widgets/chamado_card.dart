@@ -16,6 +16,7 @@ class ChamadoCard extends StatelessWidget {
     this.onDetalhes,
     this.onCancelar,
     this.onRemarcar,
+    this.onProporValor,
     this.onAceitarRemarcacao,
     this.onRecusarRemarcacao,
   });
@@ -29,6 +30,7 @@ class ChamadoCard extends StatelessWidget {
   final VoidCallback? onDetalhes;
   final VoidCallback? onCancelar;
   final VoidCallback? onRemarcar;
+  final VoidCallback? onProporValor;
   final VoidCallback? onAceitarRemarcacao;
   final VoidCallback? onRecusarRemarcacao;
 
@@ -153,8 +155,7 @@ class ChamadoCard extends StatelessWidget {
   }
 
   List<Widget> _actions() {
-    if (!isPrestador &&
-        chamado.status == ChamadoStatus.remarcacaoSolicitada) {
+    if (!isPrestador && chamado.status == ChamadoStatus.remarcacaoSolicitada) {
       return [
         const SizedBox(height: 14),
         Row(
@@ -200,6 +201,16 @@ class ChamadoCard extends StatelessWidget {
     if (isPrestador && chamado.status == ChamadoStatus.pendente) {
       return [
         const SizedBox(height: 14),
+        if (onProporValor != null) ...[
+          _ActionButton(
+            label: 'Propor valor',
+            color: AppColors.primary,
+            icon: Icons.sell_outlined,
+            onTap: onProporValor,
+            outlined: true,
+          ),
+          const SizedBox(height: 10),
+        ],
         Row(
           children: [
             Expanded(

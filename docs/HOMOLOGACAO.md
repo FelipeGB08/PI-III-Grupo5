@@ -1,6 +1,10 @@
-# Protocolo de Homologacao Pratica - Conecta AMAUC
+# Protocolo de Homologação Prática - Conecta AMAUC
 
-## 1. Ambiente local para teste ponta a ponta
+## 1. Objetivo
+
+Validar o funcionamento real do aplicativo em ambiente próximo ao uso final: backend local, banco PostgreSQL, app Flutter em emulador e, obrigatoriamente, testes em smartphones físicos com GPS, câmera/galeria e rede local.
+
+## 2. Ambiente local para teste ponta a ponta
 
 ### Backend e banco
 
@@ -20,92 +24,125 @@ cd ca_backend
 npm run test:e2e
 ```
 
-O teste E2E cria um cidadao e um profissional, faz login, cria Curriculo Vivo,
-solicita orcamento, aceita, conclui e registra avaliacao.
+O E2E cobre o fluxo principal:
 
-### Flutter
+- criação de cidadão e profissional;
+- login e JWT;
+- Currículo Vivo;
+- configuração de agenda;
+- agendamento;
+- chat;
+- busca por raio no mapa;
+- bloqueios de permissão e horário;
+- aceite;
+- remarcação;
+- conclusão com evidência;
+- avaliação;
+- bloqueio de avaliação duplicada.
 
-Em emulador Android:
+### Flutter em emulador
 
 ```bash
 cd ca_frontend
+flutter pub get
 flutter run
 ```
 
-Em dispositivo fisico Android:
+### Flutter em dispositivo físico
+
+Descubra o IP da máquina que está rodando o backend e execute:
 
 ```bash
+cd ca_frontend
 flutter run --dart-define=API_BASE_URL=http://IP_DA_MAQUINA:3000
 ```
 
-## 2. Checklist tecnico durante o teste
+O smartphone e o computador precisam estar na mesma rede.
 
-- Cadastro retorna token JWT no login.
-- Cidade enviada no cadastro pertence a AMAUC.
+## 3. Checklist técnico durante o teste
+
+- Cadastro cria usuário sem salvar dados inválidos.
+- Login retorna token JWT.
+- Cidade enviada no cadastro pertence à AMAUC.
+- Endereço principal pode ser informado.
+- GPS solicita permissão e salva latitude/longitude.
+- Mapa abre sem erro e usa a localização do cliente.
 - Busca de profissionais renderiza sem travar a UI.
-- Solicitacao aparece para o profissional.
-- Profissional consegue aceitar e concluir.
-- Cidadao consegue avaliar servico concluido.
-- Curriculo Vivo salva biografia, experiencia, resumo e portfolio.
-- Admin consegue visualizar relatorios e gerenciar categorias.
-- GPS solicita permissao no dispositivo fisico.
-- Camera/galeria permite anexar imagem quando aplicavel.
+- Prestador configura agenda com serviço, preço, duração e horários.
+- Cliente agenda usando serviço da agenda do prestador.
+- Solicitação aparece para o profissional.
+- Chat abre para cliente e prestador.
+- Prestador aceita, remarca e conclui chamado.
+- Prestador anexa foto de evidência ao concluir.
+- Cliente avalia serviço concluído.
+- Cancelamento registra política e status de reembolso.
+- Currículo Vivo salva biografia, experiência, portfólio e certificações.
+- Admin visualiza relatórios e gerencia categorias.
 
-## 3. Amostragem obrigatoria
+## 4. Amostragem obrigatória
 
-Base controlada: 10 usuarios reais da regiao AMAUC.
+Base controlada: 10 usuários reais da região AMAUC.
 
-### Grupo A - 5 cidadaos locais
+### Grupo A - 5 cidadãos locais
 
 Foco:
 
-- Cadastro e login.
-- Busca por cidade/categoria.
-- Visualizacao de Curriculo Vivo.
-- Solicitacao de orcamento.
-- Avaliacao apos conclusao.
+- cadastro e login;
+- endereço e localização;
+- busca por cidade/categoria/mapa;
+- visualização de Currículo Vivo;
+- solicitação de orçamento/agendamento;
+- chat;
+- avaliação após conclusão.
 
-Perguntas de validacao:
+Perguntas de validação:
 
 - Encontrou a categoria desejada?
 - Entendeu o status do chamado?
-- A tela ficou legivel em ambiente externo?
-- O fluxo parece confiavel para contratar alguem?
+- O mapa ajudou a localizar prestadores próximos?
+- A tela ficou legível em ambiente externo?
+- O fluxo parece confiável para contratar alguém?
 
-### Grupo B - 5 profissionais autonomos
+### Grupo B - 5 profissionais autônomos
 
 Foco:
 
-- Cadastro como profissional.
-- Criacao/edicao do Curriculo Vivo.
-- Recebimento de chamados.
-- Aceite/recusa/conclusao.
-- Visualizacao do proprio perfil.
+- cadastro como profissional;
+- criação/edição do Currículo Vivo;
+- configuração de agenda;
+- recebimento de chamados;
+- chat;
+- aceite, remarcação e conclusão;
+- envio de evidência por foto;
+- visualização do próprio perfil.
 
-Perguntas de validacao:
+Perguntas de validação:
 
-- O Curriculo Vivo representa bem seu trabalho?
-- Os campos sao claros?
-- A gestao dos chamados e facil?
-- O app transmite confianca profissional?
+- O Currículo Vivo representa bem seu trabalho?
+- Os campos são claros?
+- A configuração de agenda é compreensível?
+- A gestão dos chamados é fácil?
+- O app transmite confiança profissional?
 
-## 4. Registro de evidencias
+## 5. Registro de evidências
 
 Para cada participante, registrar:
 
-- Perfil: cidadao ou profissional.
-- Cidade AMAUC.
-- Modelo do aparelho.
-- Android/iOS e versao.
-- Fluxo testado.
-- Resultado: aprovado, aprovado com ressalva ou falhou.
-- Observacoes objetivas.
+- perfil: cidadão ou profissional;
+- cidade AMAUC;
+- modelo do aparelho;
+- Android/iOS e versão;
+- fluxo testado;
+- resultado: aprovado, aprovado com ressalva ou falhou;
+- observações objetivas;
+- print ou foto da tela final quando aplicável.
 
-## 5. Criterio de aceite da homologacao
+## 6. Critério de aceite da homologação
 
-O APK esta aprovado para apresentacao se:
+O APK está aprovado para apresentação se:
 
-- Pelo menos 8 de 10 usuarios concluem seu fluxo principal sem ajuda tecnica.
-- Nenhuma falha bloqueia cadastro, login, busca, solicitacao ou avaliacao.
-- GPS e camera/galeria funcionam em pelo menos 2 aparelhos fisicos.
-- Todos os problemas encontrados estao registrados com prioridade.
+- pelo menos 8 de 10 usuários concluem o fluxo principal sem ajuda técnica;
+- nenhuma falha bloqueia cadastro, login, busca, agendamento, aceite, conclusão ou avaliação;
+- GPS funciona em pelo menos 2 aparelhos físicos;
+- câmera/galeria funciona em pelo menos 2 aparelhos físicos;
+- todos os problemas encontrados estão registrados com prioridade.

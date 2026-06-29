@@ -50,6 +50,50 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         : ref.read(adminProvider).error ?? 'Nao foi possivel remover.');
   }
 
+  Future<void> _editarCategoria(Map<String, dynamic> categoria) async {
+    final id = int.tryParse('${categoria['id']}') ?? 0;
+    if (id == 0) return;
+
+    final controller = TextEditingController(
+      text: categoria['nome_servico']?.toString() ?? '',
+    );
+    final nome = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Editar categoria'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: 'Nome da categoria',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+
+    if (nome == null || nome.length < 2) return;
+    final ok = await ref.read(adminProvider.notifier).atualizarCategoria(
+          id,
+          nome,
+        );
+    if (!mounted) return;
+    _mostrar(ok
+        ? 'Categoria atualizada.'
+        : ref.read(adminProvider).error ?? 'Nao foi possivel atualizar.');
+  }
+
   void _mostrar(String mensagem) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(mensagem)),
@@ -149,10 +193,23 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(categoria['nome_servico']?.toString() ?? '-'),
-                      trailing: IconButton(
-                        tooltip: 'Remover',
-                        onPressed: id == 0 ? null : () => _deletarCategoria(id),
-                        icon: const Icon(Icons.delete_outline_rounded),
+                      trailing: Wrap(
+                        spacing: 4,
+                        children: [
+                          IconButton(
+                            tooltip: 'Editar',
+                            onPressed: id == 0
+                                ? null
+                                : () => _editarCategoria(categoria),
+                            icon: const Icon(Icons.edit_outlined),
+                          ),
+                          IconButton(
+                            tooltip: 'Remover',
+                            onPressed:
+                                id == 0 ? null : () => _deletarCategoria(id),
+                            icon: const Icon(Icons.delete_outline_rounded),
+                          ),
+                        ],
                       ),
                     );
                   }),

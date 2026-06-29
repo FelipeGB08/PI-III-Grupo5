@@ -45,7 +45,10 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
   final _regEmail = TextEditingController();
   final _regSenha = TextEditingController();
   final _regTelefone = TextEditingController();
+  final _regEndereco = TextEditingController();
   final _regBio = TextEditingController();
+  double? _regLatitude;
+  double? _regLongitude;
 
   UserTipo _tipoSelecionado = UserTipo.cidadao;
   final Set<String> _cidadesSelecionadas = {};
@@ -68,6 +71,7 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
     _regEmail.dispose();
     _regSenha.dispose();
     _regTelefone.dispose();
+    _regEndereco.dispose();
     _regBio.dispose();
     super.dispose();
   }
@@ -128,6 +132,9 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
             senha: _regSenha.text,
             tipo: _tipoSelecionado,
             cidadeAmauc: _cidadesSelecionadas.first,
+            enderecoPrincipal: _regEndereco.text.trim(),
+            latitude: _regLatitude,
+            longitude: _regLongitude,
             bio: _regBio.text.trim(),
             telefoneComercial: _regTelefone.text.trim(),
             cidades: _cidadesSelecionadas.toList(),
@@ -675,9 +682,14 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
             emailController: _regEmail,
             senhaController: _regSenha,
             telefoneController: _regTelefone,
+            enderecoController: _regEndereco,
             bioController: _regBio,
             cidadesSelecionadas: _cidadesSelecionadas,
             categoriasSelecionadas: _categoriasSelecionadas,
+            onLocationChanged: (lat, lng) {
+              _regLatitude = lat;
+              _regLongitude = lng;
+            },
             onCidadesChanged: () => setState(() {}),
             onCategoriasChanged: () => setState(() {}),
           ),

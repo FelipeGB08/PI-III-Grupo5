@@ -29,6 +29,17 @@ const CategoriaModel = {
         return resultado.rows[0];
     },
 
+    atualizar: async (id, nomeServico) => {
+        const query = `
+            UPDATE categorias
+            SET nome_servico = $2
+            WHERE id = $1
+            RETURNING *;
+        `;
+        const resultado = await pool.query(query, [id, nomeServico]);
+        return resultado.rows[0];
+    },
+
     deletar: async (id) => {
         const query = 'DELETE FROM categorias WHERE id = $1 RETURNING *;';
         const resultado = await pool.query(query, [id]);

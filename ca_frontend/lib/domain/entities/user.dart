@@ -26,6 +26,9 @@ class User {
     required this.tipo,
     this.telefone,
     this.cidadeAmauc,
+    this.enderecoPrincipal,
+    this.latitude,
+    this.longitude,
     this.fotoUrl,
   });
 
@@ -35,11 +38,17 @@ class User {
   final UserTipo tipo;
   final String? telefone;
   final String? cidadeAmauc;
+  final String? enderecoPrincipal;
+  final double? latitude;
+  final double? longitude;
   final String? fotoUrl;
 
   User copyWith({
     String? nome,
     String? telefone,
+    String? enderecoPrincipal,
+    double? latitude,
+    double? longitude,
     String? fotoUrl,
   }) {
     return User(
@@ -49,6 +58,9 @@ class User {
       tipo: tipo,
       telefone: telefone ?? this.telefone,
       cidadeAmauc: cidadeAmauc,
+      enderecoPrincipal: enderecoPrincipal ?? this.enderecoPrincipal,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
       fotoUrl: fotoUrl ?? this.fotoUrl,
     );
   }

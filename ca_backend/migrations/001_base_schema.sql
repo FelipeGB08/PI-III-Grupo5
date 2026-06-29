@@ -5,6 +5,9 @@ CREATE TABLE IF NOT EXISTS usuarios (
     senha_hash VARCHAR(255) NOT NULL,
     telefone VARCHAR(30),
     cidade_amauc VARCHAR(100) NOT NULL,
+    endereco_principal TEXT,
+    latitude NUMERIC(10, 7),
+    longitude NUMERIC(10, 7),
     perfil_tipo VARCHAR(30) NOT NULL,
     foto_url VARCHAR(500),
     criado_em TIMESTAMP DEFAULT NOW()
@@ -13,6 +16,9 @@ CREATE TABLE IF NOT EXISTS usuarios (
 ALTER TABLE usuarios
     ADD COLUMN IF NOT EXISTS telefone VARCHAR(30),
     ADD COLUMN IF NOT EXISTS cidade_amauc VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS endereco_principal TEXT,
+    ADD COLUMN IF NOT EXISTS latitude NUMERIC(10, 7),
+    ADD COLUMN IF NOT EXISTS longitude NUMERIC(10, 7),
     ADD COLUMN IF NOT EXISTS perfil_tipo VARCHAR(30),
     ADD COLUMN IF NOT EXISTS foto_url VARCHAR(500),
     ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW();

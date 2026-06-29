@@ -36,6 +36,21 @@ const NotificationModel = {
         return result.rows[0] || null;
     },
 
+    desativarTokenGlobal: async (token) => {
+        const result = await pool.query(
+            `
+            UPDATE dispositivo_tokens
+            SET ativo = FALSE,
+                atualizado_em = CURRENT_TIMESTAMP
+            WHERE token = $1
+            RETURNING *;
+            `,
+            [token]
+        );
+
+        return result.rows[0] || null;
+    },
+
     buscarTokensAtivos: async (usuarioId) => {
         const result = await pool.query(
             `
@@ -49,6 +64,59 @@ const NotificationModel = {
         );
 
         return result.rows.map((row) => row.token);
+    },
+
+    listarNotificacoes: async ({ usuarioId, page = 1, limit = 20, somenteNaoLidas = false }) => {
+        const pagina = Math.max(Number(page) || 1, 1);
+        const limite = Math.min(Math.max(Number(limit) || 20, 1), 50);
+        const offset = (pagina - 1) * limite;
+        const filtros = ['usuario_id = $1'];
+        const params = [usuarioId];
+
+        if (somenteNaoLidas) {
+            filtros.push('lida_em IS NULL');
+        }
+
+        const where = filtros.join(' AND ');
+        const result = await pool.query(
+            `
+            SELECT id, usuario_id, tipo, titulo, corpo, payload, status, erro,
+                   criado_em, enviada_em, lida_em
+            FROM notificacoes
+            WHERE ${where}
+            ORDER BY criado_em DESC
+            LIMIT $${params.length + 1}
+            OFFSET $${params.length + 2};
+            `,
+            [...params, limite, offset]
+        );
+
+        const totalResult = await pool.query(
+            `
+            SELECT COUNT(*)::int AS total
+            FROM notificacoes
+            WHERE ${where};
+            `,
+            params
+        );
+
+        const naoLidasResult = await pool.query(
+            `
+            SELECT COUNT(*)::int AS total
+            FROM notificacoes
+            WHERE usuario_id = $1
+              AND lida_em IS NULL;
+            `,
+            [usuarioId]
+        );
+
+        return {
+            notificacoes: result.rows,
+            page: pagina,
+            limit: limite,
+            total: totalResult.rows[0]?.total || 0,
+            nao_lidas: naoLidasResult.rows[0]?.total || 0,
+        };
     },
 
     criarNotificacao: async ({ usuarioId, tipo, titulo, corpo, payload }) => {
@@ -93,6 +161,37 @@ const NotificationModel = {
             `,
             [id, String(erro || 'Falha desconhecida').slice(0, 500)]
         );
+    },
+
+    marcarLida: async ({ usuarioId, id }) => {
+        const result = await pool.query(
+            `
+            UPDATE notificacoes
+            SET lida_em = COALESCE(lida_em, CURRENT_TIMESTAMP)
+            WHERE usuario_id = $1
+              AND id = $2
+            RETURNING id, usuario_id, tipo, titulo, corpo, payload, status, erro,
+                      criado_em, enviada_em, lida_em;
+            `,
+            [usuarioId, id]
+        );
+
+        return result.rows[0] || null;
+    },
+
+    marcarTodasLidas: async (usuarioId) => {
+        const result = await pool.query(
+            `
+            UPDATE notificacoes
+            SET lida_em = COALESCE(lida_em, CURRENT_TIMESTAMP)
+            WHERE usuario_id = $1
+              AND lida_em IS NULL
+            RETURNING id;
+            `,
+            [usuarioId]
+        );
+
+        return result.rowCount;
     },
 };
 

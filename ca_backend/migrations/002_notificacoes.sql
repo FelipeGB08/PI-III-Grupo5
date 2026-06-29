@@ -23,8 +23,13 @@ CREATE TABLE IF NOT EXISTS notificacoes (
         CHECK (status IN ('pendente', 'enviada', 'falha')),
     erro TEXT,
     criado_em TIMESTAMP DEFAULT NOW(),
-    enviada_em TIMESTAMP
+    enviada_em TIMESTAMP,
+    lida_em TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_notificacoes_usuario_criado
     ON notificacoes (usuario_id, criado_em DESC);
+
+CREATE INDEX IF NOT EXISTS idx_notificacoes_usuario_lida
+    ON notificacoes (usuario_id, lida_em)
+    WHERE lida_em IS NULL;

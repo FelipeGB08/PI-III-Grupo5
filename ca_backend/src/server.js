@@ -19,6 +19,8 @@ const relatorioRoutes = require('./routes/relatorioRoutes');
 const profissionalRoutes = require('./routes/profissionalRoutes');
 const agendaRoutes = require('./routes/agendaRoutes');
 const dispositivoRoutes = require('./routes/dispositivoRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const favoritoRoutes = require('./routes/favoritoRoutes');
 const { initChatSocket } = require('./services/chatSocketService');
 
 const app = express();
@@ -57,6 +59,8 @@ app.use('/api/admin/relatorios', relatorioRoutes);
 app.use('/api/profissionais', profissionalRoutes);
 app.use('/api/agenda', agendaRoutes);
 app.use('/api/dispositivos', dispositivoRoutes);
+app.use('/api/notificacoes', notificationRoutes);
+app.use('/api/favoritos', favoritoRoutes);
 
 app.get('/api/status', (req, res) => {
     res.json({ mensagem: 'API do Conecta Amauc rodando !' });
@@ -67,6 +71,17 @@ app.use((req, res, next) => {
 });
 
 app.use((err, req, res, next) => {
+    if (
+        err.name === 'MulterError' ||
+        err.message?.includes('Tipo de arquivo nao permitido')
+    ) {
+        return res.status(400).json({
+            erro: err.code === 'LIMIT_FILE_SIZE'
+                ? 'Imagem muito grande. Envie arquivos de ate 5MB.'
+                : err.message,
+        });
+    }
+
     console.error(' Erro Crítico Capturado pelo Escudo:', err.stack);
     res.status(500).json({
         erro: 'Ocorreu um erro interno inesperado no servidor.',

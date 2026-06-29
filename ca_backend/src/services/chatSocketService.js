@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const ChatModel = require('../models/ChatModel');
+const { notificarUsuarioSemBloquear } = require('./notificationService');
 
 function initChatSocket(io) {
     io.use((socket, next) => {
@@ -59,6 +60,20 @@ function initChatSocket(io) {
                 }
 
                 io.to(`servico:${servicoId}`).emit('chat:message', novaMensagem);
+                const destinatarioId = await ChatModel.buscarDestinatarioMensagem(
+                    servicoId,
+                    socket.usuario.id
+                );
+                notificarUsuarioSemBloquear({
+                    usuarioId: destinatarioId,
+                    tipo: 'nova_mensagem_chat',
+                    titulo: 'Nova mensagem no chat',
+                    corpo: novaMensagem.mensagem,
+                    payload: {
+                        servico_id: servicoId,
+                        mensagem_id: novaMensagem.id,
+                    },
+                });
                 if (typeof ack === 'function') ack({ mensagem: novaMensagem });
             } catch (erro) {
                 const payload = { erro: 'Erro interno ao enviar mensagem.' };

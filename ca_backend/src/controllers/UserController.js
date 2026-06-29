@@ -53,6 +53,13 @@ function montarRespostaUsuario(usuario) {
         email: usuario.email,
         telefone: usuario.telefone,
         cidade_amauc: usuario.cidade_amauc,
+        endereco_principal: usuario.endereco_principal || null,
+        latitude: usuario.latitude !== undefined && usuario.latitude !== null
+            ? Number(usuario.latitude)
+            : null,
+        longitude: usuario.longitude !== undefined && usuario.longitude !== null
+            ? Number(usuario.longitude)
+            : null,
         perfil_tipo: usuario.perfil_tipo,
         tipo_usuario: usuario.perfil_tipo,
         foto_url: usuario.foto_url || null,
@@ -227,6 +234,10 @@ const UserController = {
                 telefone,
                 cidade_amauc,
                 cidade,
+                endereco_principal,
+                endereco,
+                latitude,
+                longitude,
                 perfil_tipo,
                 tipo_usuario,
                 biografia,
@@ -238,6 +249,13 @@ const UserController = {
             } = req.body;
 
             const cidadeInformada = cidade_amauc || cidade;
+            const enderecoPrincipal = String(endereco_principal || endereco || '').trim();
+            const latitudeInformada = latitude !== undefined && latitude !== ''
+                ? Number(latitude)
+                : undefined;
+            const longitudeInformada = longitude !== undefined && longitude !== ''
+                ? Number(longitude)
+                : undefined;
             const perfilInformado = normalizarPerfilTipo(perfil_tipo || tipo_usuario);
             const emailNormalizado = String(email || '').trim().toLowerCase();
             const nomeNormalizado = String(nome || '').trim();
@@ -301,6 +319,13 @@ const UserController = {
                     cidadesAtendidas: cidadesAtendidas.length > 0
                         ? cidadesAtendidas
                         : [cidadeValidada],
+                    enderecoPrincipal,
+                    latitude: Number.isFinite(latitudeInformada)
+                        ? latitudeInformada
+                        : undefined,
+                    longitude: Number.isFinite(longitudeInformada)
+                        ? longitudeInformada
+                        : undefined,
                 })
                 : await UserModel.criarUsuario(
                     nomeNormalizado,
@@ -308,7 +333,16 @@ const UserController = {
                     senhaHash,
                     telefone,
                     cidadeValidada,
-                    perfilInformado
+                    perfilInformado,
+                    {
+                        endereco_principal: enderecoPrincipal,
+                        latitude: Number.isFinite(latitudeInformada)
+                            ? latitudeInformada
+                            : undefined,
+                        longitude: Number.isFinite(longitudeInformada)
+                            ? longitudeInformada
+                            : undefined,
+                    }
                 );
 
             return res.status(201).json({
@@ -339,16 +373,42 @@ const UserController = {
 
     atualizarMeuPerfil: async (req, res) => {
         try {
-            const { nome, telefone, foto_url } = req.body;
+            const {
+                nome,
+                telefone,
+                foto_url,
+                endereco_principal,
+                endereco,
+                latitude,
+                longitude,
+            } = req.body;
             const nomeTrim = typeof nome === 'string' ? nome.trim() : undefined;
+            const latitudeInformada = latitude !== undefined && latitude !== ''
+                ? Number(latitude)
+                : undefined;
+            const longitudeInformada = longitude !== undefined && longitude !== ''
+                ? Number(longitude)
+                : undefined;
             if (nomeTrim !== undefined && nomeTrim.length < 2) {
                 return res.status(400).json({ erro: 'Nome deve ter ao menos 2 caracteres.' });
+            }
+
+            if (
+                (latitudeInformada !== undefined && !Number.isFinite(latitudeInformada)) ||
+                (longitudeInformada !== undefined && !Number.isFinite(longitudeInformada))
+            ) {
+                return res.status(400).json({ erro: 'Latitude ou longitude invalida.' });
             }
 
             const usuarioAtualizado = await UserModel.atualizarPerfil(req.usuarioLogado.id, {
                 nome: nomeTrim,
                 telefone: telefone !== undefined ? telefone : undefined,
                 foto_url: foto_url !== undefined ? foto_url : undefined,
+                endereco_principal: endereco_principal !== undefined
+                    ? endereco_principal
+                    : endereco,
+                latitude: latitudeInformada,
+                longitude: longitudeInformada,
             });
 
             return res.status(200).json({

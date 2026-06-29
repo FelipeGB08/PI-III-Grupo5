@@ -10,8 +10,11 @@ import '../../../domain/entities/chamado.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import '../../models/avaliacao_model.dart';
+import '../../models/chat_conversa_model.dart';
 import '../../models/chat_message_model.dart';
 import '../../models/chamado_model.dart';
+import '../../models/financeiro_model.dart';
+import '../../models/notificacao_model.dart';
 import '../../models/prestador_model.dart';
 import '../../models/user_model.dart';
 
@@ -75,6 +78,9 @@ class ApiService {
         'senha': params.senha,
         'telefone': params.telefoneComercial ?? '',
         'cidade_amauc': params.cidadeAmauc,
+        'endereco_principal': params.enderecoPrincipal ?? '',
+        if (params.latitude != null) 'latitude': params.latitude,
+        if (params.longitude != null) 'longitude': params.longitude,
         'perfil_tipo': params.tipo.name,
         if (params.tipo.isPrestador) ...{
           'biografia': params.bio ?? '',
@@ -218,6 +224,9 @@ class ApiService {
   Future<UserModel> atualizarMeuPerfil({
     String? nome,
     String? telefone,
+    String? enderecoPrincipal,
+    double? latitude,
+    double? longitude,
     String? fotoUrl,
   }) async {
     final response = await _dio.patch(
@@ -225,6 +234,9 @@ class ApiService {
       data: {
         if (nome != null) 'nome': nome,
         if (telefone != null) 'telefone': telefone,
+        if (enderecoPrincipal != null) 'endereco_principal': enderecoPrincipal,
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
         if (fotoUrl != null) 'foto_url': fotoUrl,
       },
     );
@@ -270,6 +282,42 @@ class ApiService {
         'plataforma': plataforma,
       },
     );
+  }
+
+  Future<NotificacoesResponse> listarNotificacoes({
+    int page = 1,
+    int limit = 20,
+    bool somenteNaoLidas = false,
+  }) async {
+    final response = await _dio.get(
+      ApiConfig.notificacoes,
+      queryParameters: {
+        'page': page,
+        'limit': limit,
+        if (somenteNaoLidas) 'nao_lidas': true,
+      },
+    );
+    return NotificacoesResponse.fromJson(
+      response.data as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> marcarNotificacaoLida(int id) async {
+    await _dio.patch(ApiConfig.notificacaoLida(id));
+  }
+
+  Future<void> marcarTodasNotificacoesLidas() async {
+    await _dio.patch(ApiConfig.notificacoesLidas());
+  }
+
+  Future<FinanceiroDataModel> buscarFinanceiro({String? status}) async {
+    final response = await _dio.get(
+      ApiConfig.financeiro,
+      queryParameters: {
+        if (status != null && status.isNotEmpty) 'status': status,
+      },
+    );
+    return FinanceiroDataModel.fromJson(response.data as Map<String, dynamic>);
   }
 
   Future<AgendaConfig> buscarAgendaProfissional(int profissionalId) async {
@@ -405,6 +453,15 @@ class ApiService {
         .toList();
   }
 
+  Future<List<ChatConversaModel>> listarConversasChat() async {
+    final response = await _dio.get(ApiConfig.conversas);
+    final data = response.data as Map<String, dynamic>;
+    final conversas = (data['conversas'] as List<dynamic>?) ?? const [];
+    return conversas
+        .map((item) => ChatConversaModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<ChatMessageModel> enviarMensagemChat({
     required int chamadoId,
     required String mensagem,
@@ -475,6 +532,32 @@ class ApiService {
         await MultipartFile.fromFile(
           path,
           filename: path.split(RegExp(r'[/\\]')).last,
+        ),
+      );
+    }
+
+    final response = await _dio.post(
+      ApiConfig.fotosConclusaoSolicitacao(chamadoId),
+      data: FormData.fromMap({'fotos': arquivos}),
+    );
+    final data = response.data as Map<String, dynamic>;
+    return ChamadoModel.fromJson(
+      (data['solicitacao'] as Map<String, dynamic>?) ?? data,
+    );
+  }
+
+  Future<ChamadoModel> uploadFotosConclusaoBytes({
+    required int chamadoId,
+    required List<Uint8List> bytesList,
+    required List<String> filenames,
+  }) async {
+    final arquivos = <MultipartFile>[];
+
+    for (var i = 0; i < bytesList.length; i++) {
+      arquivos.add(
+        MultipartFile.fromBytes(
+          bytesList[i],
+          filename: i < filenames.length ? filenames[i] : 'evidencia-$i.jpg',
         ),
       );
     }
@@ -595,6 +678,15 @@ class ApiService {
   Future<Map<String, dynamic>> criarCategoria(String nome) async {
     final response = await _dio.post(
       ApiConfig.adminCategorias,
+      data: {'nome_servico': nome},
+    );
+    final data = response.data as Map<String, dynamic>;
+    return (data['categoria'] as Map<String, dynamic>?) ?? data;
+  }
+
+  Future<Map<String, dynamic>> atualizarCategoria(int id, String nome) async {
+    final response = await _dio.put(
+      '${ApiConfig.adminCategorias}/$id',
       data: {'nome_servico': nome},
     );
     final data = response.data as Map<String, dynamic>;

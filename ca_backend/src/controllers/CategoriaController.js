@@ -38,6 +38,33 @@ const CategoriaController = {
         }
     },
 
+    atualizar: async (req, res) => {
+        try {
+            if (!isAdmin(req.usuarioLogado)) {
+                return res.status(403).json({ erro: 'Acesso negado. Apenas administradores.' });
+            }
+
+            const { id } = req.params;
+            const nomeServico = req.body.nome_servico || req.body.nome;
+            if (!nomeServico || String(nomeServico).trim().length < 2) {
+                return res.status(400).json({ erro: 'nome_servico deve ter ao menos 2 caracteres.' });
+            }
+
+            const categoria = await CategoriaModel.atualizar(id, String(nomeServico).trim());
+            if (!categoria) {
+                return res.status(404).json({ erro: 'Categoria nao encontrada.' });
+            }
+
+            return res.status(200).json({ mensagem: 'Categoria atualizada!', categoria });
+        } catch (erro) {
+            console.error('Erro ao atualizar categoria:', erro);
+            if (erro.code === '23505') {
+                return res.status(400).json({ erro: 'Ja existe uma categoria com este nome.' });
+            }
+            return res.status(500).json({ erro: 'Erro interno no servidor.' });
+        }
+    },
+
     deletar: async (req, res) => {
         try {
             if (!isAdmin(req.usuarioLogado)) {

@@ -78,6 +78,91 @@ const ServicoModel = {
         return resultado.rows;
     },
 
+    buscarFinanceiroUsuario: async ({ usuarioId, perfilTipo, status = null }) => {
+        const isPrestador = perfilTipo === 'profissional';
+        const colunaUsuario = isPrestador ? 's.prof_id' : 's.cidadao_id';
+        const colunaContraparte = isPrestador ? 's.cidadao_id' : 's.prof_id';
+        const params = [usuarioId];
+
+        let filtroStatus = '';
+        if (status) {
+            params.push(status);
+            filtroStatus = ` AND s.status = $${params.length}`;
+        }
+
+        const itensResult = await pool.query(
+            `
+            SELECT
+                s.id,
+                s.servico_nome,
+                s.descricao,
+                s.status,
+                s.preco,
+                s.agendado_para,
+                s.duracao_minutos,
+                s.endereco_atendimento,
+                s.criado_em,
+                s.atualizado_em,
+                s.cancelado_em,
+                s.politica_cancelamento,
+                s.reembolso_status,
+                contraparte.id AS contraparte_id,
+                contraparte.nome AS contraparte_nome,
+                contraparte.email AS contraparte_email
+            FROM servicos_solicitados s
+            JOIN usuarios contraparte ON contraparte.id = ${colunaContraparte}
+            WHERE ${colunaUsuario} = $1
+              ${filtroStatus}
+            ORDER BY COALESCE(s.agendado_para, s.criado_em) DESC;
+            `,
+            params
+        );
+
+        const resumoResult = await pool.query(
+            `
+            SELECT
+                COUNT(*)::int AS total_orcamentos,
+                COUNT(*) FILTER (WHERE status = 'pendente')::int AS pendentes,
+                COUNT(*) FILTER (WHERE status IN ('aceito', 'remarcacao_solicitada'))::int AS em_aberto,
+                COUNT(*) FILTER (WHERE status = 'concluido')::int AS concluidos,
+                COUNT(*) FILTER (WHERE status = 'recusado')::int AS recusados,
+                COUNT(*) FILTER (WHERE status = 'cancelado_cliente')::int AS cancelados,
+                COALESCE(SUM(preco) FILTER (WHERE status = 'concluido'), 0)::numeric AS total_concluido,
+                COALESCE(SUM(preco) FILTER (WHERE status IN ('pendente', 'aceito', 'remarcacao_solicitada')), 0)::numeric AS total_em_aberto,
+                COALESCE(SUM(preco) FILTER (WHERE status = 'cancelado_cliente'), 0)::numeric AS total_cancelado,
+                COALESCE(SUM(preco) FILTER (WHERE status = 'recusado'), 0)::numeric AS total_recusado,
+                COALESCE(SUM(preco), 0)::numeric AS volume_total
+            FROM servicos_solicitados s
+            WHERE ${colunaUsuario} = $1;
+            `,
+            [usuarioId]
+        );
+
+        const resumo = resumoResult.rows[0] || {};
+        return {
+            perfil: isPrestador ? 'prestador' : 'cliente',
+            resumo: {
+                total_orcamentos: resumo.total_orcamentos || 0,
+                pendentes: resumo.pendentes || 0,
+                em_aberto: resumo.em_aberto || 0,
+                concluidos: resumo.concluidos || 0,
+                recusados: resumo.recusados || 0,
+                cancelados: resumo.cancelados || 0,
+                total_concluido: Number(resumo.total_concluido || 0),
+                total_em_aberto: Number(resumo.total_em_aberto || 0),
+                total_cancelado: Number(resumo.total_cancelado || 0),
+                total_recusado: Number(resumo.total_recusado || 0),
+                volume_total: Number(resumo.volume_total || 0),
+                label_total_concluido: isPrestador ? 'Total recebido' : 'Total gasto',
+                label_total_em_aberto: isPrestador ? 'A receber' : 'Reservado',
+            },
+            itens: itensResult.rows.map((item) => ({
+                ...item,
+                preco: item.preco === null ? null : Number(item.preco),
+            })),
+        };
+    },
+
     atualizarStatus: async (id, profId, status, preco) => {
         const statusPermitidos = [
             'pendente',

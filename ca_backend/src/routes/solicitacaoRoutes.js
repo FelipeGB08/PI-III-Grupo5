@@ -9,6 +9,8 @@ const router = express.Router();
 router.post('/', verificarToken, SolicitacaoController.criarSolicitacao);
 router.get('/meus-pedidos', verificarToken, SolicitacaoController.listarMeusPedidos);
 router.get('/minhas-solicitacoes', verificarToken, SolicitacaoController.listarMinhasSolicitacoes);
+router.get('/financeiro', verificarToken, SolicitacaoController.buscarFinanceiro);
+router.get('/conversas', verificarToken, ChatController.listarConversas);
 router.get('/:id/mensagens', verificarToken, ChatController.listarMensagens);
 router.post('/:id/mensagens', verificarToken, ChatController.enviarMensagem);
 

@@ -1,5 +1,6 @@
 const AvaliacaoModel = require('../models/AvaliacaoModel');
 const ServicoModel = require('../models/ServicoModel');
+const { notificarUsuarioSemBloquear } = require('../services/notificationService');
 
 const AvaliacaoController = {
     criarAvaliacao: async (req, res) => {
@@ -43,6 +44,18 @@ const AvaliacaoController = {
                 notaEstrelas,
                 req.body.comentario
             );
+
+            notificarUsuarioSemBloquear({
+                usuarioId: servico.prof_id,
+                tipo: 'avaliacao_recebida',
+                titulo: 'Nova avaliacao recebida',
+                corpo: `Voce recebeu ${notaEstrelas} estrela${notaEstrelas > 1 ? 's' : ''} em um servico concluido.`,
+                payload: {
+                    servico_id: servicoId,
+                    avaliacao_id: novaAvaliacao.id,
+                    nota_estrelas: notaEstrelas,
+                },
+            });
 
             return res.status(201).json({
                 mensagem: 'Avaliação registrada!',

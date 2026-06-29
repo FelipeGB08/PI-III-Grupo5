@@ -128,6 +128,17 @@ async function renovarSessao(token) {
   return data.token;
 }
 
+async function esperarNotificacao({ token, tipo, timeoutMs = 3000 }) {
+  const inicio = Date.now();
+  while (Date.now() - inicio < timeoutMs) {
+    const data = await request('/notificacoes', { token });
+    const encontrada = data.notificacoes?.find((item) => item.tipo === tipo);
+    if (encontrada) return encontrada;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw new Error(`Notificacao ${tipo} nao encontrada.`);
+}
+
 async function main() {
   console.log('[E2E] Criando usuários...');
 
@@ -236,6 +247,25 @@ async function main() {
     throw new Error('Backend confiou em preço/nome enviados pelo app.');
   }
 
+  console.log('[E2E] Validando central de notificacoes...');
+  const notificacaoNovoChamado = await esperarNotificacao({
+    token: profissionalToken,
+    tipo: 'novo_chamado',
+  });
+  await request(`/notificacoes/${notificacaoNovoChamado.id}/lida`, {
+    method: 'PATCH',
+    token: profissionalToken,
+  });
+  const notificacoesAtualizadas = await request('/notificacoes', {
+    token: profissionalToken,
+  });
+  const notificacaoLida = notificacoesAtualizadas.notificacoes?.find(
+    (item) => item.id === notificacaoNovoChamado.id
+  );
+  if (!notificacaoLida?.lida_em) {
+    throw new Error('Notificacao nao foi marcada como lida.');
+  }
+
   console.log('[E2E] Cliente cancela solicitacao com politica registrada...');
   const dataParaCancelar = proximoDiaUtilComHorario('14:00');
   const solicitacaoCancelamentoResponse = await request('/solicitacoes', {
@@ -278,6 +308,28 @@ async function main() {
   if (!historicoChat.mensagens?.some((item) => item.mensagem.includes('confirmar'))) {
     throw new Error('Historico do chat nao retornou a mensagem enviada.');
   }
+
+  const conversaProfissional = await esperarNotificacao({
+    token: profissionalToken,
+    tipo: 'nova_mensagem_chat',
+  });
+  if (!conversaProfissional?.id) {
+    throw new Error('Notificacao de nova mensagem nao foi registrada.');
+  }
+
+  const conversasCliente = await request('/solicitacoes/conversas', {
+    token: cidadaoToken,
+  });
+  const conversasPrestador = await request('/solicitacoes/conversas', {
+    token: profissionalToken,
+  });
+  if (
+    !conversasCliente.conversas?.some((item) => item.servico_id === solicitacao.id) ||
+    !conversasPrestador.conversas?.some((item) => item.servico_id === solicitacao.id)
+  ) {
+    throw new Error('Lista de conversas nao retornou o chamado para cliente e prestador.');
+  }
+
   await request(`/solicitacoes/${solicitacao.id}/mensagens`, {
     method: 'POST',
     token: intrusoToken,
@@ -413,6 +465,11 @@ async function main() {
     }),
   });
 
+  await esperarNotificacao({
+    token: profissionalToken,
+    tipo: 'avaliacao_recebida',
+  });
+
   console.log('[E2E] Validando bloqueio de avaliacao duplicada...');
   await request('/avaliacoes', {
     method: 'POST',
@@ -424,6 +481,28 @@ async function main() {
       comentario: 'Tentativa duplicada',
     }),
   });
+
+  console.log('[E2E] Validando historico financeiro...');
+  const financeiroCliente = await request('/solicitacoes/financeiro', {
+    token: cidadaoToken,
+  });
+  const financeiroPrestador = await request('/solicitacoes/financeiro', {
+    token: profissionalToken,
+  });
+
+  if (
+    Number(financeiroCliente.resumo?.total_concluido) !== 50 ||
+    Number(financeiroPrestador.resumo?.total_concluido) !== 50
+  ) {
+    throw new Error('Financeiro nao somou o servico concluido corretamente.');
+  }
+
+  if (
+    Number(financeiroCliente.resumo?.total_cancelado) !== 50 ||
+    !financeiroCliente.itens?.some((item) => item.status === 'cancelado_cliente')
+  ) {
+    throw new Error('Financeiro nao registrou cancelamento com valor.');
+  }
 
   console.log('[E2E] Teste finalizado com sucesso!');
 }

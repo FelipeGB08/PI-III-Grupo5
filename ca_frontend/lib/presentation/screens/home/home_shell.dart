@@ -7,10 +7,12 @@ import '../../providers/providers.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../auth/welcome_auth_screen.dart';
 import '../chamados/chamados_screen.dart';
+import '../chat/conversas_screen.dart';
 import '../cliente/cliente_dashboard_screen.dart';
 import '../cliente/cliente_home_screen.dart';
 import '../conta/minha_conta_screen.dart';
 import '../favoritos/favoritos_screen.dart';
+import '../notificacoes/notificacoes_screen.dart';
 import '../prestador/agenda_config_screen.dart';
 import '../prestador/curriculo_profissional_screen.dart';
 
@@ -37,57 +39,81 @@ class HomeShell extends ConsumerWidget {
   }
 }
 
-class _MainNavigation extends StatefulWidget {
+class _MainNavigation extends ConsumerStatefulWidget {
   const _MainNavigation({required this.tipo});
 
   final UserTipo tipo;
 
   @override
-  State<_MainNavigation> createState() => _MainNavigationState();
+  ConsumerState<_MainNavigation> createState() => _MainNavigationState();
 }
 
-class _MainNavigationState extends State<_MainNavigation> {
+class _MainNavigationState extends ConsumerState<_MainNavigation> {
   int _index = 0;
 
   @override
   Widget build(BuildContext context) {
     final pages = widget.tipo.isAdmin
-        ? const [AdminDashboardScreen(), MinhaContaScreen()]
+        ? const [
+            AdminDashboardScreen(),
+            NotificacoesScreen(),
+            MinhaContaScreen()
+          ]
         : widget.tipo.isPrestador
             ? const [
                 ChamadosScreen(),
+                ConversasScreen(),
                 AgendaConfigScreen(),
                 CurriculoProfissionalScreen(),
+                NotificacoesScreen(),
                 MinhaContaScreen(),
               ]
             : const [
                 ClienteHomeScreen(),
                 ClienteDashboardScreen(),
                 ChamadosScreen(),
+                ConversasScreen(),
                 FavoritosScreen(),
+                NotificacoesScreen(),
                 MinhaContaScreen()
               ];
 
     final labels = widget.tipo.isAdmin
-        ? ['Admin', 'Conta']
+        ? ['Admin', 'Avisos', 'Conta']
         : widget.tipo.isPrestador
-            ? ['Chamados', 'Agenda', 'Curriculo', 'Conta']
-            : ['Inicio', 'Explorar', 'Agenda', 'Favoritos', 'Conta'];
+            ? ['Chamados', 'Chat', 'Agenda', 'Curriculo', 'Avisos', 'Conta']
+            : [
+                'Inicio',
+                'Explorar',
+                'Agenda',
+                'Chat',
+                'Favoritos',
+                'Avisos',
+                'Conta'
+              ];
 
     final icons = widget.tipo.isAdmin
-        ? [Icons.admin_panel_settings_rounded, Icons.person_rounded]
+        ? [
+            Icons.admin_panel_settings_rounded,
+            Icons.notifications_rounded,
+            Icons.person_rounded,
+          ]
         : widget.tipo.isPrestador
             ? [
                 Icons.inbox_rounded,
+                Icons.forum_rounded,
                 Icons.event_available_rounded,
                 Icons.badge_rounded,
+                Icons.notifications_rounded,
                 Icons.person_rounded,
               ]
             : [
                 Icons.home_rounded,
                 Icons.explore_rounded,
                 Icons.calendar_month_rounded,
+                Icons.forum_rounded,
                 Icons.favorite_rounded,
+                Icons.notifications_rounded,
                 Icons.person_rounded
               ];
 

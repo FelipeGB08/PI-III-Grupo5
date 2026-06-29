@@ -42,6 +42,7 @@ class ApiConfig {
   static const String usuariosMe = '$apiPrefix/usuarios/me';
   static const String upload = '$apiPrefix/upload';
   static const String dispositivoToken = '$apiPrefix/dispositivos/token';
+  static const String notificacoes = '$apiPrefix/notificacoes';
   static const String prestadores = '$apiPrefix/profissionais';
   static const String prestadoresBusca = '$apiPrefix/perfil/busca';
   static const String perfil = '$apiPrefix/perfil';
@@ -52,6 +53,8 @@ class ApiConfig {
   static const String chamadosCliente = '$apiPrefix/solicitacoes/meus-pedidos';
   static const String chamadosPrestador =
       '$apiPrefix/solicitacoes/minhas-solicitacoes';
+  static const String financeiro = '$apiPrefix/solicitacoes/financeiro';
+  static const String conversas = '$apiPrefix/solicitacoes/conversas';
   static const String avaliacoes = '$apiPrefix/avaliacoes';
   static const String categorias = '$apiPrefix/categorias';
   static const String adminCategorias = '$apiPrefix/admin/categorias';
@@ -66,6 +69,8 @@ class ApiConfig {
   static String remarcarSolicitacao(int id) => '$chamados/$id/remarcar';
   static String aceitarRemarcacao(int id) => '$chamados/$id/remarcacao/aceitar';
   static String recusarRemarcacao(int id) => '$chamados/$id/remarcacao/recusar';
+  static String notificacaoLida(int id) => '$notificacoes/$id/lida';
+  static String notificacoesLidas() => '$notificacoes/lidas';
   static String agendaProfissional(int id) =>
       '$apiPrefix/agenda/profissionais/$id';
   static String avaliacoesProfissional(int id) =>

@@ -145,40 +145,94 @@ class _ChamadosList extends ConsumerWidget {
         itemBuilder: (_, i) {
           final c = chamados[i];
           return ChamadoCard(
-  chamado: c,
-  isPrestador: isPrestador,
-  onAceitar: () => ref.read(chamadosProvider.notifier).aceitar(c.id),
-  onRecusar: () => ref.read(chamadosProvider.notifier).recusar(c.id),
-  onConcluir: showConcluir
-      ? () => ref.read(chamadosProvider.notifier).concluir(c.id)
-      : null,
-  onCancelar: !isPrestador && c.status == ChamadoStatus.pendente
-      ? () => _cancelarSolicitacao(context, ref, c)
-      : null,
-  onRemarcar: isPrestador && c.status == ChamadoStatus.emAndamento
-      ? () => _solicitarRemarcacao(context, ref, c)
-      : null,
-  onAceitarRemarcacao:
-      !isPrestador && c.status == ChamadoStatus.remarcacaoSolicitada
-          ? () => ref.read(chamadosProvider.notifier).aceitarRemarcacao(c.id)
-          : null,
-  onRecusarRemarcacao:
-      !isPrestador && c.status == ChamadoStatus.remarcacaoSolicitada
-          ? () => ref.read(chamadosProvider.notifier).recusarRemarcacao(c.id)
-          : null,
-  onAvaliar: showAvaliar && c.status == ChamadoStatus.concluido
-      ? () => AvaliacaoBottomSheet.show(context, c)
-      : null,
-  onDetalhes: () => Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => AgendamentoDetalhesScreen(chamado: c),
-    ),
-  ),
-);
+            chamado: c,
+            isPrestador: isPrestador,
+            onAceitar: () => ref.read(chamadosProvider.notifier).aceitar(c.id),
+            onRecusar: () => ref.read(chamadosProvider.notifier).recusar(c.id),
+            onConcluir: showConcluir
+                ? () => ref.read(chamadosProvider.notifier).concluir(c.id)
+                : null,
+            onCancelar: !isPrestador && c.status == ChamadoStatus.pendente
+                ? () => _cancelarSolicitacao(context, ref, c)
+                : null,
+            onRemarcar: isPrestador && c.status == ChamadoStatus.emAndamento
+                ? () => _solicitarRemarcacao(context, ref, c)
+                : null,
+            onProporValor: isPrestador && c.status == ChamadoStatus.pendente
+                ? () => _proporValor(context, ref, c)
+                : null,
+            onAceitarRemarcacao: !isPrestador &&
+                    c.status == ChamadoStatus.remarcacaoSolicitada
+                ? () =>
+                    ref.read(chamadosProvider.notifier).aceitarRemarcacao(c.id)
+                : null,
+            onRecusarRemarcacao: !isPrestador &&
+                    c.status == ChamadoStatus.remarcacaoSolicitada
+                ? () =>
+                    ref.read(chamadosProvider.notifier).recusarRemarcacao(c.id)
+                : null,
+            onAvaliar: showAvaliar && c.status == ChamadoStatus.concluido
+                ? () => AvaliacaoBottomSheet.show(context, c)
+                : null,
+            onDetalhes: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AgendamentoDetalhesScreen(chamado: c),
+              ),
+            ),
+          );
         },
       ),
     );
+  }
+
+  Future<void> _proporValor(
+    BuildContext context,
+    WidgetRef ref,
+    Chamado chamado,
+  ) async {
+    final controller = TextEditingController(
+      text: chamado.preco == null ? '' : chamado.preco!.toStringAsFixed(2),
+    );
+    final valor = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Propor valor'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'Valor do orcamento',
+            prefixText: 'R\$ ',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final parsed = double.tryParse(
+                controller.text.trim().replaceAll(',', '.'),
+              );
+              Navigator.pop(ctx, parsed);
+            },
+            child: const Text('Enviar proposta'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+
+    if (valor == null || valor <= 0) return;
+    await ref.read(chamadosProvider.notifier).proporValor(chamado.id, valor);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Valor proposto ao cliente.')),
+      );
+    }
   }
 
   Future<void> _solicitarRemarcacao(

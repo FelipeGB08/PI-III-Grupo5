@@ -94,6 +94,27 @@ class AmaucConstants {
   static const double defaultLat = -27.2342;
   static const double defaultLng = -52.0277;
 
+  static const Map<String, ({double lat, double lng})> coordenadasPorCidade = {
+    'Arabutã': (lat: -27.1583, lng: -52.1428),
+    'Arvoredo': (lat: -27.0747, lng: -52.4542),
+    'Concórdia': (lat: -27.2342, lng: -52.0277),
+    'Ipira': (lat: -27.4039, lng: -51.7758),
+    'Ipumirim': (lat: -27.0778, lng: -52.1356),
+    'Irani': (lat: -27.0242, lng: -51.9017),
+    'Itá': (lat: -27.2906, lng: -52.3219),
+    'Lindóia do Sul': (lat: -27.0542, lng: -52.0692),
+    'Paial': (lat: -27.2542, lng: -52.4972),
+    'Peritiba': (lat: -27.3753, lng: -51.9017),
+    'Piratuba': (lat: -27.4192, lng: -51.7719),
+    'Presidente Castello Branco': (lat: -27.2247, lng: -51.8078),
+    'Seara': (lat: -27.1564, lng: -52.2992),
+    'Xavantina': (lat: -27.0661, lng: -52.3433),
+  };
+
+  static ({double lat, double lng}) coordenadasCidade(String? cidade) {
+    return coordenadasPorCidade[cidade] ?? (lat: defaultLat, lng: defaultLng);
+  }
+
   static String? categoriaNomePorId(String? id) {
     if (id == null) return null;
     for (final c in categorias) {

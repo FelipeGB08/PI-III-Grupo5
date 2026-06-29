@@ -14,6 +14,9 @@ class RegisterParams {
     required this.senha,
     required this.tipo,
     required this.cidadeAmauc,
+    this.enderecoPrincipal,
+    this.latitude,
+    this.longitude,
     this.bio,
     this.telefoneComercial,
     this.cidades = const [],
@@ -25,6 +28,9 @@ class RegisterParams {
   final String senha;
   final UserTipo tipo;
   final String cidadeAmauc;
+  final String? enderecoPrincipal;
+  final double? latitude;
+  final double? longitude;
   final String? bio;
   final String? telefoneComercial;
   final List<String> cidades;
@@ -55,6 +61,9 @@ abstract class AuthRepository {
   Future<User> updateProfile({
     String? nome,
     String? telefone,
+    String? enderecoPrincipal,
+    double? latitude,
+    double? longitude,
     String? fotoUrl,
   });
   Future<String> uploadAvatar(String filePath);

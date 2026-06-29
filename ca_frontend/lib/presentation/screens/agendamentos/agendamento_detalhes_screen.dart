@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -97,8 +98,15 @@ class _AgendamentoDetalhesScreenState
     setState(() => _processando = true);
     try {
       if (fotos.isNotEmpty) {
-        final withFotos =
-            await ref.read(chamadoRepositoryProvider).uploadFotosConclusao(
+        final withFotos = kIsWeb
+            ? await ref.read(apiServiceProvider).uploadFotosConclusaoBytes(
+                  chamadoId: _chamado.id,
+                  bytesList: await Future.wait(
+                    fotos.map((foto) => foto.readAsBytes()),
+                  ),
+                  filenames: fotos.map((foto) => foto.name).toList(),
+                )
+            : await ref.read(chamadoRepositoryProvider).uploadFotosConclusao(
                   chamadoId: _chamado.id,
                   filePaths: fotos.map((foto) => foto.path).toList(),
                 );

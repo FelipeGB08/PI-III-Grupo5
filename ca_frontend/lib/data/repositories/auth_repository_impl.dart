@@ -150,12 +150,18 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<User> updateProfile({
     String? nome,
     String? telefone,
+    String? enderecoPrincipal,
+    double? latitude,
+    double? longitude,
     String? fotoUrl,
   }) async {
     try {
       final user = await _api.atualizarMeuPerfil(
         nome: nome,
         telefone: telefone,
+        enderecoPrincipal: enderecoPrincipal,
+        latitude: latitude,
+        longitude: longitude,
         fotoUrl: fotoUrl,
       );
       await persistUser(user);

@@ -7,6 +7,9 @@ import '../../core/network/session_events.dart';
 import '../../domain/entities/agenda_config.dart';
 import '../../domain/entities/avaliacao.dart';
 import '../../domain/entities/chamado.dart';
+import '../../domain/entities/chat_conversa.dart';
+import '../../domain/entities/financeiro.dart';
+import '../../domain/entities/notificacao.dart';
 import '../../domain/entities/prestador.dart';
 import '../../data/datasources/local/token_storage.dart';
 import '../../data/datasources/remote/api_service.dart';
@@ -126,6 +129,17 @@ class AdminNotifier extends StateNotifier<AdminState> {
   Future<bool> criarCategoria(String nome) async {
     try {
       await _api.criarCategoria(nome);
+      await carregar();
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: formatApiError(e));
+      return false;
+    }
+  }
+
+  Future<bool> atualizarCategoria(int id, String nome) async {
+    try {
+      await _api.atualizarCategoria(id, nome);
       await carregar();
       return true;
     } catch (e) {
@@ -344,6 +358,187 @@ final favoritosProvider =
   return FavoritosNotifier(ref.watch(sharedPreferencesProvider));
 });
 
+class NotificacoesState {
+  const NotificacoesState({
+    this.items = const [],
+    this.naoLidas = 0,
+    this.isLoading = false,
+    this.error,
+  });
+
+  final List<Notificacao> items;
+  final int naoLidas;
+  final bool isLoading;
+  final String? error;
+
+  NotificacoesState copyWith({
+    List<Notificacao>? items,
+    int? naoLidas,
+    bool? isLoading,
+    String? error,
+    bool clearError = false,
+  }) {
+    return NotificacoesState(
+      items: items ?? this.items,
+      naoLidas: naoLidas ?? this.naoLidas,
+      isLoading: isLoading ?? this.isLoading,
+      error: clearError ? null : (error ?? this.error),
+    );
+  }
+}
+
+class NotificacoesNotifier extends StateNotifier<NotificacoesState> {
+  NotificacoesNotifier(this._api) : super(const NotificacoesState());
+
+  final ApiService _api;
+
+  Future<void> carregar() async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final response = await _api.listarNotificacoes();
+      state = state.copyWith(
+        items: response.notificacoes,
+        naoLidas: response.naoLidas,
+        isLoading: false,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: formatApiError(e));
+    }
+  }
+
+  Future<void> marcarLida(int id) async {
+    try {
+      await _api.marcarNotificacaoLida(id);
+      await carregar();
+    } catch (e) {
+      state = state.copyWith(error: formatApiError(e));
+    }
+  }
+
+  Future<void> marcarTodasLidas() async {
+    try {
+      await _api.marcarTodasNotificacoesLidas();
+      await carregar();
+    } catch (e) {
+      state = state.copyWith(error: formatApiError(e));
+    }
+  }
+}
+
+final notificacoesProvider =
+    StateNotifierProvider<NotificacoesNotifier, NotificacoesState>((ref) {
+  return NotificacoesNotifier(ref.watch(apiServiceProvider));
+});
+
+class FinanceiroState {
+  const FinanceiroState({
+    this.data,
+    this.statusFiltro,
+    this.isLoading = false,
+    this.error,
+  });
+
+  final FinanceiroData? data;
+  final ChamadoStatus? statusFiltro;
+  final bool isLoading;
+  final String? error;
+
+  FinanceiroState copyWith({
+    FinanceiroData? data,
+    ChamadoStatus? statusFiltro,
+    bool? isLoading,
+    String? error,
+    bool clearError = false,
+    bool clearStatus = false,
+  }) {
+    return FinanceiroState(
+      data: data ?? this.data,
+      statusFiltro: clearStatus ? null : (statusFiltro ?? this.statusFiltro),
+      isLoading: isLoading ?? this.isLoading,
+      error: clearError ? null : (error ?? this.error),
+    );
+  }
+}
+
+class FinanceiroNotifier extends StateNotifier<FinanceiroState> {
+  FinanceiroNotifier(this._api) : super(const FinanceiroState());
+
+  final ApiService _api;
+
+  Future<void> carregar() async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final data = await _api.buscarFinanceiro(
+        status: state.statusFiltro?.apiValue,
+      );
+      state = state.copyWith(data: data, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: formatApiError(e));
+    }
+  }
+
+  Future<void> filtrar(ChamadoStatus? status) async {
+    state = state.copyWith(
+      statusFiltro: status,
+      clearStatus: status == null,
+    );
+    await carregar();
+  }
+}
+
+final financeiroProvider =
+    StateNotifierProvider<FinanceiroNotifier, FinanceiroState>((ref) {
+  return FinanceiroNotifier(ref.watch(apiServiceProvider));
+});
+
+class ConversasState {
+  const ConversasState({
+    this.items = const [],
+    this.isLoading = false,
+    this.error,
+  });
+
+  final List<ChatConversa> items;
+  final bool isLoading;
+  final String? error;
+
+  int get naoLidas => items.fold(0, (total, item) => total + item.naoLidas);
+
+  ConversasState copyWith({
+    List<ChatConversa>? items,
+    bool? isLoading,
+    String? error,
+    bool clearError = false,
+  }) {
+    return ConversasState(
+      items: items ?? this.items,
+      isLoading: isLoading ?? this.isLoading,
+      error: clearError ? null : (error ?? this.error),
+    );
+  }
+}
+
+class ConversasNotifier extends StateNotifier<ConversasState> {
+  ConversasNotifier(this._api) : super(const ConversasState());
+
+  final ApiService _api;
+
+  Future<void> carregar() async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final conversas = await _api.listarConversasChat();
+      state = state.copyWith(items: conversas, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: formatApiError(e));
+    }
+  }
+}
+
+final conversasProvider =
+    StateNotifierProvider<ConversasNotifier, ConversasState>((ref) {
+  return ConversasNotifier(ref.watch(apiServiceProvider));
+});
+
 // ─── Auth State ─────────────────────────────────────────────────────────────
 
 class AuthState {
@@ -520,6 +715,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<bool> updateProfile({
     String? nome,
     String? telefone,
+    String? enderecoPrincipal,
+    double? latitude,
+    double? longitude,
     String? fotoUrl,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
@@ -527,6 +725,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final user = await _repo.updateProfile(
         nome: nome,
         telefone: telefone,
+        enderecoPrincipal: enderecoPrincipal,
+        latitude: latitude,
+        longitude: longitude,
         fotoUrl: fotoUrl,
       );
       state = AuthState(user: user);
@@ -638,18 +839,20 @@ class PrestadoresNotifier extends StateNotifier<PrestadoresState> {
 
   final PrestadorRepository _repo;
 
-  Future<void> carregar({double? lat, double? lng}) async {
+  Future<void> carregar({double? lat, double? lng, String? cidade}) async {
     final latBusca = lat ?? state.lat;
     final lngBusca = lng ?? state.lng;
+    final cidadeBusca = cidade ?? state.cidadeSelecionada;
     state = state.copyWith(
       isLoading: true,
       clearErro: true,
+      cidadeSelecionada: cidadeBusca,
       lat: latBusca,
       lng: lngBusca,
     );
     try {
       final result = await _repo.listar(
-        cidade: state.cidadeSelecionada,
+        cidade: cidadeBusca,
         categoria: state.categoriaSelecionada,
         lat: latBusca,
         lng: lngBusca,
@@ -772,9 +975,19 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
   Future<void> aceitar(int id) => _atualizar(id, ChamadoStatus.emAndamento);
   Future<void> recusar(int id) => _atualizar(id, ChamadoStatus.recusado);
   Future<void> concluir(int id) => _atualizar(id, ChamadoStatus.concluido);
+  Future<void> proporValor(int id, double preco) =>
+      _atualizar(id, ChamadoStatus.pendente, preco: preco);
 
-  Future<void> _atualizar(int id, ChamadoStatus status) async {
-    final updated = await _repo.atualizarStatus(chamadoId: id, status: status);
+  Future<void> _atualizar(
+    int id,
+    ChamadoStatus status, {
+    double? preco,
+  }) async {
+    final updated = await _repo.atualizarStatus(
+      chamadoId: id,
+      status: status,
+      preco: preco,
+    );
     await carregar();
     if (status == ChamadoStatus.concluido && (_user?.tipo.isCliente ?? false)) {
       state = ChamadosState(

@@ -29,7 +29,8 @@ class _PrestadoresMapScreenState extends ConsumerState<PrestadoresMapScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _carregarComGps());
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _carregarLocalizacaoCliente());
   }
 
   @override
@@ -38,9 +39,24 @@ class _PrestadoresMapScreenState extends ConsumerState<PrestadoresMapScreen> {
     super.dispose();
   }
 
+  Future<void> _carregarLocalizacaoCliente() async {
+    final user = ref.read(authStateProvider).user;
+    final cidade = user?.cidadeAmauc ?? 'Concórdia';
+    final fallback = AmaucConstants.coordenadasCidade(cidade);
+    final lat = user?.latitude ?? fallback.lat;
+    final lng = user?.longitude ?? fallback.lng;
+
+    _centro = LatLng(lat, lng);
+    await ref
+        .read(prestadoresProvider.notifier)
+        .carregar(lat: lat, lng: lng, cidade: cidade);
+    _animateTo(_centro);
+  }
+
   Future<void> _carregarComGps() async {
     double? lat;
     double? lng;
+    String? cidade = ref.read(authStateProvider).user?.cidadeAmauc;
     try {
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
@@ -58,7 +74,9 @@ class _PrestadoresMapScreenState extends ConsumerState<PrestadoresMapScreen> {
       lng = null;
     }
 
-    await ref.read(prestadoresProvider.notifier).carregar(lat: lat, lng: lng);
+    await ref
+        .read(prestadoresProvider.notifier)
+        .carregar(lat: lat, lng: lng, cidade: cidade);
     _animateTo(_centro);
   }
 
@@ -107,7 +125,7 @@ class _PrestadoresMapScreenState extends ConsumerState<PrestadoresMapScreen> {
         title: const Text('Mapa de Prestadores'),
         actions: [
           IconButton(
-            tooltip: 'Usar minha localizacao',
+            tooltip: 'Usar minha localização',
             onPressed: _carregarComGps,
             icon: const Icon(Icons.my_location_rounded),
           ),

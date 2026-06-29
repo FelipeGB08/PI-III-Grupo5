@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../../core/config/amauc_constants.dart';
 import '../../../core/validation/form_validators.dart';
@@ -23,9 +24,11 @@ class RegisterWizard extends StatefulWidget {
     required this.emailController,
     required this.senhaController,
     required this.telefoneController,
+    required this.enderecoController,
     required this.bioController,
     required this.cidadesSelecionadas,
     required this.categoriasSelecionadas,
+    required this.onLocationChanged,
     required this.onCidadesChanged,
     required this.onCategoriasChanged,
   });
@@ -39,9 +42,11 @@ class RegisterWizard extends StatefulWidget {
   final TextEditingController emailController;
   final TextEditingController senhaController;
   final TextEditingController telefoneController;
+  final TextEditingController enderecoController;
   final TextEditingController bioController;
   final Set<String> cidadesSelecionadas;
   final Set<String> categoriasSelecionadas;
+  final void Function(double lat, double lng) onLocationChanged;
   final VoidCallback onCidadesChanged;
   final VoidCallback onCategoriasChanged;
 
@@ -59,6 +64,8 @@ class _RegisterWizardState extends State<RegisterWizard> {
   String? _legalError;
   String? _captchaError;
   String? _chipsError;
+  bool _locationCaptured = false;
+  bool _capturingLocation = false;
   DateTime? _lastStepTap;
 
   String? get _cidadeSelecionada => widget.cidadesSelecionadas.isEmpty
@@ -168,6 +175,50 @@ class _RegisterWizardState extends State<RegisterWizard> {
     if (!_validateStep(1)) return;
 
     await widget.onRegister();
+  }
+
+  Future<void> _captureLocation() async {
+    if (_capturingLocation) return;
+    setState(() => _capturingLocation = true);
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Permita a localização para salvar o ponto exato.'),
+          ),
+        );
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      widget.onLocationChanged(position.latitude, position.longitude);
+      if (!mounted) return;
+      setState(() => _locationCaptured = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Localização capturada com sucesso.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Não foi possível capturar sua localização agora.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _capturingLocation = false);
+    }
   }
 
   @override
@@ -359,6 +410,34 @@ class _RegisterWizardState extends State<RegisterWizard> {
                 : null;
           },
         ),
+        const SizedBox(height: 16),
+        AuthTextField(
+          controller: widget.enderecoController,
+          label: 'Endereço principal',
+          hint: 'Rua, número, bairro',
+          icon: Icons.home_outlined,
+          textInputAction: TextInputAction.next,
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: _capturingLocation ? null : _captureLocation,
+          icon: _capturingLocation
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(
+                  _locationCaptured
+                      ? Icons.my_location_rounded
+                      : Icons.location_searching_rounded,
+                ),
+          label: Text(
+            _locationCaptured
+                ? 'Localização exata capturada'
+                : 'Usar minha localização atual',
+          ),
+        ),
         if (widget.tipoSelecionado.isPrestador) ...[
           const SizedBox(height: 20),
           const Text(
@@ -461,7 +540,7 @@ class _RegisterWizardState extends State<RegisterWizard> {
                   'perfil de usuario e dados de agendamento para autenticar '
                   'usuarios, exibir profissionais, registrar solicitacoes e '
                   'enviar notificacoes. Fotos enviadas pelo usuario sao usadas '
-                  'apenas para perfil ou detalhes do atendimento. Os dados nao '
+                  'apenas para perfil ou detalhes do atendimento. Os dados não '
                   'devem ser vendidos e podem ser revisados pela equipe do '
                   'projeto para suporte, seguranca e demonstracao academica.',
             );

@@ -1,10 +1,29 @@
 const ChatModel = require('../models/ChatModel');
+const { notificarUsuarioSemBloquear } = require('../services/notificationService');
 
 function usuarioId(req) {
     return req.usuarioLogado?.id;
 }
 
 const ChatController = {
+    listarConversas: async (req, res) => {
+        try {
+            const userId = usuarioId(req);
+            if (!userId) {
+                return res.status(401).json({ erro: 'Usuario nao autenticado.' });
+            }
+
+            const conversas = await ChatModel.listarConversas(userId);
+            return res.status(200).json({
+                conversas,
+                total: conversas.length,
+            });
+        } catch (erro) {
+            console.error('Erro ao listar conversas:', erro);
+            return res.status(500).json({ erro: 'Erro interno ao listar conversas.' });
+        }
+    },
+
     listarMensagens: async (req, res) => {
         try {
             const servicoId = Number(req.params.id);
@@ -56,6 +75,18 @@ const ChatController = {
                     erro: 'Chamado nao encontrado ou usuario sem acesso ao chat.',
                 });
             }
+
+            const destinatarioId = await ChatModel.buscarDestinatarioMensagem(servicoId, userId);
+            notificarUsuarioSemBloquear({
+                usuarioId: destinatarioId,
+                tipo: 'nova_mensagem_chat',
+                titulo: 'Nova mensagem no chat',
+                corpo: mensagem.mensagem,
+                payload: {
+                    servico_id: servicoId,
+                    mensagem_id: mensagem.id,
+                },
+            });
 
             return res.status(201).json({ mensagem });
         } catch (erro) {

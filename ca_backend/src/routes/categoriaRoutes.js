@@ -8,6 +8,7 @@ const router = express.Router();
 router.get('/', CategoriaController.listar);
 
 router.post('/admin', verificarToken, requireRole('admin'), CategoriaController.criar);
+router.put('/admin/:id', verificarToken, requireRole('admin'), CategoriaController.atualizar);
 router.delete('/admin/:id', verificarToken, requireRole('admin'), CategoriaController.deletar);
 
 module.exports = router;

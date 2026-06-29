@@ -24,4 +24,24 @@ const storage = multer.diskStorage({
     }
 });
 
-module.exports = multer({ storage });
+const tiposPermitidos = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/heic',
+    'image/heif',
+]);
+
+module.exports = multer({
+    storage,
+    limits: {
+        fileSize: 5 * 1024 * 1024,
+        files: 5,
+    },
+    fileFilter: (req, file, cb) => {
+        if (!tiposPermitidos.has(file.mimetype)) {
+            return cb(new Error('Tipo de arquivo nao permitido. Envie JPG, PNG, WEBP ou HEIC.'));
+        }
+        cb(null, true);
+    },
+});

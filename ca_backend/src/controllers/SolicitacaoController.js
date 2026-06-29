@@ -204,6 +204,33 @@ const SolicitacaoController = {
         }
     },
 
+    buscarFinanceiro: async (req, res) => {
+        try {
+            const usuarioId = obterIdUsuarioLogado(req);
+            const perfilTipo = req.usuarioLogado?.perfil_tipo;
+            const status = req.query.status || null;
+
+            if (!usuarioId) {
+                return res.status(401).json({ erro: 'Usuario nao autenticado.' });
+            }
+
+            if (!['cidadao', 'profissional', 'admin'].includes(perfilTipo)) {
+                return res.status(403).json({ erro: 'Perfil sem acesso ao financeiro.' });
+            }
+
+            const financeiro = await ServicoModel.buscarFinanceiroUsuario({
+                usuarioId,
+                perfilTipo,
+                status,
+            });
+
+            return res.status(200).json(financeiro);
+        } catch (erro) {
+            console.error('Erro ao buscar financeiro:', erro);
+            return res.status(500).json({ erro: 'Erro interno ao buscar financeiro.' });
+        }
+    },
+
     atualizarStatus: async (req, res) => {
         try {
             const id = Number(req.params.id);

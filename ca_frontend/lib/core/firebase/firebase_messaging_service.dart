@@ -38,8 +38,13 @@ class FirebaseMessagingService {
     if (_initialized) return;
 
     try {
+      final options = DefaultFirebaseOptions.currentPlatform;
+      if (_isPlaceholderConfig(options)) {
+        debugPrint('[FCM] Firebase ainda nao configurado para este ambiente.');
+        return;
+      }
       await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
+        options: options,
       );
       _messaging = FirebaseMessaging.instance;
     } catch (e) {
@@ -56,6 +61,12 @@ class FirebaseMessagingService {
 
     FirebaseMessaging.onMessage.listen(_onForegroundMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpened);
+  }
+
+  bool _isPlaceholderConfig(FirebaseOptions options) {
+    return options.apiKey.startsWith('YOUR_') ||
+        options.appId.startsWith('YOUR_') ||
+        options.messagingSenderId.startsWith('YOUR_');
   }
 
   Future<void> _requestPermission() async {
@@ -97,21 +108,26 @@ class FirebaseMessagingService {
   Future<void> _setupToken() async {
     final messaging = _messaging;
     if (messaging == null) return;
-    final token = await messaging.getToken();
-    _currentToken = token;
-    if (kDebugMode) {
-      debugPrint('[FCM] Token recebido.');
-    }
-    if (token != null && token.isNotEmpty) {
-      onTokenRefresh?.call(token);
-    }
-    messaging.onTokenRefresh.listen((t) {
-      _currentToken = t;
+
+    try {
+      final token = await messaging.getToken();
+      _currentToken = token;
       if (kDebugMode) {
-        debugPrint('[FCM] Token atualizado.');
+        debugPrint('[FCM] Token recebido.');
       }
-      onTokenRefresh?.call(t);
-    });
+      if (token != null && token.isNotEmpty) {
+        onTokenRefresh?.call(token);
+      }
+      messaging.onTokenRefresh.listen((t) {
+        _currentToken = t;
+        if (kDebugMode) {
+          debugPrint('[FCM] Token atualizado.');
+        }
+        onTokenRefresh?.call(t);
+      });
+    } catch (e) {
+      debugPrint('[FCM] Nao foi possivel obter token: $e');
+    }
   }
 
   void _onForegroundMessage(RemoteMessage message) {

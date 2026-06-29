@@ -8,6 +8,9 @@ class UserModel extends User {
     required super.tipo,
     super.telefone,
     super.cidadeAmauc,
+    super.enderecoPrincipal,
+    super.latitude,
+    super.longitude,
     super.fotoUrl,
   });
 
@@ -23,6 +26,9 @@ class UserModel extends User {
       ),
       telefone: json['telefone']?.toString(),
       cidadeAmauc: json['cidade_amauc']?.toString(),
+      enderecoPrincipal: json['endereco_principal']?.toString(),
+      latitude: _parseDoubleNullable(json['latitude']),
+      longitude: _parseDoubleNullable(json['longitude']),
       fotoUrl: json['foto_url']?.toString(),
     );
   }
@@ -35,6 +41,9 @@ class UserModel extends User {
       tipo: user.tipo,
       telefone: user.telefone,
       cidadeAmauc: user.cidadeAmauc,
+      enderecoPrincipal: user.enderecoPrincipal,
+      latitude: user.latitude,
+      longitude: user.longitude,
       fotoUrl: user.fotoUrl,
     );
   }
@@ -47,12 +56,21 @@ class UserModel extends User {
         'tipo_usuario': tipo.apiValue,
         if (telefone != null) 'telefone': telefone,
         if (cidadeAmauc != null) 'cidade_amauc': cidadeAmauc,
+        if (enderecoPrincipal != null) 'endereco_principal': enderecoPrincipal,
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
         if (fotoUrl != null) 'foto_url': fotoUrl,
       };
 
   static int _parseInt(dynamic value) {
     if (value is int) return value;
     return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static double? _parseDoubleNullable(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
   }
 }
 
