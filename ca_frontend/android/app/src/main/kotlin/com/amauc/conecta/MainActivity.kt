@@ -1,4 +1,4 @@
-package com.example.ca_frontend
+package com.amauc.conecta
 
 import io.flutter.embedding.android.FlutterActivity
 

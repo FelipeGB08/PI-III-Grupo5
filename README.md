@@ -58,7 +58,32 @@ Variáveis opcionais para recursos de produção:
 - `SMTP_USER`
 - `SMTP_PASS`
 - `MAIL_FROM`
-- `FCM_SERVER_KEY`
+- `GOOGLE_APPLICATION_CREDENTIALS` ou `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` e `FIREBASE_PRIVATE_KEY`
+
+### Push notifications (Firebase / FCM)
+
+O fluxo de notificações já está implementado. Para ativá-lo em um Android físico, configure o mesmo projeto Firebase (`conecta-amauc`) no aplicativo e no backend:
+
+1. No [Firebase Console](https://console.firebase.google.com/), crie ou abra o projeto `conecta-amauc` e adicione um app **Android** com o package name `com.amauc.conecta`.
+2. Baixe o arquivo `google-services.json` do app Android e salve-o em `ca_frontend/android/app/google-services.json`. Esse arquivo é local e não é versionado.
+3. Com o Firebase CLI instalado e autenticado na conta Google dona do projeto, execute:
+
+   ```bash
+   cd ca_frontend
+   flutterfire configure --project=conecta-amauc --platforms=android,ios,web
+   ```
+
+   Confirme o package Android `com.amauc.conecta`. O comando substitui `lib/core/firebase/firebase_options.dart`, que atualmente é um modelo com valores fictícios.
+4. Em **Configurações do projeto > Contas de serviço**, gere uma chave privada para o Firebase Admin SDK. Guarde o JSON fora do repositório e, no ambiente do backend, configure uma das opções abaixo:
+
+   ```env
+   GOOGLE_APPLICATION_CREDENTIALS=C:\\caminho\\seguro\\firebase-service-account.json
+   ```
+
+   ou preencha `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` e `FIREBASE_PRIVATE_KEY` no arquivo `ca_backend/.env` (use `\\n` na chave privada).
+5. Reinicie o backend e rode o app em um aparelho Android com Google Play Services. Ao entrar na conta, o token do aparelho é enviado automaticamente para `POST /api/dispositivos/token`; os próximos eventos do sistema entregam o push via FCM.
+
+Não use a antiga `FCM_SERVER_KEY`: o backend usa credenciais de service account pelo Firebase Admin SDK.
 
 Crie o banco, rode migrations, seed e API:
 

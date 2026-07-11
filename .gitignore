@@ -22,6 +22,7 @@ coverage/
 # Android/iOS locais
 **/android/local.properties
 **/android/key.properties
+**/android/app/google-services.json
 **/ios/Pods/
 **/ios/Flutter/.last_build_id
 **/ios/Flutter/Generated.xcconfig
