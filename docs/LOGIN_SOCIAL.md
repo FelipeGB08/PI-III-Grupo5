@@ -3,7 +3,7 @@
 Este guia descreve a configuração de credenciais oficiais para Google, Apple e GitHub sem alterar a validação existente. Faça primeiro o deploy do backend e substitua os valores abaixo pelas URLs reais:
 
 ```text
-API_PRODUCAO=https://SEU-SERVICO.onrender.com
+API_PRODUCAO=https://conecta-amauc-api.onrender.com
 APP_WEB=https://SEU-FLUTTER-WEB.exemplo.com
 ```
 
@@ -56,7 +56,7 @@ No Android, o plugin usa o mesmo Web Client ID como `serverClientId`:
 
 ```bash
 flutter build apk --release \
-  --dart-define=API_BASE_URL=https://SEU-SERVICO.onrender.com \
+  --dart-define=API_BASE_URL=https://conecta-amauc-api.onrender.com \
   --dart-define=GOOGLE_SERVER_CLIENT_ID=000000000000-exemplo.apps.googleusercontent.com
 ```
 
@@ -66,7 +66,7 @@ Para Web, a credencial pública que deverá ser usada é o Web Client ID:
 
 ```bash
 flutter build web --release \
-  --dart-define=API_BASE_URL=https://SEU-SERVICO.onrender.com \
+  --dart-define=API_BASE_URL=https://conecta-amauc-api.onrender.com \
   --dart-define=GOOGLE_CLIENT_ID=000000000000-exemplo.apps.googleusercontent.com \
   --dart-define=GOOGLE_SERVER_CLIENT_ID=000000000000-exemplo.apps.googleusercontent.com
 ```
@@ -101,7 +101,7 @@ No iOS nativo, `APPLE_REDIRECT_URI` não é usado pelo código atual.
 3. Cadastre uma Return URL HTTPS completa. O endereço reservado para uma futura integração no backend seria:
 
    ```text
-   https://SEU-SERVICO.onrender.com/api/auth/apple/callback
+   https://conecta-amauc-api.onrender.com/api/auth/apple/callback
    ```
 
 4. A Return URL e o `APPLE_REDIRECT_URI` precisam ser idênticos. Apple não aceita IP, `localhost` ou HTTP nesse fluxo.
@@ -114,9 +114,9 @@ No iOS nativo, `APPLE_REDIRECT_URI` não é usado pelo código atual.
 
    ```bash
    flutter build apk --release \
-     --dart-define=API_BASE_URL=https://SEU-SERVICO.onrender.com \
+     --dart-define=API_BASE_URL=https://conecta-amauc-api.onrender.com \
      --dart-define=APPLE_CLIENT_ID=com.suaorganizacao.conectaamauc.service \
-     --dart-define=APPLE_REDIRECT_URI=https://SEU-SERVICO.onrender.com/api/auth/apple/callback
+     --dart-define=APPLE_REDIRECT_URI=https://conecta-amauc-api.onrender.com/api/auth/apple/callback
    ```
 
 Estado atual: `/api/auth/apple/callback` não existe e o `AndroidManifest.xml` não registra `SignInWithAppleCallback`. Assim, reservar essa Return URL no portal não torna o login Android/Web funcional. Para concluir esse fluxo futuramente será necessário receber o retorno da Apple, redirecionar de forma segura para o app e validar o código/estado. Isso também exigirá Team ID, Key ID e chave privada Apple, variáveis que o backend atual ainda não define.
@@ -134,7 +134,7 @@ Referências oficiais: [criação de OAuth App](https://docs.github.com/en/apps/
 3. Cadastre uma única Authorization callback URL:
 
    ```text
-   https://SEU-SERVICO.onrender.com/api/auth/github/callback
+   https://conecta-amauc-api.onrender.com/api/auth/github/callback
    ```
 
 4. Registre o aplicativo, copie o Client ID e gere um Client Secret. O secret pertence somente ao backend.

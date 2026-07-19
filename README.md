@@ -330,7 +330,7 @@ O backend e um PostgreSQL gerenciado podem ser provisionados no Render pelo Blue
 6. Quando o serviço ficar disponível, copie sua URL pública e valide:
 
    ```bash
-   curl https://SEU-SERVICO.onrender.com/api/status
+   curl https://conecta-amauc-api.onrender.com/api/status
    ```
 
    A resposta esperada tem status HTTP `200` e contém a mensagem de que a API está rodando.
@@ -368,7 +368,7 @@ Se o Blueprint não estiver disponível, faça o mesmo provisionamento pelo Dash
    ```
 
    Em produção real, não execute o seed. No plano gratuito, o Start Command acima aplica migrations idempotentes antes de iniciar a API.
-6. Acesse `https://SEU-SERVICO.onrender.com/api/status` e confirme o status `200`.
+6. Acesse `https://conecta-amauc-api.onrender.com/api/status` e confirme o status `200`.
 
 ### Apontar o Flutter para a API pública
 
@@ -376,14 +376,14 @@ O arquivo `ca_frontend/assets/env/app.env` permanece sem URL fixa para não queb
 
 ```bash
 cd ca_frontend
-flutter build apk --release --dart-define=API_BASE_URL=https://SEU-SERVICO.onrender.com
-flutter build web --release --dart-define=API_BASE_URL=https://SEU-SERVICO.onrender.com
+flutter build apk --release --dart-define=API_BASE_URL=https://conecta-amauc-api.onrender.com
+flutter build web --release --dart-define=API_BASE_URL=https://conecta-amauc-api.onrender.com
 ```
 
 Para testar a mesma API pública sem gerar um build:
 
 ```bash
-flutter run --dart-define=API_BASE_URL=https://SEU-SERVICO.onrender.com
+flutter run --dart-define=API_BASE_URL=https://conecta-amauc-api.onrender.com
 ```
 
 Não coloque `JWT_SECRET`, `DATABASE_URL`, credenciais SMTP, Firebase ou OAuth em `app.env`: tudo que entra no aplicativo Flutter é público. No plano sem disco persistente, arquivos gravados em `ca_backend/uploads` podem desaparecer em reinicializações ou novos deploys; antes de uso em produção, configure armazenamento persistente ou um serviço de objetos.
