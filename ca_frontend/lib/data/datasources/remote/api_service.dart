@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:http_parser/http_parser.dart';
 
 import '../../../core/config/amauc_constants.dart';
 import '../../../core/config/api_config.dart';
@@ -60,9 +61,21 @@ class ApiService {
     return AuthResponseModel.fromJson(response.data as Map<String, dynamic>);
   }
 
-  Future<AuthResponseModel> refreshSession() async {
-    final response = await _dio.post(ApiConfig.authRefresh);
+  Future<AuthResponseModel> refreshSession({
+    required String refreshToken,
+  }) async {
+    final response = await _dio.post(
+      ApiConfig.authRefresh,
+      data: {'refresh_token': refreshToken},
+    );
     return AuthResponseModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<void> logout({required String refreshToken}) async {
+    await _dio.post(
+      ApiConfig.authLogout,
+      data: {'refresh_token': refreshToken},
+    );
   }
 
   Future<Map<String, dynamic>> register(RegisterParams params) async {
@@ -248,10 +261,12 @@ class ApiService {
 
   /// Envia foto de perfil para o servidor.
   Future<String> uploadFotoPerfil(String filePath) async {
+    final filename = filePath.split(RegExp(r'[/\\]')).last;
     final formData = FormData.fromMap({
       'foto': await MultipartFile.fromFile(
         filePath,
-        filename: filePath.split(RegExp(r'[/\\]')).last,
+        filename: filename,
+        contentType: _mediaTypeFor(filename),
       ),
     });
     final response = await _dio.post(ApiConfig.upload, data: formData);
@@ -264,11 +279,26 @@ class ApiService {
     required String filename,
   }) async {
     final formData = FormData.fromMap({
-      'foto': MultipartFile.fromBytes(bytes, filename: filename),
+      'foto': MultipartFile.fromBytes(
+        bytes,
+        filename: filename,
+        contentType: _mediaTypeFor(filename),
+      ),
     });
     final response = await _dio.post(ApiConfig.upload, data: formData);
     final data = response.data as Map<String, dynamic>;
     return data['foto_url']?.toString() ?? '';
+  }
+
+  Future<String> uploadImagemServico(String filePath) {
+    return uploadFotoPerfil(filePath);
+  }
+
+  Future<String> uploadImagemServicoBytes({
+    required Uint8List bytes,
+    required String filename,
+  }) {
+    return uploadFotoPerfilBytes(bytes: bytes, filename: filename);
   }
 
   Future<void> registrarDeviceToken({
@@ -500,11 +530,18 @@ class ApiService {
         .toList();
   }
 
-  /// Atualiza o status de um chamado. Pode incluir preço opcional.
+  /// Busca um chamado acessível pelo usuário autenticado.
+  Future<ChamadoModel> buscarChamado(int chamadoId) async {
+    final response = await _dio.get(ApiConfig.chamadoDetalhe(chamadoId));
+    final data = response.data as Map<String, dynamic>;
+    return ChamadoModel.fromJson(
+      (data['solicitacao'] as Map<String, dynamic>?) ?? data,
+    );
+  }
+
   Future<ChamadoModel> atualizarStatusChamado({
     required int chamadoId,
     required ChamadoStatus status,
-    double? preco,
   }) async {
     final response = await _dio.patch(
       ApiConfig.chamadoStatus(chamadoId),
@@ -513,8 +550,44 @@ class ApiService {
         descricao: '',
         status: status,
         profissionalId: 0,
-      ).toStatusJson(status, preco: preco),
+      ).toStatusJson(status),
     );
+    final data = response.data as Map<String, dynamic>;
+    return ChamadoModel.fromJson(
+      (data['solicitacao'] as Map<String, dynamic>?) ?? data,
+    );
+  }
+
+  Future<ChamadoModel> proporValorChamado({
+    required int chamadoId,
+    required double preco,
+    String? motivo,
+  }) async {
+    final response = await _dio.patch(
+      ApiConfig.propostaValor(chamadoId),
+      data: {
+        'preco': preco,
+        if (motivo != null && motivo.isNotEmpty) 'motivo': motivo,
+      },
+    );
+    final data = response.data as Map<String, dynamic>;
+    return ChamadoModel.fromJson(
+      (data['solicitacao'] as Map<String, dynamic>?) ?? data,
+    );
+  }
+
+  Future<ChamadoModel> aceitarPropostaValor({required int chamadoId}) async {
+    final response =
+        await _dio.patch(ApiConfig.aceitarPropostaValor(chamadoId));
+    final data = response.data as Map<String, dynamic>;
+    return ChamadoModel.fromJson(
+      (data['solicitacao'] as Map<String, dynamic>?) ?? data,
+    );
+  }
+
+  Future<ChamadoModel> recusarPropostaValor({required int chamadoId}) async {
+    final response =
+        await _dio.patch(ApiConfig.recusarPropostaValor(chamadoId));
     final data = response.data as Map<String, dynamic>;
     return ChamadoModel.fromJson(
       (data['solicitacao'] as Map<String, dynamic>?) ?? data,
@@ -528,10 +601,12 @@ class ApiService {
     final arquivos = <MultipartFile>[];
 
     for (final path in filePaths) {
+      final filename = path.split(RegExp(r'[/\\]')).last;
       arquivos.add(
         await MultipartFile.fromFile(
           path,
-          filename: path.split(RegExp(r'[/\\]')).last,
+          filename: filename,
+          contentType: _mediaTypeFor(filename),
         ),
       );
     }
@@ -558,6 +633,9 @@ class ApiService {
         MultipartFile.fromBytes(
           bytesList[i],
           filename: i < filenames.length ? filenames[i] : 'evidencia-$i.jpg',
+          contentType: _mediaTypeFor(
+            i < filenames.length ? filenames[i] : 'evidencia-$i.jpg',
+          ),
         ),
       );
     }
@@ -712,5 +790,14 @@ class ApiService {
   }
 
   /// Desembrulha erros do Dio para facilitar a leitura no nível da UI.
+  MediaType _mediaTypeFor(String filename) {
+    final lower = filename.toLowerCase();
+    if (lower.endsWith('.png')) return MediaType('image', 'png');
+    if (lower.endsWith('.webp')) return MediaType('image', 'webp');
+    if (lower.endsWith('.heic')) return MediaType('image', 'heic');
+    if (lower.endsWith('.heif')) return MediaType('image', 'heif');
+    return MediaType('image', 'jpeg');
+  }
+
   static Object unwrap(Object error) => DioClient.unwrapError(error);
 }

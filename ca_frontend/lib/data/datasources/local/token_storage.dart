@@ -10,12 +10,18 @@ class TokenStorage {
   final SharedPreferences _prefs;
 
   static const _tokenKey = 'auth_token';
+  static const _refreshTokenKey = 'auth_refresh_token';
   static const _userKey = 'auth_user';
   static const _chamadosClienteKey = 'chamados_cliente_cache';
 
   String? getToken() => _prefs.getString(_tokenKey);
 
   Future<void> saveToken(String token) => _prefs.setString(_tokenKey, token);
+
+  String? getRefreshToken() => _prefs.getString(_refreshTokenKey);
+
+  Future<void> saveRefreshToken(String token) =>
+      _prefs.setString(_refreshTokenKey, token);
 
   Future<void> saveUser(UserModel user) =>
       _prefs.setString(_userKey, jsonEncode(user.toJson()));
@@ -28,6 +34,7 @@ class TokenStorage {
 
   Future<void> clear() async {
     await _prefs.remove(_tokenKey);
+    await _prefs.remove(_refreshTokenKey);
     await _prefs.remove(_userKey);
   }
 

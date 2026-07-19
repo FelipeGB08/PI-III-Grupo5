@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/agenda_config.dart';
 import '../../providers/providers.dart';
@@ -349,9 +350,9 @@ class _ServicoEditor extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppColors.darkCard,
+          color: context.appCard,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.darkBorder),
+          border: Border.all(color: context.appBorder),
         ),
         child: Column(
           children: [

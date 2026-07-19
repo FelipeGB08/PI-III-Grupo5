@@ -4,6 +4,86 @@ const verificarToken = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
+/**
+ * @swagger
+ * /api/favoritos:
+ *   get:
+ *     tags: [Favoritos]
+ *     summary: Lista os profissionais favoritos
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: query, name: lat, schema: { type: number, format: double } }
+ *       - { in: query, name: lng, schema: { type: number, format: double } }
+ *     responses:
+ *       '200':
+ *         description: Favoritos encontrados.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 favoritos: { type: array, items: { $ref: '#/components/schemas/Profissional' } }
+ *                 ids: { type: array, items: { type: integer } }
+ *                 total: { type: integer, example: 1 }
+ *       '401': { $ref: '#/components/responses/Unauthorized' }
+ *       '403': { $ref: '#/components/responses/Forbidden' }
+ *       '500': { $ref: '#/components/responses/InternalError' }
+ * /api/favoritos/ids:
+ *   get:
+ *     tags: [Favoritos]
+ *     summary: Lista somente os IDs favoritos
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       '200':
+ *         description: IDs encontrados.
+ *         content:
+ *           application/json:
+ *             example: { ids: [20, 31], total: 2 }
+ *       '401': { $ref: '#/components/responses/Unauthorized' }
+ *       '403': { $ref: '#/components/responses/Forbidden' }
+ *       '500': { $ref: '#/components/responses/InternalError' }
+ * /api/favoritos/{profissionalId}:
+ *   post:
+ *     tags: [Favoritos]
+ *     summary: Adiciona um profissional aos favoritos
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: profissionalId
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       '201':
+ *         description: Favorito adicionado.
+ *         content:
+ *           application/json:
+ *             example: { mensagem: 'Profissional adicionado aos favoritos.', favorito: { usuario_id: 12, profissional_id: 20 } }
+ *       '400': { $ref: '#/components/responses/BadRequest' }
+ *       '401': { $ref: '#/components/responses/Unauthorized' }
+ *       '403': { $ref: '#/components/responses/Forbidden' }
+ *       '404': { $ref: '#/components/responses/NotFound' }
+ *       '500': { $ref: '#/components/responses/InternalError' }
+ *   delete:
+ *     tags: [Favoritos]
+ *     summary: Remove um profissional dos favoritos
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: profissionalId
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       '200':
+ *         description: Favorito removido.
+ *         content:
+ *           application/json:
+ *             example: { mensagem: 'Profissional removido dos favoritos.' }
+ *       '400': { $ref: '#/components/responses/BadRequest' }
+ *       '401': { $ref: '#/components/responses/Unauthorized' }
+ *       '403': { $ref: '#/components/responses/Forbidden' }
+ *       '500': { $ref: '#/components/responses/InternalError' }
+ */
+
 router.get('/', verificarToken, FavoritoController.listar);
 router.get('/ids', verificarToken, FavoritoController.ids);
 router.post('/:profissionalId', verificarToken, FavoritoController.adicionar);

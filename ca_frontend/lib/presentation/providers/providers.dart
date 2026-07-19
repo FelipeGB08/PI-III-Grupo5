@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -18,6 +19,7 @@ import '../../data/repositories/avaliacao_repository_impl.dart';
 import '../../data/repositories/chamado_repository_impl.dart';
 import '../../data/repositories/prestador_repository_impl.dart';
 import '../../data/services/chat_socket_service.dart';
+import '../../data/services/map_route_service.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/avaliacao_repository.dart';
@@ -30,6 +32,42 @@ final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError('SharedPreferences não inicializado');
 });
 
+class AppThemeModeNotifier extends StateNotifier<ThemeMode> {
+  AppThemeModeNotifier(this._prefs)
+      : super(_parse(_prefs.getString(_themeModeKey)));
+
+  static const _themeModeKey = 'app_theme_mode';
+
+  final SharedPreferences _prefs;
+
+  static ThemeMode _parse(String? value) {
+    return switch (value) {
+      'light' => ThemeMode.light,
+      'system' => ThemeMode.system,
+      _ => ThemeMode.dark,
+    };
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    state = mode;
+    final value = switch (mode) {
+      ThemeMode.light => 'light',
+      ThemeMode.system => 'system',
+      ThemeMode.dark => 'dark',
+    };
+    await _prefs.setString(_themeModeKey, value);
+  }
+
+  Future<void> setDarkMode(bool enabled) {
+    return setThemeMode(enabled ? ThemeMode.dark : ThemeMode.light);
+  }
+}
+
+final appThemeModeProvider =
+    StateNotifierProvider<AppThemeModeNotifier, ThemeMode>((ref) {
+  return AppThemeModeNotifier(ref.watch(sharedPreferencesProvider));
+});
+
 final tokenStorageProvider = Provider<TokenStorage>((ref) {
   return TokenStorage(ref.watch(sharedPreferencesProvider));
 });
@@ -38,6 +76,9 @@ final dioClientProvider = Provider<DioClient>((ref) {
   final storage = ref.watch(tokenStorageProvider);
   return DioClient(
     tokenProvider: () => storage.getToken(),
+    refreshTokenProvider: () => storage.getRefreshToken(),
+    tokenSaver: storage.saveToken,
+    sessionClearer: storage.clear,
     onUnauthorized: SessionEvents.notifyUnauthorized,
   );
 });
@@ -50,6 +91,10 @@ final chatSocketServiceProvider = Provider<ChatSocketService>((ref) {
   final service = ChatSocketService(ref.watch(tokenStorageProvider));
   ref.onDispose(service.dispose);
   return service;
+});
+
+final mapRouteServiceProvider = Provider<MapRouteService>((ref) {
+  return MapRouteService();
 });
 
 // ─── Repositories ───────────────────────────────────────────────────────────
@@ -975,18 +1020,28 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
   Future<void> aceitar(int id) => _atualizar(id, ChamadoStatus.emAndamento);
   Future<void> recusar(int id) => _atualizar(id, ChamadoStatus.recusado);
   Future<void> concluir(int id) => _atualizar(id, ChamadoStatus.concluido);
-  Future<void> proporValor(int id, double preco) =>
-      _atualizar(id, ChamadoStatus.pendente, preco: preco);
+  Future<void> proporValor(int id, double preco, {String? motivo}) async {
+    await _repo.proporValor(chamadoId: id, preco: preco, motivo: motivo);
+    await carregar();
+  }
+
+  Future<void> aceitarPropostaValor(int id) async {
+    await _repo.aceitarPropostaValor(chamadoId: id);
+    await carregar();
+  }
+
+  Future<void> recusarPropostaValor(int id) async {
+    await _repo.recusarPropostaValor(chamadoId: id);
+    await carregar();
+  }
 
   Future<void> _atualizar(
     int id,
-    ChamadoStatus status, {
-    double? preco,
-  }) async {
+    ChamadoStatus status,
+  ) async {
     final updated = await _repo.atualizarStatus(
       chamadoId: id,
       status: status,
-      preco: preco,
     );
     await carregar();
     if (status == ChamadoStatus.concluido && (_user?.tipo.isCliente ?? false)) {

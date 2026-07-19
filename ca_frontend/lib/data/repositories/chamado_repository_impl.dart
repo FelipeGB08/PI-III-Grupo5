@@ -40,15 +40,18 @@ class ChamadoRepositoryImpl implements ChamadoRepository {
   }
 
   @override
+  Future<Chamado> buscarPorId(int chamadoId) {
+    return _api.buscarChamado(chamadoId);
+  }
+
+  @override
   Future<Chamado> atualizarStatus({
     required int chamadoId,
     required ChamadoStatus status,
-    double? preco,
   }) {
     return _api.atualizarStatusChamado(
       chamadoId: chamadoId,
       status: status,
-      preco: preco,
     );
   }
 
@@ -95,5 +98,28 @@ class ChamadoRepositoryImpl implements ChamadoRepository {
   @override
   Future<Chamado> recusarRemarcacao({required int chamadoId}) {
     return _api.recusarRemarcacao(chamadoId: chamadoId);
+  }
+
+  @override
+  Future<Chamado> proporValor({
+    required int chamadoId,
+    required double preco,
+    String? motivo,
+  }) {
+    return _api.proporValorChamado(
+      chamadoId: chamadoId,
+      preco: preco,
+      motivo: motivo,
+    );
+  }
+
+  @override
+  Future<Chamado> aceitarPropostaValor({required int chamadoId}) {
+    return _api.aceitarPropostaValor(chamadoId: chamadoId);
+  }
+
+  @override
+  Future<Chamado> recusarPropostaValor({required int chamadoId}) {
+    return _api.recusarPropostaValor(chamadoId: chamadoId);
   }
 }

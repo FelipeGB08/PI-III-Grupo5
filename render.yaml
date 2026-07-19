@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: conecta-amauc-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: ca_backend
+    buildCommand: npm install
+    preDeployCommand: npm run db:migrate
+    startCommand: npm start
+    initialDeployHook: npm run db:seed
+    healthCheckPath: /api/status
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: conecta-amauc-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: ENABLE_API_DOCS
+        value: "false"
+
+databases:
+  - name: conecta-amauc-db
+    plan: free
+    region: oregon
+    postgresMajorVersion: "16"
+    databaseName: conecta_amauc
+    user: conecta_amauc

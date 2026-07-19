@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/config/api_config.dart';
+import '../../core/theme/adaptive_colors.dart';
 import '../../core/theme/app_colors.dart';
 
 class ProfileAvatar extends StatelessWidget {
@@ -78,7 +79,7 @@ class ProfileAvatar extends StatelessWidget {
           padding: const EdgeInsets.all(2),
           child: ClipOval(
             child: DecoratedBox(
-              decoration: const BoxDecoration(color: AppColors.darkPanel),
+              decoration: BoxDecoration(color: context.appPanel),
               child: content,
             ),
           ),
@@ -93,7 +94,7 @@ class ProfileAvatar extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.accent,
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.darkBackground, width: 3),
+                border: Border.all(color: context.appBackground, width: 3),
               ),
             ),
           ),

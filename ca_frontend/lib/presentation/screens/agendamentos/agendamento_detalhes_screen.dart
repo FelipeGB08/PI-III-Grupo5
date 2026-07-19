@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../core/config/api_config.dart';
 import '../../../core/network/api_error_formatter.dart';
+import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/chamado.dart';
 import '../../../domain/entities/user.dart';
@@ -177,6 +178,50 @@ class _AgendamentoDetalhesScreenState
     }
   }
 
+  Future<void> _aceitarPropostaValor() async {
+    setState(() => _processando = true);
+    try {
+      final updated = await ref
+          .read(chamadoRepositoryProvider)
+          .aceitarPropostaValor(chamadoId: _chamado.id);
+      await ref.read(chamadosProvider.notifier).carregar();
+      if (!mounted) return;
+      setState(() => _chamado = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Proposta de valor aceita.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(formatApiError(e))),
+      );
+    } finally {
+      if (mounted) setState(() => _processando = false);
+    }
+  }
+
+  Future<void> _recusarPropostaValor() async {
+    setState(() => _processando = true);
+    try {
+      final updated = await ref
+          .read(chamadoRepositoryProvider)
+          .recusarPropostaValor(chamadoId: _chamado.id);
+      await ref.read(chamadosProvider.notifier).carregar();
+      if (!mounted) return;
+      setState(() => _chamado = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Proposta de valor recusada.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(formatApiError(e))),
+      );
+    } finally {
+      if (mounted) setState(() => _processando = false);
+    }
+  }
+
   Future<void> _cancelarSolicitacao() async {
     final controller = TextEditingController();
     final motivo = await showDialog<String>(
@@ -322,7 +367,7 @@ class _AgendamentoDetalhesScreenState
                       ? _chamado.servicoNome!
                       : _servicoTitulo(_chamado.descricao),
                   style: theme.textTheme.titleMedium?.copyWith(
-                    color: AppColors.textPrimaryDark,
+                    color: context.appTextPrimary,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -336,7 +381,16 @@ class _AgendamentoDetalhesScreenState
                   Text(
                     'Valor estimado: R\$ ${_chamado.preco!.toStringAsFixed(2)}',
                     style: theme.textTheme.labelLarge?.copyWith(
-                      color: AppColors.textPrimaryDark,
+                      color: context.appTextPrimary,
+                    ),
+                  ),
+                ],
+                if (_chamado.precoProposto != null) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    'Novo valor proposto: R\$ ${_chamado.precoProposto!.toStringAsFixed(2)}',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: AppColors.primary,
                     ),
                   ),
                 ],
@@ -476,6 +530,12 @@ class _AgendamentoDetalhesScreenState
               label: const Text('Recusar Agendamento'),
             ),
           ],
+          if (_isPrestador && _chamado.status == ChamadoStatus.propostaValor)
+            const _InfoPanel(
+              child: Text(
+                'Aguardando o cliente aceitar ou recusar o novo valor antes da confirmacao.',
+              ),
+            ),
           if (_isPrestador && _chamado.status == ChamadoStatus.emAndamento)
             FilledButton.icon(
               onPressed: _processando ? null : _concluirServico,
@@ -494,6 +554,20 @@ class _AgendamentoDetalhesScreenState
               icon: const Icon(Icons.cancel_outlined),
               label: const Text('Cancelar Solicitacao'),
             ),
+          if (!_isPrestador &&
+              _chamado.status == ChamadoStatus.propostaValor) ...[
+            FilledButton.icon(
+              onPressed: _processando ? null : _aceitarPropostaValor,
+              icon: const Icon(Icons.check_rounded),
+              label: const Text('Aceitar Novo Valor'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _processando ? null : _recusarPropostaValor,
+              icon: const Icon(Icons.close_rounded),
+              label: const Text('Recusar Novo Valor'),
+            ),
+          ],
           if (!_isPrestador &&
               _chamado.status == ChamadoStatus.remarcacaoSolicitada) ...[
             FilledButton.icon(
@@ -534,6 +608,7 @@ class _AgendamentoDetalhesScreenState
 
   Color _statusColor(ChamadoStatus status) => switch (status) {
         ChamadoStatus.pendente => AppColors.statusPendente,
+        ChamadoStatus.propostaValor => AppColors.primary,
         ChamadoStatus.emAndamento => AppColors.statusEmAndamento,
         ChamadoStatus.remarcacaoSolicitada => AppColors.primary,
         ChamadoStatus.concluido => AppColors.primary,
@@ -543,6 +618,7 @@ class _AgendamentoDetalhesScreenState
 
   IconData _statusIcon(ChamadoStatus status) => switch (status) {
         ChamadoStatus.pendente => Icons.pending_actions_rounded,
+        ChamadoStatus.propostaValor => Icons.sell_outlined,
         ChamadoStatus.emAndamento => Icons.check_circle_rounded,
         ChamadoStatus.remarcacaoSolicitada => Icons.event_repeat_rounded,
         ChamadoStatus.concluido => Icons.verified_rounded,
@@ -552,6 +628,8 @@ class _AgendamentoDetalhesScreenState
 
   String _statusMessage(ChamadoStatus status) => switch (status) {
         ChamadoStatus.pendente => 'Aguardando confirmacao do profissional.',
+        ChamadoStatus.propostaValor =>
+          'O prestador enviou uma proposta de valor para o cliente.',
         ChamadoStatus.emAndamento =>
           'O profissional confirmou sua solicitacao.',
         ChamadoStatus.remarcacaoSolicitada =>
@@ -600,8 +678,8 @@ class _DetailRow extends StatelessWidget {
               children: [
                 TextSpan(
                   text: '$label: ',
-                  style: const TextStyle(
-                    color: AppColors.textPrimaryDark,
+                  style: TextStyle(
+                    color: context.appTextPrimary,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -646,9 +724,9 @@ class _InfoPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.darkCard,
+        color: context.appCard,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.darkBorder),
+        border: Border.all(color: context.appBorder),
       ),
       child: child,
     );
@@ -667,7 +745,7 @@ class _EvidenceImage extends StatelessWidget {
       child: Container(
         width: 118,
         height: 118,
-        color: AppColors.darkCard,
+        color: context.appCard,
         child: Image.network(
           ApiConfig.resolveAssetUrl(url),
           fit: BoxFit.cover,

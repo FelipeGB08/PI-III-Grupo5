@@ -114,18 +114,34 @@ async function login(email) {
     method: 'POST',
     body: JSON.stringify({ email, senha }),
   });
-  return data.token;
+  const accessToken = data.access_token || data.token;
+  if (!accessToken || !data.refresh_token) {
+    throw new Error('Login nao retornou access token e refresh token.');
+  }
+  return {
+    accessToken,
+    refreshToken: data.refresh_token,
+  };
 }
 
-async function renovarSessao(token) {
+async function renovarSessao(refreshToken, expectedStatus) {
   const data = await request('/auth/refresh', {
     method: 'POST',
-    token,
+    expectedStatus,
+    body: JSON.stringify({ refresh_token: refreshToken }),
   });
+  if (expectedStatus) return data;
   if (!data.token || !data.usuario?.id) {
     throw new Error('Refresh de sessao nao retornou token e usuario.');
   }
   return data.token;
+}
+
+async function logout(refreshToken) {
+  await request('/auth/logout', {
+    method: 'POST',
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
 }
 
 async function esperarNotificacao({ token, tipo, timeoutMs = 3000 }) {
@@ -161,10 +177,12 @@ async function main() {
   });
 
   console.log('[E2E] Login...');
-  const cidadaoToken = await login(cidadaoEmail);
-  const intrusoToken = await login(intrusoEmail);
-  const profissionalToken = await login(profissionalEmail);
-  await renovarSessao(cidadaoToken);
+  const cidadaoSession = await login(cidadaoEmail);
+  const intrusoSession = await login(intrusoEmail);
+  const profissionalSession = await login(profissionalEmail);
+  const cidadaoToken = await renovarSessao(cidadaoSession.refreshToken);
+  const intrusoToken = intrusoSession.accessToken;
+  const profissionalToken = profissionalSession.accessToken;
 
   console.log('[E2E] Atualizando Curriculo Vivo com portfolio...');
   await request('/perfil', {
@@ -503,6 +521,10 @@ async function main() {
   ) {
     throw new Error('Financeiro nao registrou cancelamento com valor.');
   }
+
+  console.log('[E2E] Revogando refresh token no logout...');
+  await logout(cidadaoSession.refreshToken);
+  await renovarSessao(cidadaoSession.refreshToken, 401);
 
   console.log('[E2E] Teste finalizado com sucesso!');
 }

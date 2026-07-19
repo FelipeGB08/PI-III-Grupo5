@@ -75,14 +75,21 @@ class UserModel extends User {
 }
 
 class AuthResponseModel {
-  const AuthResponseModel({required this.token, required this.user});
+  const AuthResponseModel({
+    required this.token,
+    required this.user,
+    this.refreshToken,
+  });
 
   final String token;
   final UserModel user;
+  final String? refreshToken;
 
   factory AuthResponseModel.fromJson(Map<String, dynamic> json) {
     return AuthResponseModel(
-      token: json['token']?.toString() ?? '',
+      token:
+          json['access_token']?.toString() ?? json['token']?.toString() ?? '',
+      refreshToken: json['refresh_token']?.toString(),
       user: UserModel.fromJson(
         (json['usuario'] as Map<String, dynamic>?) ?? {},
       ),

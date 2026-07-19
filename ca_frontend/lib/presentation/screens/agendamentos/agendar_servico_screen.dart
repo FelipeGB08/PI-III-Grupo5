@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/network/api_error_formatter.dart';
+import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/agenda_config.dart';
 import '../../../domain/entities/prestador.dart';
@@ -29,7 +31,9 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
   int _diaIndex = 0;
   String? _horario;
   XFile? _fotoProblema;
+  Uint8List? _fotoProblemaBytes;
   bool _enviando = false;
+  bool _capturandoLocalizacao = false;
 
   @override
   void initState() {
@@ -86,13 +90,13 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
       final foto = _fotoProblema;
       if (foto != null) {
         if (kIsWeb) {
-          fotoUrl = await ref.read(apiServiceProvider).uploadFotoPerfilBytes(
-                bytes: await foto.readAsBytes(),
+          fotoUrl = await ref.read(apiServiceProvider).uploadImagemServicoBytes(
+                bytes: _fotoProblemaBytes ?? await foto.readAsBytes(),
                 filename: foto.name,
               );
         } else {
           fotoUrl =
-              await ref.read(apiServiceProvider).uploadFotoPerfil(foto.path);
+              await ref.read(apiServiceProvider).uploadImagemServico(foto.path);
         }
       }
 
@@ -182,7 +186,42 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
       maxWidth: 1600,
     );
     if (foto == null || !mounted) return;
-    setState(() => _fotoProblema = foto);
+    final bytes = await foto.readAsBytes();
+    setState(() {
+      _fotoProblema = foto;
+      _fotoProblemaBytes = bytes;
+    });
+  }
+
+  Future<void> _usarLocalizacaoAtual() async {
+    if (_capturandoLocalizacao) return;
+    setState(() => _capturandoLocalizacao = true);
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        _showSnack('Permita a localizacao para usar o endereco atual.');
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      final cidade = ref.read(authStateProvider).user?.cidadeAmauc;
+      _enderecoController.text =
+          'Localizacao atual (${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)})${cidade == null ? '' : ' - $cidade/SC'}';
+      _showSnack('Localizacao atual adicionada ao atendimento.');
+    } catch (_) {
+      _showSnack('Nao foi possivel capturar sua localizacao agora.');
+    } finally {
+      if (mounted) setState(() => _capturandoLocalizacao = false);
+    }
   }
 
   Future<void> _abrirOpcoesFoto() async {
@@ -214,7 +253,10 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
                 title: const Text('Remover foto'),
                 onTap: () {
                   Navigator.pop(context);
-                  setState(() => _fotoProblema = null);
+                  setState(() {
+                    _fotoProblema = null;
+                    _fotoProblemaBytes = null;
+                  });
                 },
               ),
           ],
@@ -303,8 +345,8 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
                 ),
                 Text(
                   'R\$ ${item.preco.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    color: AppColors.textPrimaryDark,
+                  style: TextStyle(
+                    color: context.appTextPrimary,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -359,6 +401,24 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
             hintText: 'Rua, numero, bairro e cidade',
           ),
         ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: _enviando || _capturandoLocalizacao
+              ? null
+              : _usarLocalizacaoAtual,
+          icon: _capturandoLocalizacao
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.my_location_rounded),
+          label: Text(
+            _capturandoLocalizacao
+                ? 'Capturando localizacao...'
+                : 'Usar localizacao atual',
+          ),
+        ),
         const SizedBox(height: 20),
         _StepTitle(number: 4, title: 'Observacoes'),
         const SizedBox(height: 10),
@@ -384,13 +444,25 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
             overflow: TextOverflow.ellipsis,
           ),
         ),
+        if (_fotoProblemaBytes != null) ...[
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.memory(
+              _fotoProblemaBytes!,
+              height: 150,
+              width: double.infinity,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ],
         const SizedBox(height: 20),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.darkCard,
+            color: context.appCard,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.darkBorder),
+            border: Border.all(color: context.appBorder),
           ),
           child: Row(
             children: [
@@ -399,7 +471,7 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
               Text(
                 'R\$ ${servico.preco.toStringAsFixed(2)}',
                 style: theme.textTheme.titleLarge?.copyWith(
-                  color: AppColors.textPrimaryDark,
+                  color: context.appTextPrimary,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -534,10 +606,10 @@ class _SelectablePanel extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: selected ? AppColors.darkPanel : AppColors.darkCard,
+            color: selected ? context.appPanel : context.appCard,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: selected ? AppColors.primary : AppColors.darkBorder,
+              color: selected ? AppColors.primary : context.appBorder,
             ),
           ),
           child: child,
@@ -566,10 +638,10 @@ class _DateTile extends StatelessWidget {
       child: Container(
         height: 80,
         decoration: BoxDecoration(
-          color: selected ? AppColors.primaryDark : AppColors.darkCard,
+          color: selected ? AppColors.primaryDark : context.appCard,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: selected ? AppColors.primary : AppColors.darkBorder,
+            color: selected ? AppColors.primary : context.appBorder,
           ),
         ),
         child: Column(
@@ -628,9 +700,9 @@ class _RegionalInfoBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.darkCard,
+        color: context.appCard,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.darkBorder),
+        border: Border.all(color: context.appBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

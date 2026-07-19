@@ -6,18 +6,6 @@ function normalizarServico(item) {
     const duracao = Number(item?.duracao_minutos ?? item?.duracaoMinutos);
     const preco = Number(item?.preco);
 
-    if (nome.length < 3) {
-        return { erro: 'Cada serviço precisa ter nome com ao menos 3 caracteres.' };
-    }
-
-    if (!Number.isFinite(duracao) || duracao < 15 || duracao > 480) {
-        return { erro: 'A duração de cada serviço deve ficar entre 15 e 480 minutos.' };
-    }
-
-    if (!Number.isFinite(preco) || preco <= 0) {
-        return { erro: 'O preço de cada serviço deve ser maior que zero.' };
-    }
-
     return {
         nome,
         duracao_minutos: Math.round(duracao),
@@ -126,37 +114,9 @@ const AgendaController = {
 
     salvarMinha: async (req, res) => {
         try {
-            const servicosRecebidos = Array.isArray(req.body.servicos)
-                ? req.body.servicos
-                : [];
-
-            if (servicosRecebidos.length === 0 || servicosRecebidos.length > 12) {
-                return res.status(400).json({
-                    erro: 'Informe entre 1 e 12 serviços.'
-                });
-            }
-
-            const servicos = [];
-
-            for (const item of servicosRecebidos) {
-                const normalizado = normalizarServico(item);
-
-                if (normalizado.erro) {
-                    return res.status(400).json({
-                        erro: normalizado.erro
-                    });
-                }
-
-                servicos.push(normalizado);
-            }
+            const servicos = req.body.servicos.map(normalizarServico);
 
             const horarios = normalizarHorarios(req.body);
-
-            if (horarios.length === 0) {
-                return res.status(400).json({
-                    erro: 'Informe ao menos um horário válido.'
-                });
-            }
 
             const agenda = await AgendaModel.salvarParaProfissional(
                 req.usuarioLogado.id,

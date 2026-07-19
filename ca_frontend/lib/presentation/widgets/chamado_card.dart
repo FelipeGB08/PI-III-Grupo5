@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../../core/theme/adaptive_colors.dart';
 import '../../core/theme/app_colors.dart';
 import '../../domain/entities/chamado.dart';
 
@@ -17,6 +18,8 @@ class ChamadoCard extends StatelessWidget {
     this.onCancelar,
     this.onRemarcar,
     this.onProporValor,
+    this.onAceitarPropostaValor,
+    this.onRecusarPropostaValor,
     this.onAceitarRemarcacao,
     this.onRecusarRemarcacao,
   });
@@ -31,11 +34,14 @@ class ChamadoCard extends StatelessWidget {
   final VoidCallback? onCancelar;
   final VoidCallback? onRemarcar;
   final VoidCallback? onProporValor;
+  final VoidCallback? onAceitarPropostaValor;
+  final VoidCallback? onRecusarPropostaValor;
   final VoidCallback? onAceitarRemarcacao;
   final VoidCallback? onRecusarRemarcacao;
 
   Color get _statusColor => switch (chamado.status) {
         ChamadoStatus.pendente => AppColors.statusPendente,
+        ChamadoStatus.propostaValor => AppColors.primary,
         ChamadoStatus.emAndamento => AppColors.statusEmAndamento,
         ChamadoStatus.remarcacaoSolicitada => AppColors.primary,
         ChamadoStatus.concluido => AppColors.statusConcluido,
@@ -120,6 +126,12 @@ class ChamadoCard extends StatelessWidget {
                         icon: Icons.payments_outlined,
                         label: 'R\$ ${chamado.preco!.toStringAsFixed(2)}',
                       ),
+                    if (chamado.precoProposto != null)
+                      _MetaChip(
+                        icon: Icons.sell_outlined,
+                        label:
+                            'Proposta R\$ ${chamado.precoProposto!.toStringAsFixed(2)}',
+                      ),
                     if (chamado.fotoUrl?.isNotEmpty == true)
                       const _MetaChip(
                         icon: Icons.image_outlined,
@@ -183,6 +195,34 @@ class ChamadoCard extends StatelessWidget {
       ];
     }
 
+    if (!isPrestador && chamado.status == ChamadoStatus.propostaValor) {
+      return [
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: _ActionButton(
+                label: 'Aceitar valor',
+                color: AppColors.statusConcluido,
+                icon: Icons.check_rounded,
+                onTap: onAceitarPropostaValor,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _ActionButton(
+                label: 'Recusar',
+                color: AppColors.statusRecusado,
+                icon: Icons.close_rounded,
+                onTap: onRecusarPropostaValor,
+                outlined: true,
+              ),
+            ),
+          ],
+        ),
+      ];
+    }
+
     if (!isPrestador &&
         chamado.status == ChamadoStatus.pendente &&
         onCancelar != null) {
@@ -232,6 +272,15 @@ class ChamadoCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ];
+    }
+
+    if (isPrestador && chamado.status == ChamadoStatus.propostaValor) {
+      return [
+        const SizedBox(height: 14),
+        const _NoticeBox(
+          text: 'Aguardando o cliente aceitar ou recusar o novo valor.',
         ),
       ];
     }
@@ -304,9 +353,9 @@ class _MetaChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.darkSurface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.darkBorder),
+        border: Border.all(color: context.appBorder),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -315,8 +364,8 @@ class _MetaChip extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             label,
-            style: const TextStyle(
-              color: AppColors.textSecondaryDark,
+            style: TextStyle(
+              color: context.appTextSecondary,
               fontSize: 11,
               fontWeight: FontWeight.w800,
             ),
@@ -348,8 +397,8 @@ class _NoticeBox extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
-                color: AppColors.textPrimaryDark,
+              style: TextStyle(
+                color: context.appTextPrimary,
                 fontWeight: FontWeight.w800,
                 fontSize: 12,
               ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/prestador.dart';
 import '../../providers/providers.dart';
@@ -56,7 +57,7 @@ class _FavoritosScreenState extends ConsumerState<FavoritosScreen> {
                 child: Text(
                   'Favoritos',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: AppColors.textPrimaryDark,
+                        color: context.appTextPrimary,
                         fontWeight: FontWeight.w900,
                       ),
                 ),
@@ -168,9 +169,9 @@ class _EmptyState extends StatelessWidget {
       margin: const EdgeInsets.only(top: 64),
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: AppColors.darkCard,
+        color: context.appCard,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.darkBorder),
+        border: Border.all(color: context.appBorder),
       ),
       child: Column(
         children: [
@@ -179,7 +180,7 @@ class _EmptyState extends StatelessWidget {
           Text(
             title,
             style: theme.textTheme.titleMedium?.copyWith(
-              color: AppColors.textPrimaryDark,
+              color: context.appTextPrimary,
               fontWeight: FontWeight.w900,
             ),
           ),

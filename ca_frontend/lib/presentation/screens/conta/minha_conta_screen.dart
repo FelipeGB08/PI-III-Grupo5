@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/network/api_error_formatter.dart';
+import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/user.dart';
 import '../../providers/providers.dart';
@@ -113,7 +114,7 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
   Future<void> _trocarFoto() async {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
-      backgroundColor: AppColors.darkCard,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (ctx) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -272,6 +273,8 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
   Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).user;
     final theme = Theme.of(context);
+    final themeMode = ref.watch(appThemeModeProvider);
+    final isDark = theme.brightness == Brightness.dark;
     final cidade = user?.cidadeAmauc;
 
     if (_carregandoPerfil && user == null) {
@@ -289,13 +292,15 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
             'Perfil',
             style: theme.textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.w900,
-              color: AppColors.textPrimaryDark,
+              color: _textPrimary(context),
             ),
           ).animate().fadeIn().slideY(begin: 0.1),
           const SizedBox(height: 8),
           Text(
             'Gerencie seus dados, foto e preferencias.',
-            style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: _textSecondary(context),
+            ),
           ),
           const SizedBox(height: 22),
           _ProfileHeader(
@@ -379,7 +384,7 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF031016),
                 ),
               ),
             ],
@@ -403,6 +408,36 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
           _SettingsSection(
             title: 'Preferencias',
             children: [
+              _SettingsTile(
+                icon: isDark
+                    ? Icons.dark_mode_outlined
+                    : Icons.light_mode_outlined,
+                title: 'Aparencia',
+                subtitle: isDark ? 'Modo escuro ativo' : 'Modo claro ativo',
+                trailing: SegmentedButton<ThemeMode>(
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(
+                      value: ThemeMode.light,
+                      icon: Icon(Icons.light_mode_rounded, size: 18),
+                    ),
+                    ButtonSegment(
+                      value: ThemeMode.dark,
+                      icon: Icon(Icons.dark_mode_rounded, size: 18),
+                    ),
+                  ],
+                  selected: {
+                    themeMode == ThemeMode.light
+                        ? ThemeMode.light
+                        : ThemeMode.dark
+                  },
+                  onSelectionChanged: (value) {
+                    ref
+                        .read(appThemeModeProvider.notifier)
+                        .setThemeMode(value.first);
+                  },
+                ),
+              ),
               _SettingsTile(
                 icon: Icons.notifications_none_rounded,
                 title: 'Notificacoes Push',
@@ -507,9 +542,9 @@ class _ProfileHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.darkCard,
+        color: _cardColor(context),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.darkBorder),
+        border: Border.all(color: _borderColor(context)),
       ),
       child: Row(
         children: [
@@ -531,7 +566,7 @@ class _ProfileHeader extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppColors.textPrimaryDark,
+                        color: _textPrimary(context),
                         fontWeight: FontWeight.w900,
                       ),
                 ),
@@ -579,8 +614,8 @@ class _InfoPill extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             label,
-            style: const TextStyle(
-              color: AppColors.textPrimaryDark,
+            style: TextStyle(
+              color: _textPrimary(context),
               fontSize: 11,
               fontWeight: FontWeight.w800,
             ),
@@ -601,13 +636,33 @@ class _FormPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.darkSurface,
+        color: _surfaceColor(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.darkBorder),
+        border: Border.all(color: _borderColor(context)),
       ),
       child: Column(children: children),
     );
   }
+}
+
+Color _textPrimary(BuildContext context) {
+  return context.appTextPrimary;
+}
+
+Color _textSecondary(BuildContext context) {
+  return context.appTextSecondary;
+}
+
+Color _surfaceColor(BuildContext context) {
+  return context.appSurface;
+}
+
+Color _cardColor(BuildContext context) {
+  return context.appCard;
+}
+
+Color _borderColor(BuildContext context) {
+  return context.appBorder;
 }
 
 class _ReadonlyField extends StatelessWidget {
@@ -632,7 +687,7 @@ class _ReadonlyField extends StatelessWidget {
       child: Text(
         value,
         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: AppColors.textPrimaryDark,
+              color: _textPrimary(context),
               fontWeight: FontWeight.w700,
             ),
       ),
@@ -669,9 +724,9 @@ class _SettingsSection extends StatelessWidget {
           ),
           Container(
             decoration: BoxDecoration(
-              color: AppColors.darkCard,
+              color: _cardColor(context),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.darkBorder),
+              border: Border.all(color: _borderColor(context)),
             ),
             child: Column(children: children),
           ),
@@ -722,7 +777,7 @@ class _SettingsTile extends StatelessWidget {
                   Text(
                     title,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: AppColors.textPrimaryDark,
+                          color: _textPrimary(context),
                         ),
                   ),
                   const SizedBox(height: 3),
@@ -738,7 +793,9 @@ class _SettingsTile extends StatelessWidget {
             trailing ??
                 Icon(
                   Icons.chevron_right_rounded,
-                  color: onTap == null ? AppColors.darkBorder : AppColors.muted,
+                  color: onTap == null
+                      ? _borderColor(context)
+                      : _textSecondary(context),
                 ),
           ],
         ),

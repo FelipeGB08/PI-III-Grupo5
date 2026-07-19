@@ -22,7 +22,11 @@ class AuthRepositoryImpl implements AuthRepository {
   }) async {
     try {
       final response = await _api.login(email: email, senha: senha);
-      final result = AuthResult(token: response.token, user: response.user);
+      final result = AuthResult(
+        token: response.token,
+        user: response.user,
+        refreshToken: response.refreshToken,
+      );
       await saveSession(result);
       return result;
     } on DioException catch (e) {
@@ -42,7 +46,11 @@ class AuthRepositoryImpl implements AuthRepository {
         token: token,
         cidadeAmauc: cidadeAmauc,
       );
-      final result = AuthResult(token: response.token, user: response.user);
+      final result = AuthResult(
+        token: response.token,
+        user: response.user,
+        refreshToken: response.refreshToken,
+      );
       await saveSession(result);
       return result;
     } on DioException catch (e) {
@@ -52,9 +60,18 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<AuthResult> refreshSession() async {
+    final refreshToken = _storage.getRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) {
+      throw StateError('Sessao sem refresh token.');
+    }
+
     try {
-      final response = await _api.refreshSession();
-      final result = AuthResult(token: response.token, user: response.user);
+      final response = await _api.refreshSession(refreshToken: refreshToken);
+      final result = AuthResult(
+        token: response.token,
+        user: response.user,
+        refreshToken: refreshToken,
+      );
       await saveSession(result);
       return result;
     } on DioException catch (e) {
@@ -86,7 +103,11 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<AuthResult> verifyMagicLink({required String token}) async {
     try {
       final response = await _api.verifyMagicLink(token: token);
-      final result = AuthResult(token: response.token, user: response.user);
+      final result = AuthResult(
+        token: response.token,
+        user: response.user,
+        refreshToken: response.refreshToken,
+      );
       await saveSession(result);
       return result;
     } on DioException catch (e) {
@@ -116,7 +137,18 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<void> logout() => _storage.clear();
+  Future<void> logout() async {
+    final refreshToken = _storage.getRefreshToken();
+    try {
+      if (refreshToken != null && refreshToken.isNotEmpty) {
+        await _api.logout(refreshToken: refreshToken);
+      }
+    } on DioException {
+      // O logout local deve ocorrer mesmo sem conexao com a API.
+    } finally {
+      await _storage.clear();
+    }
+  }
 
   @override
   Future<String?> getToken() async => _storage.getToken();
@@ -127,6 +159,10 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> saveSession(AuthResult result) async {
     await _storage.saveToken(result.token);
+    final refreshToken = result.refreshToken;
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      await _storage.saveRefreshToken(refreshToken);
+    }
     await persistUser(result.user);
   }
 

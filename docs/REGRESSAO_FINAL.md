@@ -20,9 +20,12 @@ Use este checklist antes de apresentar ou gerar APK.
 - [ ] Cidade AMAUC é enviada como `cidade_amauc`.
 - [ ] Tipo de perfil é enviado como `perfil_tipo`.
 - [ ] Dados inválidos não ficam salvos quando o backend retorna erro.
-- [ ] Login comum retorna JWT.
-- [ ] Logout limpa sessão local.
+- [ ] Login comum retorna access token de 15 minutos e refresh token.
+- [ ] Access token expirado é renovado automaticamente sem interromper o uso do app.
+- [ ] Logout limpa a sessão local e revoga o refresh token no backend.
+- [ ] Refresh com o token usado no logout retorna 401.
 - [ ] Reset/magic link estão documentados quando SMTP não estiver configurado.
+- [ ] Login social testado com credenciais de produção nos 3 provedores.
 
 ## 3. Localização e mapa
 

@@ -152,9 +152,6 @@ const ServicoController = {
             const id = Number(req.params.id);
             const profId = obterIdUsuarioLogado(req);
             const status = req.body.status;
-            const preco = req.body.preco !== undefined && req.body.preco !== ''
-                ? Number(req.body.preco)
-                : null;
 
             if (!profId) {
                 return res.status(401).json({ erro: 'Usuario nao autenticado.' });
@@ -168,11 +165,16 @@ const ServicoController = {
                 return res.status(400).json({ erro: 'Informe o novo status do servico.' });
             }
 
+            if (req.body.preco !== undefined || req.body.preco_proposto !== undefined) {
+                return res.status(400).json({
+                    erro: 'Use o fluxo de proposta de valor para alterar o preco.',
+                });
+            }
+
             const servicoAtualizado = await ServicoModel.atualizarStatus(
                 id,
                 profId,
-                status,
-                preco
+                status
             );
 
             if (!servicoAtualizado) {

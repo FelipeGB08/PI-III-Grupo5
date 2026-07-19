@@ -82,6 +82,7 @@ class _ChamadosScreenState extends ConsumerState<ChamadosScreen>
                       chamados: state.chamados
                           .where((c) =>
                               c.status == ChamadoStatus.pendente ||
+                              c.status == ChamadoStatus.propostaValor ||
                               c.status == ChamadoStatus.remarcacaoSolicitada)
                           .toList(),
                       isPrestador: isPrestador,
@@ -161,6 +162,18 @@ class _ChamadosList extends ConsumerWidget {
             onProporValor: isPrestador && c.status == ChamadoStatus.pendente
                 ? () => _proporValor(context, ref, c)
                 : null,
+            onAceitarPropostaValor:
+                !isPrestador && c.status == ChamadoStatus.propostaValor
+                    ? () => ref
+                        .read(chamadosProvider.notifier)
+                        .aceitarPropostaValor(c.id)
+                    : null,
+            onRecusarPropostaValor:
+                !isPrestador && c.status == ChamadoStatus.propostaValor
+                    ? () => ref
+                        .read(chamadosProvider.notifier)
+                        .recusarPropostaValor(c.id)
+                    : null,
             onAceitarRemarcacao: !isPrestador &&
                     c.status == ChamadoStatus.remarcacaoSolicitada
                 ? () =>

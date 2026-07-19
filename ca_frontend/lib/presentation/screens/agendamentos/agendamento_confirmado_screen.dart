@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/chamado.dart';
 import '../../../domain/entities/prestador.dart';
@@ -39,11 +40,12 @@ class AgendamentoConfirmadoScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.18),
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.primary.withValues(alpha: 0.6)),
+                border:
+                    Border.all(color: AppColors.primary.withValues(alpha: 0.6)),
               ),
               child: const Icon(
                 Icons.check_rounded,
-                color: AppColors.textPrimaryDark,
+                color: Color(0xFF031016),
                 size: 42,
               ),
             ),
@@ -53,7 +55,7 @@ class AgendamentoConfirmadoScreen extends StatelessWidget {
             'Agendamento Confirmado!',
             textAlign: TextAlign.center,
             style: theme.textTheme.headlineSmall?.copyWith(
-              color: AppColors.textPrimaryDark,
+              color: context.appTextPrimary,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -129,9 +131,9 @@ class _DetailsPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.darkCard,
+        color: context.appCard,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.darkBorder),
+        border: Border.all(color: context.appBorder),
       ),
       child: Column(children: children),
     );

@@ -31,6 +31,7 @@ class ApiConfig {
   static const String authLogin = '$apiPrefix/auth/login';
   static const String authSocialLogin = '$apiPrefix/auth/social-login';
   static const String authRefresh = '$apiPrefix/auth/refresh';
+  static const String authLogout = '$apiPrefix/auth/logout';
   static const String authMagicLink = '$apiPrefix/auth/magic-link';
   static const String authMagicLinkVerify = '$apiPrefix/auth/magic-link/verify';
   static const String authPasswordResetRequest =
@@ -62,7 +63,13 @@ class ApiConfig {
   static const String status = '$apiPrefix/status';
 
   static String servicoStatus(int id) => '$servicos/$id/status';
+  static String chamadoDetalhe(int id) => '$chamados/$id';
   static String chamadoStatus(int id) => '$chamados/$id/status';
+  static String propostaValor(int id) => '$chamados/$id/proposta-valor';
+  static String aceitarPropostaValor(int id) =>
+      '$chamados/$id/proposta-valor/aceitar';
+  static String recusarPropostaValor(int id) =>
+      '$chamados/$id/proposta-valor/recusar';
   static String fotosConclusaoSolicitacao(int id) =>
       '$chamados/$id/fotos-conclusao';
   static String cancelarSolicitacao(int id) => '$chamados/$id/cancelar';

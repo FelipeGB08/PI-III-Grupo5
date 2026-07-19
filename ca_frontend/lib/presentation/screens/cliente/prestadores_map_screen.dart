@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../../core/config/amauc_constants.dart';
+import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../data/services/map_route_service.dart';
 import '../../../domain/entities/prestador.dart';
 import '../../providers/providers.dart';
 import '../../widgets/profile_avatar.dart';
@@ -20,11 +23,15 @@ class PrestadoresMapScreen extends ConsumerStatefulWidget {
 }
 
 class _PrestadoresMapScreenState extends ConsumerState<PrestadoresMapScreen> {
-  GoogleMapController? _mapController;
+  final _mapController = MapController();
   LatLng _centro = const LatLng(
     AmaucConstants.defaultLat,
     AmaucConstants.defaultLng,
   );
+  bool _capturandoGps = false;
+  bool _calculandoRota = false;
+  Prestador? _prestadorSelecionado;
+  MapRouteResult? _rota;
 
   @override
   void initState() {
@@ -33,20 +40,14 @@ class _PrestadoresMapScreenState extends ConsumerState<PrestadoresMapScreen> {
         .addPostFrameCallback((_) => _carregarLocalizacaoCliente());
   }
 
-  @override
-  void dispose() {
-    _mapController?.dispose();
-    super.dispose();
-  }
-
   Future<void> _carregarLocalizacaoCliente() async {
     final user = ref.read(authStateProvider).user;
-    final cidade = user?.cidadeAmauc ?? 'Concórdia';
+    final cidade = user?.cidadeAmauc ?? 'ConcÃ³rdia';
     final fallback = AmaucConstants.coordenadasCidade(cidade);
     final lat = user?.latitude ?? fallback.lat;
     final lng = user?.longitude ?? fallback.lng;
 
-    _centro = LatLng(lat, lng);
+    setState(() => _centro = LatLng(lat, lng));
     await ref
         .read(prestadoresProvider.notifier)
         .carregar(lat: lat, lng: lng, cidade: cidade);
@@ -54,24 +55,44 @@ class _PrestadoresMapScreenState extends ConsumerState<PrestadoresMapScreen> {
   }
 
   Future<void> _carregarComGps() async {
+    if (_capturandoGps) return;
+
+    setState(() => _capturandoGps = true);
     double? lat;
     double? lng;
-    String? cidade = ref.read(authStateProvider).user?.cidadeAmauc;
+    final cidade = ref.read(authStateProvider).user?.cidadeAmauc;
+
     try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        _showSnack('Ative a localizaÃ§Ã£o do dispositivo para usar o mapa.');
+        return;
+      }
+
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.always ||
-          permission == LocationPermission.whileInUse) {
-        final pos = await Geolocator.getCurrentPosition();
-        lat = pos.latitude;
-        lng = pos.longitude;
-        _centro = LatLng(lat, lng);
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        _showSnack(
+            'Permita a localizaÃ§Ã£o para buscar prestadores prÃ³ximos.');
+        return;
       }
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+      lat = pos.latitude;
+      lng = pos.longitude;
+      setState(() => _centro = LatLng(lat!, lng!));
+      _showSnack('Mapa atualizado com sua localizaÃ§Ã£o atual.');
     } catch (_) {
-      lat = null;
-      lng = null;
+      _showSnack('NÃ£o foi possÃ­vel capturar sua localizaÃ§Ã£o agora.');
+    } finally {
+      if (mounted) setState(() => _capturandoGps = false);
     }
 
     await ref
@@ -80,31 +101,72 @@ class _PrestadoresMapScreenState extends ConsumerState<PrestadoresMapScreen> {
     _animateTo(_centro);
   }
 
-  Set<Marker> _markers(List<Prestador> prestadores) {
-    return prestadores
-        .where((p) => p.latitude != null && p.longitude != null)
-        .map(
-          (p) => Marker(
-            markerId: MarkerId('prestador-${p.id}'),
-            position: LatLng(p.latitude!, p.longitude!),
-            infoWindow: InfoWindow(
-              title: p.nome,
-              snippet: p.distanciaKm != null
-                  ? '${p.cidade} - ${p.distanciaKm!.toStringAsFixed(1)} km'
-                  : p.cidade,
+  List<Marker> _markers(List<Prestador> prestadores) {
+    final markers = <Marker>[
+      Marker(
+        point: _centro,
+        width: 46,
+        height: 46,
+        child: const _ClienteMarker(),
+      ),
+    ];
+
+    markers.addAll(
+      prestadores.where((p) => p.latitude != null && p.longitude != null).map(
+            (p) => Marker(
+              point: LatLng(p.latitude!, p.longitude!),
+              width: 54,
+              height: 54,
+              child: _PrestadorMapMarker(
+                prestador: p,
+                selected: _prestadorSelecionado?.id == p.id,
+                onTap: () => _selecionarPrestador(p),
+              ),
             ),
-            onTap: () => _openPrestador(p),
           ),
-        )
-        .toSet();
+    );
+
+    return markers;
   }
 
   void _animateTo(LatLng target) {
-    _mapController?.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(target: target, zoom: 10.5),
-      ),
+    _mapController.move(target, 11);
+  }
+
+  Future<void> _selecionarPrestador(Prestador prestador) async {
+    if (prestador.latitude == null || prestador.longitude == null) {
+      _showSnack('Este prestador ainda nao possui localizacao no mapa.');
+      return;
+    }
+
+    final destino = LatLng(prestador.latitude!, prestador.longitude!);
+    final meio = LatLng(
+      (_centro.latitude + destino.latitude) / 2,
+      (_centro.longitude + destino.longitude) / 2,
     );
+
+    setState(() {
+      _prestadorSelecionado = prestador;
+      _rota = null;
+      _calculandoRota = true;
+    });
+    _mapController.move(meio, 12);
+
+    try {
+      final rota = await ref.read(mapRouteServiceProvider).drivingRoute(
+            origin: _centro,
+            destination: destino,
+          );
+      if (!mounted) return;
+      setState(() => _rota = rota);
+    } catch (_) {
+      if (!mounted) return;
+      _showSnack(
+        'Nao foi possivel calcular a rota agora. Distancia em linha reta exibida.',
+      );
+    } finally {
+      if (mounted) setState(() => _calculandoRota = false);
+    }
   }
 
   void _openPrestador(Prestador prestador) {
@@ -115,53 +177,95 @@ class _PrestadoresMapScreenState extends ConsumerState<PrestadoresMapScreen> {
     );
   }
 
+  Future<void> _copiarLinkRota() async {
+    final prestador = _prestadorSelecionado;
+    if (prestador?.latitude == null || prestador?.longitude == null) return;
+
+    final url =
+        'https://www.google.com/maps/dir/?api=1&origin=${_centro.latitude},${_centro.longitude}&destination=${prestador!.latitude},${prestador.longitude}&travelmode=driving';
+    await Clipboard.setData(ClipboardData(text: url));
+    _showSnack('Link da rota copiado. Cole no navegador ou Google Maps.');
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(prestadoresProvider);
     final markers = _markers(state.prestadores);
+    final rota = _rota;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mapa de Prestadores'),
         actions: [
           IconButton(
-            tooltip: 'Usar minha localização',
-            onPressed: _carregarComGps,
-            icon: const Icon(Icons.my_location_rounded),
+            tooltip: 'Usar minha localizaÃ§Ã£o',
+            onPressed: _capturandoGps ? null : _carregarComGps,
+            icon: _capturandoGps
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.my_location_rounded),
           ),
         ],
       ),
       body: Stack(
         children: [
-          if (kIsWeb)
-            _WebMapFallback(
-              centro: _centro,
-              prestadores: state.prestadores,
-              raioKm: state.raioKm,
-              onTapPrestador: _openPrestador,
-            )
-          else
-            GoogleMap(
-              initialCameraPosition:
-                  CameraPosition(target: _centro, zoom: 10.5),
-              onMapCreated: (controller) => _mapController = controller,
-              markers: markers,
-              circles: {
-                Circle(
-                  circleId: const CircleId('raio-busca'),
-                  center: LatLng(
-                    state.lat ?? AmaucConstants.defaultLat,
-                    state.lng ?? AmaucConstants.defaultLng,
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _centro,
+              initialZoom: 11,
+              minZoom: 8,
+              maxZoom: 18,
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+              ),
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'br.edu.ifc.conecta_amauc',
+                maxZoom: 19,
+              ),
+              CircleLayer(
+                circles: [
+                  CircleMarker(
+                    point: _centro,
+                    radius: state.raioKm * 1000,
+                    useRadiusInMeter: true,
+                    color: AppColors.primary.withValues(alpha: 0.10),
+                    borderColor: AppColors.primary.withValues(alpha: 0.45),
+                    borderStrokeWidth: 2,
                   ),
-                  radius: state.raioKm * 1000,
-                  fillColor: AppColors.primary.withValues(alpha: 0.08),
-                  strokeColor: AppColors.primary.withValues(alpha: 0.45),
-                  strokeWidth: 2,
+                ],
+              ),
+              if (rota != null && rota.points.length > 1)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: rota.points,
+                      color: AppColors.primary,
+                      strokeWidth: 5,
+                    ),
+                  ],
                 ),
-              },
-              myLocationButtonEnabled: false,
-              myLocationEnabled: state.lat != null && state.lng != null,
-              zoomControlsEnabled: false,
+              MarkerLayer(markers: markers),
+            ],
+          ),
+          if (state.erro != null)
+            Positioned(
+              left: 12,
+              right: 12,
+              top: 12,
+              child: _MapError(message: state.erro!),
             ),
           Align(
             alignment: Alignment.bottomCenter,
@@ -172,36 +276,53 @@ class _PrestadoresMapScreenState extends ConsumerState<PrestadoresMapScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _RadiusPanel(state: state),
+                    _RadiusPanel(state: state, centro: _centro),
+                    if (_prestadorSelecionado != null) ...[
+                      const SizedBox(height: 10),
+                      _RoutePanel(
+                        prestador: _prestadorSelecionado!,
+                        rota: _rota,
+                        isLoading: _calculandoRota,
+                        onOpenProfile: () =>
+                            _openPrestador(_prestadorSelecionado!),
+                        onCopyRoute: _copiarLinkRota,
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     SizedBox(
                       height: 118,
                       child: state.isLoading
                           ? const _MapLoading()
-                          : ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: state.prestadores.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(width: 10),
-                              itemBuilder: (context, index) {
-                                final prestador = state.prestadores[index];
-                                return _MapPrestadorCard(
-                                  prestador: prestador,
-                                  onTap: () {
-                                    if (prestador.latitude != null &&
-                                        prestador.longitude != null) {
-                                      _animateTo(
-                                        LatLng(
-                                          prestador.latitude!,
-                                          prestador.longitude!,
-                                        ),
-                                      );
-                                    }
-                                    _openPrestador(prestador);
+                          : state.prestadores.isEmpty
+                              ? const _EmptyMapResults()
+                              : ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: state.prestadores.length,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(width: 10),
+                                  itemBuilder: (context, index) {
+                                    final prestador = state.prestadores[index];
+                                    return _MapPrestadorCard(
+                                      prestador: prestador,
+                                      onTap: () {
+                                        if (prestador.latitude != null &&
+                                            prestador.longitude != null) {
+                                          _animateTo(
+                                            LatLng(
+                                              prestador.latitude!,
+                                              prestador.longitude!,
+                                            ),
+                                          );
+                                        }
+                                        _selecionarPrestador(prestador);
+                                      },
+                                      selected: _prestadorSelecionado?.id ==
+                                          prestador.id,
+                                      onOpenProfile: () =>
+                                          _openPrestador(prestador),
+                                    );
                                   },
-                                );
-                              },
-                            ),
+                                ),
                     ),
                   ],
                 ),
@@ -215,18 +336,19 @@ class _PrestadoresMapScreenState extends ConsumerState<PrestadoresMapScreen> {
 }
 
 class _RadiusPanel extends ConsumerWidget {
-  const _RadiusPanel({required this.state});
+  const _RadiusPanel({required this.state, required this.centro});
 
   final PrestadoresState state;
+  final LatLng centro;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
       decoration: BoxDecoration(
-        color: AppColors.darkCard.withValues(alpha: 0.94),
+        color: context.appCard.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.darkBorder),
+        border: Border.all(color: context.appBorder),
       ),
       child: Column(
         children: [
@@ -237,15 +359,15 @@ class _RadiusPanel extends ConsumerWidget {
               Expanded(
                 child: Text(
                   'Raio de busca: ${state.raioKm.round()} km',
-                  style: const TextStyle(
-                    color: AppColors.textPrimaryDark,
+                  style: TextStyle(
+                    color: context.appTextPrimary,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
               Text(
                 '${state.prestadores.length} encontrados',
-                style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                style: TextStyle(color: context.appMuted, fontSize: 12),
               ),
             ],
           ),
@@ -258,7 +380,98 @@ class _RadiusPanel extends ConsumerWidget {
             onChanged: (value) =>
                 ref.read(prestadoresProvider.notifier).setRaio(value),
           ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Centro: ${centro.latitude.toStringAsFixed(5)}, ${centro.longitude.toStringAsFixed(5)}',
+              style: TextStyle(color: context.appMuted, fontSize: 11),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _PrestadorMapMarker extends StatelessWidget {
+  const _PrestadorMapMarker({
+    required this.prestador,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final Prestador prestador;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: prestador.nome,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: context.appCard,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: selected ? AppColors.accent : AppColors.primary,
+              width: selected ? 3 : 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: (selected ? AppColors.accent : AppColors.primary)
+                    .withValues(alpha: 0.32),
+                blurRadius: selected ? 24 : 18,
+              ),
+            ],
+          ),
+          child: Text(
+            _initials(prestador.nome),
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return 'P';
+    final first = parts.first[0];
+    final second = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
+    return '$first$second'.toUpperCase();
+  }
+}
+
+class _ClienteMarker extends StatelessWidget {
+  const _ClienteMarker();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.accent,
+        shape: BoxShape.circle,
+        border: Border.all(color: context.appBackground, width: 3),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.accent.withValues(alpha: 0.32),
+            blurRadius: 18,
+          ),
+        ],
+      ),
+      child: const Icon(
+        Icons.person_pin_circle_rounded,
+        color: Colors.white,
+        size: 24,
       ),
     );
   }
@@ -267,11 +480,15 @@ class _RadiusPanel extends ConsumerWidget {
 class _MapPrestadorCard extends StatelessWidget {
   const _MapPrestadorCard({
     required this.prestador,
+    required this.selected,
     required this.onTap,
+    required this.onOpenProfile,
   });
 
   final Prestador prestador;
+  final bool selected;
   final VoidCallback onTap;
+  final VoidCallback onOpenProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -282,9 +499,12 @@ class _MapPrestadorCard extends StatelessWidget {
         width: 250,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.darkCard.withValues(alpha: 0.96),
+          color: context.appCard.withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.darkBorder),
+          border: Border.all(
+            color: selected ? AppColors.primary : context.appBorder,
+            width: selected ? 1.6 : 1,
+          ),
         ),
         child: Row(
           children: [
@@ -304,8 +524,8 @@ class _MapPrestadorCard extends StatelessWidget {
                     prestador.nome,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimaryDark,
+                    style: TextStyle(
+                      color: context.appTextPrimary,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -314,24 +534,130 @@ class _MapPrestadorCard extends StatelessWidget {
                     prestador.categoria ?? prestador.cidade,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppColors.muted),
+                    style: TextStyle(color: context.appMuted),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    prestador.distanciaKm != null
-                        ? '${prestador.distanciaKm!.toStringAsFixed(1)} km de distancia'
-                        : prestador.cidade,
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
-                    ),
+                  const SizedBox(height: 7),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          prestador.distanciaKm != null
+                              ? '${prestador.distanciaKm!.toStringAsFixed(1)} km em linha reta'
+                              : prestador.cidade,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: onOpenProfile,
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                        child: const Text('Perfil'),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _RoutePanel extends StatelessWidget {
+  const _RoutePanel({
+    required this.prestador,
+    required this.rota,
+    required this.isLoading,
+    required this.onOpenProfile,
+    required this.onCopyRoute,
+  });
+
+  final Prestador prestador;
+  final MapRouteResult? rota;
+  final bool isLoading;
+  final VoidCallback onOpenProfile;
+  final VoidCallback onCopyRoute;
+
+  @override
+  Widget build(BuildContext context) {
+    final routeText = isLoading
+        ? 'Calculando rota...'
+        : rota != null
+            ? '${rota!.distanceKm.toStringAsFixed(1)} km por rota - ${rota!.durationMinutes.round()} min'
+            : prestador.distanciaKm != null
+                ? '${prestador.distanciaKm!.toStringAsFixed(1)} km em linha reta'
+                : 'Rota indisponivel';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.appCard.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(10),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.route_rounded, color: AppColors.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  prestador.nome,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: context.appTextPrimary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  routeText,
+                  style: TextStyle(
+                    color: context.appTextSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Copiar rota',
+            onPressed: isLoading ? null : onCopyRoute,
+            icon: const Icon(Icons.directions_rounded),
+          ),
+          IconButton(
+            tooltip: 'Ver perfil',
+            onPressed: onOpenProfile,
+            icon: const Icon(Icons.person_rounded),
+          ),
+        ],
       ),
     );
   }
@@ -345,277 +671,59 @@ class _MapLoading extends StatelessWidget {
     return Container(
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: AppColors.darkCard.withValues(alpha: 0.94),
+        color: context.appCard.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.darkBorder),
+        border: Border.all(color: context.appBorder),
       ),
       child: const CircularProgressIndicator(color: AppColors.primary),
     );
   }
 }
 
-class _WebMapFallback extends StatelessWidget {
-  const _WebMapFallback({
-    required this.centro,
-    required this.prestadores,
-    required this.raioKm,
-    required this.onTapPrestador,
-  });
-
-  final LatLng centro;
-  final List<Prestador> prestadores;
-  final double raioKm;
-  final ValueChanged<Prestador> onTapPrestador;
+class _EmptyMapResults extends StatelessWidget {
+  const _EmptyMapResults();
 
   @override
   Widget build(BuildContext context) {
-    final prestadoresComCoordenadas = prestadores
-        .where((p) => p.latitude != null && p.longitude != null)
-        .toList();
-
     return Container(
-      color: AppColors.darkBackground,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _AmaUcMapPainter(raioKm: raioKm),
-                ),
-              ),
-              Positioned(
-                left: 18,
-                right: 18,
-                top: 22,
-                child: _WebMapNotice(
-                  count: prestadoresComCoordenadas.length,
-                ),
-              ),
-              for (final prestador in prestadoresComCoordenadas)
-                _WebMapMarker(
-                  prestador: prestador,
-                  position: _positionFor(
-                    prestador,
-                    constraints.biggest,
-                  ),
-                  onTap: () => onTapPrestador(prestador),
-                ),
-              _WebMapCenterPin(
-                position: Offset(
-                  constraints.maxWidth / 2,
-                  constraints.maxHeight / 2,
-                ),
-              ),
-            ],
-          );
-        },
+      alignment: Alignment.center,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.appCard.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: context.appBorder),
+      ),
+      child: Text(
+        'Nenhum prestador com localizaÃ§Ã£o encontrada neste raio.',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: context.appMuted),
       ),
     );
   }
-
-  Offset _positionFor(Prestador prestador, Size size) {
-    const latSpan = 0.85;
-    const lngSpan = 1.1;
-    final dx = ((prestador.longitude! - centro.longitude) / lngSpan) *
-        size.width *
-        0.72;
-    final dy = -((prestador.latitude! - centro.latitude) / latSpan) *
-        size.height *
-        0.64;
-
-    final x = (size.width / 2 + dx).clamp(28.0, size.width - 28.0);
-    final y = (size.height / 2 + dy).clamp(100.0, size.height - 170.0);
-    return Offset(x, y);
-  }
 }
 
-class _WebMapNotice extends StatelessWidget {
-  const _WebMapNotice({required this.count});
+class _MapError extends StatelessWidget {
+  const _MapError({required this.message});
 
-  final int count;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.darkCard.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.darkBorder),
+        color: AppColors.statusRecusado.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            const Icon(Icons.map_outlined, color: AppColors.primary),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Text(
-                'Mapa web simplificado',
-                style: TextStyle(
-                  color: AppColors.textPrimaryDark,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-            Text(
-              '$count no mapa',
-              style: const TextStyle(color: AppColors.muted, fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _WebMapMarker extends StatelessWidget {
-  const _WebMapMarker({
-    required this.prestador,
-    required this.position,
-    required this.onTap,
-  });
-
-  final Prestador prestador;
-  final Offset position;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      left: position.dx - 18,
-      top: position.dy - 18,
-      child: Tooltip(
-        message: prestador.nome,
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: Container(
-            width: 36,
-            height: 36,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.darkCard,
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.primary, width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.25),
-                  blurRadius: 16,
-                ),
-              ],
-            ),
-            child: Text(
-              _initials(prestador.nome),
-              style: const TextStyle(
-                color: AppColors.primary,
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
+        padding: const EdgeInsets.all(12),
+        child: Text(
+          message,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
           ),
         ),
       ),
     );
-  }
-
-  String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return 'P';
-    final first = parts.first[0];
-    final second = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
-    return '$first$second'.toUpperCase();
-  }
-}
-
-class _WebMapCenterPin extends StatelessWidget {
-  const _WebMapCenterPin({required this.position});
-
-  final Offset position;
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      left: position.dx - 7,
-      top: position.dy - 7,
-      child: Container(
-        width: 14,
-        height: 14,
-        decoration: BoxDecoration(
-          color: AppColors.accent,
-          shape: BoxShape.circle,
-          border: Border.all(color: AppColors.darkBackground, width: 2),
-        ),
-      ),
-    );
-  }
-}
-
-class _AmaUcMapPainter extends CustomPainter {
-  const _AmaUcMapPainter({required this.raioKm});
-
-  final double raioKm;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final bgPaint = Paint()
-      ..shader = const LinearGradient(
-        colors: [Color(0xFF07111F), Color(0xFF102238)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ).createShader(Offset.zero & size);
-    canvas.drawRect(Offset.zero & size, bgPaint);
-
-    final gridPaint = Paint()
-      ..color = AppColors.darkBorder.withValues(alpha: 0.26)
-      ..strokeWidth = 1;
-    for (var x = 0.0; x < size.width; x += 36) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-    }
-    for (var y = 0.0; y < size.height; y += 36) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (raioKm / 80).clamp(0.15, 1.0) * size.shortestSide * 0.38;
-    final radiusPaint = Paint()
-      ..color = AppColors.primary.withValues(alpha: 0.08)
-      ..style = PaintingStyle.fill;
-    final radiusStroke = Paint()
-      ..color = AppColors.primary.withValues(alpha: 0.35)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    canvas.drawCircle(center, radius, radiusPaint);
-    canvas.drawCircle(center, radius, radiusStroke);
-
-    final routePaint = Paint()
-      ..color = AppColors.muted.withValues(alpha: 0.28)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-
-    final path = Path()
-      ..moveTo(size.width * 0.08, size.height * 0.46)
-      ..cubicTo(
-        size.width * 0.25,
-        size.height * 0.34,
-        size.width * 0.44,
-        size.height * 0.58,
-        size.width * 0.64,
-        size.height * 0.42,
-      )
-      ..cubicTo(
-        size.width * 0.76,
-        size.height * 0.32,
-        size.width * 0.85,
-        size.height * 0.55,
-        size.width * 0.96,
-        size.height * 0.47,
-      );
-    canvas.drawPath(path, routePaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _AmaUcMapPainter oldDelegate) {
-    return oldDelegate.raioKm != raioKm;
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/config/api_config.dart';
+import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/chamado.dart';
 import '../../../domain/entities/chat_conversa.dart';
@@ -32,10 +33,10 @@ class _ConversasScreenState extends ConsumerState<ConversasScreen> {
     final state = ref.watch(conversasProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appBackground,
       appBar: AppBar(
         title: const Text('Conversas'),
-        backgroundColor: AppColors.background,
+        backgroundColor: context.appBackground,
         actions: [
           IconButton(
             tooltip: 'Atualizar',
@@ -138,9 +139,8 @@ class _ConversaTile extends StatelessWidget {
     final unread = conversa.naoLidas > 0;
 
     return Material(
-      color: unread
-          ? AppColors.primary.withValues(alpha: 0.12)
-          : AppColors.surface,
+      color:
+          unread ? AppColors.primary.withValues(alpha: 0.12) : context.appCard,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,
@@ -205,7 +205,7 @@ class _ConversaTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textSecondaryDark,
+                            color: context.appTextSecondary,
                           ),
                     ),
                   ],
@@ -250,9 +250,9 @@ class _StatePanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.appCard,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: context.appBorder),
       ),
       child: Column(
         children: [
@@ -270,7 +270,7 @@ class _StatePanel extends StatelessWidget {
             subtitle,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondaryDark,
+                  color: context.appTextSecondary,
                   height: 1.35,
                 ),
           ),

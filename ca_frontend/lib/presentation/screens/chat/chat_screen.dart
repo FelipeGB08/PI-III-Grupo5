@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_formatter.dart';
+import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/chamado.dart';
 import '../../../domain/entities/chat_message.dart';
@@ -173,7 +174,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       decoration: InputDecoration(
                         hintText: 'Digite uma mensagem...',
                         filled: true,
-                        fillColor: AppColors.darkCard,
+                        fillColor: context.appCard,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(18),
                           borderSide: BorderSide.none,
@@ -222,12 +223,12 @@ class _MessageBubble extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: minha ? AppColors.primary : AppColors.darkCard,
+          color: minha ? AppColors.primary : context.appCard,
           borderRadius: BorderRadius.circular(16).copyWith(
             bottomRight: minha ? const Radius.circular(4) : null,
             bottomLeft: minha ? null : const Radius.circular(4),
           ),
-          border: minha ? null : Border.all(color: AppColors.darkBorder),
+          border: minha ? null : Border.all(color: context.appBorder),
         ),
         child: Column(
           crossAxisAlignment:
@@ -247,7 +248,7 @@ class _MessageBubble extends StatelessWidget {
             Text(
               mensagem.mensagem,
               style: TextStyle(
-                color: minha ? Colors.white : AppColors.textPrimaryDark,
+                color: minha ? Colors.white : context.appTextPrimary,
                 height: 1.35,
               ),
             ),
@@ -255,7 +256,7 @@ class _MessageBubble extends StatelessWidget {
             Text(
               _formatHora(mensagem.criadoEm),
               style: TextStyle(
-                color: (minha ? Colors.white : AppColors.textSecondaryDark)
+                color: (minha ? Colors.white : context.appTextSecondary)
                     .withValues(alpha: 0.72),
                 fontSize: 10,
               ),

@@ -11,6 +11,7 @@ DROP TABLE IF EXISTS servicos_solicitados CASCADE;
 DROP TABLE IF EXISTS profissional_categorias CASCADE;
 DROP TABLE IF EXISTS perfis_profissionais CASCADE;
 DROP TABLE IF EXISTS categorias CASCADE;
+DROP TABLE IF EXISTS refresh_tokens CASCADE;
 DROP TABLE IF EXISTS usuarios CASCADE;
 
 CREATE TABLE usuarios (
@@ -28,6 +29,22 @@ CREATE TABLE usuarios (
     foto_url VARCHAR(500),
     criado_em TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE refresh_tokens (
+    id BIGSERIAL PRIMARY KEY,
+    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    criado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    expira_em TIMESTAMP NOT NULL,
+    revogado_em TIMESTAMP NULL
+);
+
+CREATE INDEX idx_refresh_tokens_usuario_id
+    ON refresh_tokens (usuario_id);
+
+CREATE INDEX idx_refresh_tokens_validade
+    ON refresh_tokens (token_hash, expira_em)
+    WHERE revogado_em IS NULL;
 
 CREATE TABLE perfis_profissionais (
     id SERIAL PRIMARY KEY,
@@ -93,6 +110,7 @@ CREATE TABLE servicos_solicitados (
         CHECK (
             status IN (
                 'pendente',
+                'proposta_valor',
                 'aceito',
                 'recusado',
                 'concluido',
@@ -101,6 +119,8 @@ CREATE TABLE servicos_solicitados (
             )
         ),
     preco NUMERIC(10, 2),
+    preco_proposto NUMERIC(10, 2),
+    motivo_proposta_valor TEXT,
     motivo_cancelamento TEXT,
     cancelado_em TIMESTAMP,
     cancelado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,

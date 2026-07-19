@@ -119,6 +119,8 @@ CREATE TABLE IF NOT EXISTS servicos_solicitados (
     fotos_conclusao TEXT[] NOT NULL DEFAULT '{}',
     status VARCHAR(30) NOT NULL DEFAULT 'pendente',
     preco NUMERIC(10, 2),
+    preco_proposto NUMERIC(10, 2),
+    motivo_proposta_valor TEXT,
     motivo_cancelamento TEXT,
     cancelado_em TIMESTAMP,
     cancelado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
@@ -139,6 +141,8 @@ ALTER TABLE servicos_solicitados
     ADD COLUMN IF NOT EXISTS foto_url VARCHAR(500),
     ADD COLUMN IF NOT EXISTS fotos_conclusao TEXT[] NOT NULL DEFAULT '{}',
     ADD COLUMN IF NOT EXISTS preco NUMERIC(10, 2),
+    ADD COLUMN IF NOT EXISTS preco_proposto NUMERIC(10, 2),
+    ADD COLUMN IF NOT EXISTS motivo_proposta_valor TEXT,
     ADD COLUMN IF NOT EXISTS motivo_cancelamento TEXT,
     ADD COLUMN IF NOT EXISTS cancelado_em TIMESTAMP,
     ADD COLUMN IF NOT EXISTS cancelado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
@@ -154,6 +158,7 @@ ALTER TABLE servicos_solicitados
         CHECK (
             status IN (
                 'pendente',
+                'proposta_valor',
                 'aceito',
                 'recusado',
                 'concluido',

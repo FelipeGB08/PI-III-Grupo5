@@ -1,5 +1,7 @@
 # Conecta AMAUC
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Plataforma regional para contratação de serviços autônomos na região da AMAUC, desenvolvida como Projeto Integrador do Curso Técnico em Informática para Internet do IFC Campus Concórdia.
 
 ## Stack
@@ -27,6 +29,45 @@ Abra o terminal na raiz do projeto:
 ```bash
 cd C:\Users\Pichau\OneDrive\Documentos\GitHub\PI-III-Grupo5
 ```
+
+### Subir com Docker
+
+Para executar somente PostgreSQL e backend sem instalar Node.js ou PostgreSQL localmente, instale Docker Desktop (Windows/macOS) ou Docker Engine com Docker Compose 2.24 ou mais recente (Linux). Na raiz do repositório, execute:
+
+```bash
+docker compose up -d
+```
+
+O Compose espera o healthcheck do PostgreSQL, aplica as migrations e, quando o banco ainda está vazio, cria automaticamente os dados de demonstração antes de iniciar o backend. Confirme os containers e a API:
+
+```bash
+docker compose ps
+curl http://localhost:3000/api/status
+```
+
+No PowerShell, a verificação da API também pode ser feita com:
+
+```powershell
+Invoke-RestMethod http://localhost:3000/api/status
+```
+
+O arquivo `ca_backend/.env` é opcional para o fluxo Docker. Crie-o a partir de `.env.example` apenas se precisar configurar OAuth, SMTP, Firebase ou outros recursos; host e credenciais do PostgreSQL interno são definidos pelo Compose.
+
+Para reaplicar migrations ou recriar os dados de demonstração dentro de um container:
+
+```bash
+docker compose run --rm migrate npm run db:migrate
+docker compose run --rm migrate npm run db:seed
+```
+
+O comando de seed remove e recria os dados de simulação; não o execute sobre dados locais que queira preservar. Para acompanhar logs ou encerrar a stack:
+
+```bash
+docker compose logs -f backend
+docker compose down
+```
+
+Os volumes nomeados `postgres_data` e `backend_uploads` mantêm o banco e as imagens enviadas entre reinicializações. `docker compose down -v` também apaga esses volumes e todos os dados. O Flutter continua fora do Docker e deve ser iniciado com `flutter run`, usando `API_BASE_URL` conforme a plataforma ou dispositivo físico.
 
 ### 1. Backend
 
@@ -59,6 +100,54 @@ Variáveis opcionais para recursos de produção:
 - `SMTP_PASS`
 - `MAIL_FROM`
 - `GOOGLE_APPLICATION_CREDENTIALS` ou `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` e `FIREBASE_PRIVATE_KEY`
+
+### E-mail transacional (SMTP)
+
+Magic link e redefinição de senha usam o Nodemailer. Quando `SMTP_HOST`, `SMTP_USER` ou `SMTP_PASS` não estão preenchidos, nenhum e-mail é enviado. Fora de produção, a API mantém o fallback local: devolve `dev_token` e registra `[EMAIL][FALLBACK_LOCAL]` no console. Em produção, a ausência de configuração é registrada como `[EMAIL][CONFIGURACAO_AUSENTE]` e o fallback fica desativado.
+
+Falhas do provedor também aparecem no log sem revelar a senha. Credenciais recusadas usam a categoria `[EMAIL][SMTP][CREDENCIAIS_INVALIDAS]`; falhas de rede, DNS ou timeout usam `[EMAIL][SMTP][CONEXAO]`.
+
+#### Gmail com senha de app
+
+1. Ative a verificação em duas etapas na conta Google.
+2. Gere uma senha de app para o Conecta AMAUC conforme a [documentação oficial do Google](https://support.google.com/mail/answer/185833?hl=pt-BR). Não use a senha normal da conta.
+3. Preencha `ca_backend/.env`, removendo os espaços exibidos na senha de app:
+
+   ```env
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_SECURE=false
+   SMTP_USER=seu_email@gmail.com
+   SMTP_PASS=sua_senha_de_app_de_16_caracteres
+   MAIL_FROM="Conecta AMAUC <seu_email@gmail.com>"
+   ```
+
+Na porta 587, `SMTP_SECURE=false` permite que a conexão comece normalmente e seja promovida para TLS por STARTTLS. Para Gmail, mantenha o remetente igual à conta autenticada.
+
+#### Resend para e-mail transacional
+
+Como alternativa ao Gmail, crie uma conta no Resend, verifique um domínio remetente e gere uma API key. A [configuração SMTP oficial do Resend](https://resend.com/docs/send-with-smtp) usa o usuário fixo `resend` e a API key como senha:
+
+```env
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=resend
+SMTP_PASS=re_SUBSTITUA_PELA_API_KEY
+MAIL_FROM="Conecta AMAUC <acesso@seu-dominio-verificado.com>"
+```
+
+O domínio de `MAIL_FROM` precisa estar verificado no Resend. Guarde a API key apenas no `.env` local ou no painel de secrets da hospedagem; nunca a envie ao Git.
+
+#### Teste manual de entrega
+
+O endereço usado no teste precisa estar previamente cadastrado no Conecta AMAUC, pois as rotas não revelam se um e-mail desconhecido existe. Com o backend e o banco em execução, abra outro terminal em `ca_backend` e rode:
+
+```bash
+npm run test:email -- destinatario@exemplo.com
+```
+
+O script autentica no SMTP, solicita um magic link real e um reset de senha real pela API e exige `email_enviado: true` nas duas respostas. Também é possível definir `EMAIL_TEST_TO` em vez de passar o endereço como argumento e `API_BASE_URL` para testar outra instância da API. Ao final, confirme manualmente que as duas mensagens chegaram à caixa de entrada ou ao spam; a aceitação pelo servidor SMTP não garante, sozinha, a entrega final pelo provedor do destinatário.
 
 ### Push notifications (Firebase / FCM)
 
@@ -98,6 +187,16 @@ A API deve responder em:
 ```text
 http://localhost:3000/api/status
 ```
+
+### Documentação da API
+
+Com o backend em execução no ambiente de desenvolvimento, a especificação OpenAPI e o Swagger UI ficam disponíveis em:
+
+```text
+http://localhost:3000/api/docs
+```
+
+A documentação é desativada por padrão quando `NODE_ENV=production`. Use `ENABLE_API_DOCS=false` para ocultá-la explicitamente em outros ambientes ou `ENABLE_API_DOCS=true` para habilitá-la de forma intencional.
 
 ### 2. Flutter
 
@@ -215,15 +314,91 @@ O workflow em `.github/workflows/ci.yml` roda automaticamente em PRs e pushes pa
 - `flutter analyze`
 - `flutter test`
 
+## Deploy
+
+O backend e um PostgreSQL gerenciado podem ser provisionados no Render pelo Blueprint [`render.yaml`](render.yaml). O Flutter não é hospedado por esse arquivo.
+
+### Deploy pelo Blueprint
+
+1. Envie o repositório para o GitHub e crie uma conta no [Render](https://render.com/).
+2. No Dashboard do Render, escolha **New > Blueprint**, conecte este repositório e selecione o arquivo `render.yaml` da raiz.
+3. Antes de confirmar, informe os valores solicitados pelo Blueprint:
+   - `FRONTEND_URL`: URL pública do Flutter Web ou URL usada nos links de recuperação de senha, sem barra final.
+   - `ALLOWED_ORIGINS`: origens Web autorizadas pelo CORS, com protocolo e separadas por vírgula, por exemplo `https://app.exemplo.com,https://admin.exemplo.com`.
+4. Confirme a criação de `conecta-amauc-db` e `conecta-amauc-api`. O `DATABASE_URL` é ligado automaticamente ao banco e o `JWT_SECRET` é gerado pelo Render; nenhum desses valores deve ser copiado para o repositório.
+5. O Render executa `npm run db:migrate` antes de cada deploy e `npm run db:seed` somente após o primeiro deploy. Para um ambiente de produção com dados reais, remova `initialDeployHook: npm run db:seed` do `render.yaml` antes de criar o Blueprint.
+6. Quando o serviço ficar disponível, copie sua URL pública e valide:
+
+   ```bash
+   curl https://SEU-SERVICO.onrender.com/api/status
+   ```
+
+   A resposta esperada tem status HTTP `200` e contém a mensagem de que a API está rodando.
+
+O Blueprint deixa o auto-deploy do Render desativado. Para publicar somente depois do CI, abra **Settings > Deploy Hook** no serviço, copie a URL e crie no GitHub o secret de Actions `RENDER_DEPLOY_HOOK_URL`. Em pushes para `main`, o job `Deploy Render` será executado depois dos testes. Sem esse secret, o job apenas informa que o deploy foi ignorado e o CI continua verde.
+
+### Configuração manual no Render
+
+Se o Blueprint não estiver disponível, faça o mesmo provisionamento pelo Dashboard:
+
+1. Crie um **Render Postgres** versão 16 e guarde a Internal Database URL.
+2. Crie um **Web Service** conectado a este repositório com estas opções:
+   - Root Directory: `ca_backend`
+   - Runtime: `Node`
+   - Build Command: `npm install`
+   - Pre-Deploy Command: `npm run db:migrate`
+   - Start Command: `npm start`
+   - Health Check Path: `/api/status`
+3. Cadastre as variáveis abaixo no ambiente do serviço, usando `ca_backend/.env.example` como referência:
+
+   | Variável | Valor no deploy |
+   | --- | --- |
+   | `NODE_ENV` | `production` |
+   | `DATABASE_URL` | Internal Database URL do PostgreSQL gerenciado |
+   | `JWT_SECRET` | Segredo aleatório forte, diferente do ambiente local |
+   | `FRONTEND_URL` | URL pública usada nos links enviados por e-mail |
+   | `ALLOWED_ORIGINS` | Origens Web permitidas, separadas por vírgula |
+   | `ENABLE_API_DOCS` | `false` |
+
+4. Configure Google, Apple, GitHub, SMTP e Firebase somente se esses recursos forem usados. Os nomes esperados estão em `ca_backend/.env.example`; credenciais devem existir apenas no painel do Render.
+5. Faça o primeiro deploy. A migration será executada pelo Pre-Deploy Command. Para uma demonstração com as contas fictícias, abra o Shell do serviço e execute uma única vez:
+
+   ```bash
+   npm run db:seed
+   ```
+
+   Em produção real, não execute o seed. Se o Pre-Deploy Command não estiver configurado, execute antes `npm run db:migrate` no mesmo Shell.
+6. Acesse `https://SEU-SERVICO.onrender.com/api/status` e confirme o status `200`.
+
+### Apontar o Flutter para a API pública
+
+O arquivo `ca_frontend/assets/env/app.env` permanece sem URL fixa para não quebrar `flutter run` local. Depois do deploy, passe a URL pública no build de release:
+
+```bash
+cd ca_frontend
+flutter build apk --release --dart-define=API_BASE_URL=https://SEU-SERVICO.onrender.com
+flutter build web --release --dart-define=API_BASE_URL=https://SEU-SERVICO.onrender.com
+```
+
+Para testar a mesma API pública sem gerar um build:
+
+```bash
+flutter run --dart-define=API_BASE_URL=https://SEU-SERVICO.onrender.com
+```
+
+Não coloque `JWT_SECRET`, `DATABASE_URL`, credenciais SMTP, Firebase ou OAuth em `app.env`: tudo que entra no aplicativo Flutter é público. No plano sem disco persistente, arquivos gravados em `ca_backend/uploads` podem desaparecer em reinicializações ou novos deploys; antes de uso em produção, configure armazenamento persistente ou um serviço de objetos.
+
 ## Documentos finais
 
 - `docs/HOMOLOGACAO.md`: teste em dispositivos físicos e amostragem com usuários reais.
+- `docs/LOGIN_SOCIAL.md`: configuração de produção e limitações atuais de Google, Apple e GitHub.
+- `docs/PUSH_NOTIFICATIONS.md`: eventos FCM, configuração e teste ponta a ponta em dispositivo físico.
 - `docs/REGRESSAO_FINAL.md`: checklist antes de cada apresentação.
 - `docs/ROTEIRO_APRESENTACAO.md`: ordem recomendada para demonstrar o sistema.
 
 ## Pendências que dependem de credenciais externas
 
-- Envio real de e-mail para magic link/reset via SMTP.
+- Credenciais SMTP reais e domínio remetente verificado para entrega de magic link/reset.
 - Login social real com configuração oficial Google/Apple/GitHub.
 - Push notification real com chave Firebase/FCM.
 - Chave Google Maps para uso nativo em dispositivos e mapa real no Web.

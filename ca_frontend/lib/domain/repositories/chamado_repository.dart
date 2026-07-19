@@ -14,10 +14,11 @@ abstract class ChamadoRepository {
 
   Future<List<Chamado>> listarMeusChamados({bool isPrestador = false});
 
+  Future<Chamado> buscarPorId(int chamadoId);
+
   Future<Chamado> atualizarStatus({
     required int chamadoId,
     required ChamadoStatus status,
-    double? preco,
   });
 
   Future<Chamado> uploadFotosConclusao({
@@ -39,4 +40,14 @@ abstract class ChamadoRepository {
   Future<Chamado> aceitarRemarcacao({required int chamadoId});
 
   Future<Chamado> recusarRemarcacao({required int chamadoId});
+
+  Future<Chamado> proporValor({
+    required int chamadoId,
+    required double preco,
+    String? motivo,
+  });
+
+  Future<Chamado> aceitarPropostaValor({required int chamadoId});
+
+  Future<Chamado> recusarPropostaValor({required int chamadoId});
 }

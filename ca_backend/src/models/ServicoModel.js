@@ -40,6 +40,22 @@ const ServicoModel = {
         return resultado.rows[0];
     },
 
+    buscarDetalhadoPorId: async (id, usuarioId) => {
+        const query = `
+            SELECT
+                s.*,
+                cidadao.nome AS cidadao_nome,
+                profissional.nome AS profissional_nome
+            FROM servicos_solicitados s
+            JOIN usuarios cidadao ON cidadao.id = s.cidadao_id
+            JOIN usuarios profissional ON profissional.id = s.prof_id
+            WHERE s.id = $1
+              AND (s.cidadao_id = $2 OR s.prof_id = $2);
+        `;
+        const resultado = await pool.query(query, [id, usuarioId]);
+        return resultado.rows[0];
+    },
+
     buscarPorProfissional: async (profId, status = null) => {
         let query = `
             SELECT s.*, u.nome AS cidadao_nome, u.email AS cidadao_email
@@ -98,6 +114,7 @@ const ServicoModel = {
                 s.descricao,
                 s.status,
                 s.preco,
+                s.preco_proposto,
                 s.agendado_para,
                 s.duracao_minutos,
                 s.endereco_atendimento,
@@ -122,13 +139,13 @@ const ServicoModel = {
             `
             SELECT
                 COUNT(*)::int AS total_orcamentos,
-                COUNT(*) FILTER (WHERE status = 'pendente')::int AS pendentes,
+                COUNT(*) FILTER (WHERE status IN ('pendente', 'proposta_valor'))::int AS pendentes,
                 COUNT(*) FILTER (WHERE status IN ('aceito', 'remarcacao_solicitada'))::int AS em_aberto,
                 COUNT(*) FILTER (WHERE status = 'concluido')::int AS concluidos,
                 COUNT(*) FILTER (WHERE status = 'recusado')::int AS recusados,
                 COUNT(*) FILTER (WHERE status = 'cancelado_cliente')::int AS cancelados,
                 COALESCE(SUM(preco) FILTER (WHERE status = 'concluido'), 0)::numeric AS total_concluido,
-                COALESCE(SUM(preco) FILTER (WHERE status IN ('pendente', 'aceito', 'remarcacao_solicitada')), 0)::numeric AS total_em_aberto,
+                COALESCE(SUM(COALESCE(preco_proposto, preco)) FILTER (WHERE status IN ('pendente', 'proposta_valor', 'aceito', 'remarcacao_solicitada')), 0)::numeric AS total_em_aberto,
                 COALESCE(SUM(preco) FILTER (WHERE status = 'cancelado_cliente'), 0)::numeric AS total_cancelado,
                 COALESCE(SUM(preco) FILTER (WHERE status = 'recusado'), 0)::numeric AS total_recusado,
                 COALESCE(SUM(preco), 0)::numeric AS volume_total
@@ -163,7 +180,7 @@ const ServicoModel = {
         };
     },
 
-    atualizarStatus: async (id, profId, status, preco) => {
+    atualizarStatus: async (id, profId, status) => {
         const statusPermitidos = [
             'pendente',
             'aceito',
@@ -179,12 +196,62 @@ const ServicoModel = {
         const query = `
             UPDATE servicos_solicitados
             SET status = COALESCE($1, status),
-                preco = COALESCE($2, preco),
                 atualizado_em = CURRENT_TIMESTAMP
-            WHERE id = $3 AND prof_id = $4
+            WHERE id = $2 AND prof_id = $3
+              AND NOT (status = 'proposta_valor' AND $1 = 'aceito')
             RETURNING *;
         `;
-        const resultado = await pool.query(query, [status, preco, id, profId]);
+        const resultado = await pool.query(query, [status, id, profId]);
+        return resultado.rows[0];
+    },
+
+    proporValor: async (id, profId, precoProposto, motivo = null) => {
+        const query = `
+            UPDATE servicos_solicitados
+            SET status = 'proposta_valor',
+                preco_proposto = $3,
+                motivo_proposta_valor = COALESCE($4, motivo_proposta_valor),
+                atualizado_em = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND prof_id = $2
+              AND status IN ('pendente', 'proposta_valor')
+            RETURNING *;
+        `;
+        const resultado = await pool.query(query, [id, profId, precoProposto, motivo]);
+        return resultado.rows[0];
+    },
+
+    aceitarPropostaValor: async (id, cidadaoId) => {
+        const query = `
+            UPDATE servicos_solicitados
+            SET status = 'pendente',
+                preco = preco_proposto,
+                preco_proposto = NULL,
+                motivo_proposta_valor = NULL,
+                atualizado_em = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND cidadao_id = $2
+              AND status = 'proposta_valor'
+              AND preco_proposto IS NOT NULL
+            RETURNING *;
+        `;
+        const resultado = await pool.query(query, [id, cidadaoId]);
+        return resultado.rows[0];
+    },
+
+    recusarPropostaValor: async (id, cidadaoId) => {
+        const query = `
+            UPDATE servicos_solicitados
+            SET status = 'pendente',
+                preco_proposto = NULL,
+                motivo_proposta_valor = NULL,
+                atualizado_em = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND cidadao_id = $2
+              AND status = 'proposta_valor'
+            RETURNING *;
+        `;
+        const resultado = await pool.query(query, [id, cidadaoId]);
         return resultado.rows[0];
     },
 
@@ -221,7 +288,7 @@ const ServicoModel = {
                 atualizado_em = CURRENT_TIMESTAMP
             WHERE id = $1
               AND cidadao_id = $2
-              AND status IN ('pendente', 'aceito', 'remarcacao_solicitada')
+              AND status IN ('pendente', 'proposta_valor', 'aceito', 'remarcacao_solicitada')
             RETURNING *;
         `;
 

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/notificacao.dart';
+import '../../navigation/notification_navigation.dart';
 import '../../providers/providers.dart';
 
 class NotificacoesScreen extends ConsumerStatefulWidget {
@@ -27,10 +29,10 @@ class _NotificacoesScreenState extends ConsumerState<NotificacoesScreen> {
     final state = ref.watch(notificacoesProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appBackground,
       appBar: AppBar(
         title: const Text('Avisos'),
-        backgroundColor: AppColors.background,
+        backgroundColor: context.appBackground,
         actions: [
           IconButton(
             tooltip: 'Atualizar',
@@ -95,10 +97,18 @@ class _NotificacoesScreenState extends ConsumerState<NotificacoesScreen> {
         final item = state.items[index];
         return _NotificationTile(
           item: item,
-          onTap: item.lida
-              ? null
-              : () =>
-                  ref.read(notificacoesProvider.notifier).marcarLida(item.id),
+          onTap: () async {
+            if (!item.lida) {
+              await ref.read(notificacoesProvider.notifier).marcarLida(item.id);
+            }
+            if (!context.mounted) return;
+            await NotificationNavigation.openFromPayload(
+              context,
+              ref,
+              item.payload,
+              tipo: item.tipo,
+            );
+          },
         );
       },
       separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -122,9 +132,8 @@ class _NotificationTile extends StatelessWidget {
     final unread = !item.lida;
 
     return Material(
-      color: unread
-          ? AppColors.primary.withValues(alpha: 0.12)
-          : AppColors.surface,
+      color:
+          unread ? AppColors.primary.withValues(alpha: 0.12) : context.appCard,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,
@@ -136,7 +145,7 @@ class _NotificationTile extends StatelessWidget {
             border: Border.all(
               color: unread
                   ? AppColors.primary.withValues(alpha: 0.35)
-                  : Colors.white.withValues(alpha: 0.06),
+                  : context.appBorder,
             ),
           ),
           child: Row(
@@ -188,7 +197,7 @@ class _NotificationTile extends StatelessWidget {
                     Text(
                       item.corpo,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textSecondaryDark,
+                            color: context.appTextSecondary,
                             height: 1.35,
                           ),
                     ),
@@ -254,9 +263,9 @@ class _StatePanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.appCard,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: context.appBorder),
       ),
       child: Column(
         children: [
@@ -274,7 +283,7 @@ class _StatePanel extends StatelessWidget {
             subtitle,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondaryDark,
+                  color: context.appTextSecondary,
                   height: 1.35,
                 ),
           ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/amauc_constants.dart';
+import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/prestador.dart';
 import '../../providers/providers.dart';
@@ -48,10 +49,11 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
                   children: [
                     Text(
                       'Ola, ${_firstName(user?.nome)}',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            color: AppColors.textPrimaryDark,
-                            fontWeight: FontWeight.w900,
-                          ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                color: context.appTextPrimary,
+                                fontWeight: FontWeight.w900,
+                              ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -150,9 +152,9 @@ class _HeroPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.darkCard,
+        color: context.appCard,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.darkBorder),
+        border: Border.all(color: context.appBorder),
       ),
       child: Row(
         children: [
@@ -163,7 +165,7 @@ class _HeroPanel extends StatelessWidget {
                 Text(
                   'Servicos locais, sem complicacao',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppColors.textPrimaryDark,
+                        color: context.appTextPrimary,
                         fontWeight: FontWeight.w900,
                       ),
                 ),
@@ -182,15 +184,15 @@ class _HeroPanel extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 '$totalFavoritos',
-                style: const TextStyle(
-                  color: AppColors.textPrimaryDark,
+                style: TextStyle(
+                  color: context.appTextPrimary,
                   fontWeight: FontWeight.w900,
                   fontSize: 22,
                 ),
               ),
-              const Text(
+              Text(
                 'favoritos',
-                style: TextStyle(color: AppColors.muted, fontSize: 11),
+                style: TextStyle(color: context.appMuted, fontSize: 11),
               ),
             ],
           ),
@@ -214,7 +216,7 @@ class _SectionHeader extends StatelessWidget {
           child: Text(
             title,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.textPrimaryDark,
+                  color: context.appTextPrimary,
                   fontWeight: FontWeight.w900,
                 ),
           ),
@@ -253,9 +255,9 @@ class _CategoryTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: AppColors.darkCard,
+          color: context.appCard,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.darkBorder),
+          border: Border.all(color: context.appBorder),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -266,8 +268,8 @@ class _CategoryTile extends StatelessWidget {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.textPrimaryDark,
+              style: TextStyle(
+                color: context.appTextPrimary,
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
               ),
@@ -294,9 +296,9 @@ class _NearbyCard extends StatelessWidget {
         width: 172,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppColors.darkCard,
+          color: context.appCard,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.darkBorder),
+          border: Border.all(color: context.appBorder),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -313,8 +315,8 @@ class _NearbyCard extends StatelessWidget {
                 const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
                 Text(
                   prestador.mediaAvaliacao.toStringAsFixed(1),
-                  style: const TextStyle(
-                    color: AppColors.textPrimaryDark,
+                  style: TextStyle(
+                    color: context.appTextPrimary,
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
@@ -375,9 +377,9 @@ class _EmptyPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.darkCard,
+        color: context.appCard,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.darkBorder),
+        border: Border.all(color: context.appBorder),
       ),
       child: const Text('Nenhum profissional encontrado no momento.'),
     );
@@ -401,18 +403,18 @@ class _PromoPanel extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
         ),
-        child: const Row(
+        child: Row(
           children: [
             Expanded(
               child: Text(
                 'Dica: salve profissionais favoritos para agendar mais rapido.',
                 style: TextStyle(
-                  color: AppColors.textPrimaryDark,
+                  color: context.appTextPrimary,
                   fontWeight: FontWeight.w900,
                 ),
               ),
             ),
-            Icon(Icons.bookmark_add_outlined, color: AppColors.textPrimaryDark),
+            Icon(Icons.bookmark_add_outlined, color: context.appTextPrimary),
           ],
         ),
       ),

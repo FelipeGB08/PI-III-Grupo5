@@ -86,6 +86,31 @@ function notificarStatusCliente(solicitacao) {
 }
 
 const SolicitacaoController = {
+    buscarPorId: async (req, res) => {
+        try {
+            const id = Number(req.params.id);
+            const usuarioId = obterIdUsuarioLogado(req);
+
+            if (!usuarioId) {
+                return res.status(401).json({ erro: 'Usuario nao autenticado.' });
+            }
+
+            if (!id) {
+                return res.status(400).json({ erro: 'ID da solicitacao invalido.' });
+            }
+
+            const solicitacao = await ServicoModel.buscarDetalhadoPorId(id, usuarioId);
+            if (!solicitacao) {
+                return res.status(404).json({ erro: 'Solicitacao nao encontrada.' });
+            }
+
+            return res.status(200).json({ solicitacao, servico: solicitacao });
+        } catch (erro) {
+            console.error('Erro ao buscar solicitacao:', erro);
+            return res.status(500).json({ erro: 'Erro interno ao buscar solicitacao.' });
+        }
+    },
+
     criarSolicitacao: async (req, res) => {
         try {
             const cidadaoId = obterIdUsuarioLogado(req);
@@ -110,14 +135,6 @@ const SolicitacaoController = {
 
             if (!cidadaoId) {
                 return res.status(401).json({ erro: 'Usuario nao autenticado.' });
-            }
-
-            if (!profId) {
-                return res.status(400).json({ erro: 'Informe o profissional da solicitacao.' });
-            }
-
-            if (!descricao) {
-                return res.status(400).json({ erro: 'Informe a descricao da solicitacao.' });
             }
 
             if (cidadaoId === profId) {
@@ -236,9 +253,6 @@ const SolicitacaoController = {
             const id = Number(req.params.id);
             const profId = obterIdUsuarioLogado(req);
             const status = req.body.status;
-            const preco = req.body.preco !== undefined && req.body.preco !== ''
-                ? Number(req.body.preco)
-                : null;
 
             if (!profId) {
                 return res.status(401).json({ erro: 'Usuario nao autenticado.' });
@@ -252,11 +266,16 @@ const SolicitacaoController = {
                 return res.status(400).json({ erro: 'Informe o novo status da solicitacao.' });
             }
 
+            if (req.body.preco !== undefined || req.body.preco_proposto !== undefined) {
+                return res.status(400).json({
+                    erro: 'Use o fluxo de proposta de valor para alterar o preco.',
+                });
+            }
+
             const solicitacaoAtualizada = await ServicoModel.atualizarStatus(
                 id,
                 profId,
-                status,
-                preco
+                status
             );
 
             if (!solicitacaoAtualizada) {
@@ -277,6 +296,129 @@ const SolicitacaoController = {
             return res.status(500).json({
                 erro: 'Erro interno ao atualizar status da solicitacao.',
             });
+        }
+    },
+
+    proporValor: async (req, res) => {
+        try {
+            const id = Number(req.params.id);
+            const profId = obterIdUsuarioLogado(req);
+            const preco = Number(req.body.preco || req.body.preco_proposto);
+            const motivo = req.body.motivo || req.body.motivo_proposta_valor || null;
+
+            if (!profId) {
+                return res.status(401).json({ erro: 'Usuario nao autenticado.' });
+            }
+
+            if (!id) {
+                return res.status(400).json({ erro: 'ID da solicitacao invalido.' });
+            }
+
+            if (!Number.isFinite(preco) || preco <= 0) {
+                return res.status(400).json({ erro: 'Informe um valor valido para a proposta.' });
+            }
+
+            const solicitacao = await ServicoModel.proporValor(id, profId, preco, motivo);
+            if (!solicitacao) {
+                return res.status(404).json({
+                    erro: 'Solicitacao nao encontrada ou nao permite proposta de valor.',
+                });
+            }
+
+            notificarUsuarioSemBloquear({
+                usuarioId: solicitacao.cidadao_id,
+                tipo: 'proposta_valor',
+                titulo: 'Nova proposta de valor',
+                corpo: `O prestador sugeriu R$ ${Number(preco).toFixed(2)} para o atendimento.`,
+                payload: {
+                    solicitacao_id: solicitacao.id,
+                    status: solicitacao.status,
+                    destino: 'agendamento',
+                },
+            });
+
+            return res.status(200).json({
+                mensagem: 'Proposta de valor enviada ao cliente.',
+                solicitacao,
+                servico: solicitacao,
+            });
+        } catch (erro) {
+            console.error('Erro ao propor valor:', erro);
+            return res.status(500).json({ erro: 'Erro interno ao propor valor.' });
+        }
+    },
+
+    aceitarPropostaValor: async (req, res) => {
+        try {
+            const id = Number(req.params.id);
+            const cidadaoId = req.usuarioLogado.id;
+
+            if (!id) {
+                return res.status(400).json({ erro: 'ID da solicitacao invalido.' });
+            }
+
+            const solicitacao = await ServicoModel.aceitarPropostaValor(id, cidadaoId);
+            if (!solicitacao) {
+                return res.status(404).json({ erro: 'Proposta de valor nao encontrada.' });
+            }
+
+            notificarUsuarioSemBloquear({
+                usuarioId: solicitacao.prof_id,
+                tipo: 'proposta_valor_aceita',
+                titulo: 'Proposta aceita',
+                corpo: 'O cliente aceitou o novo valor. Voce ja pode confirmar o chamado.',
+                payload: {
+                    solicitacao_id: solicitacao.id,
+                    status: solicitacao.status,
+                    destino: 'agendamento',
+                },
+            });
+
+            return res.status(200).json({
+                mensagem: 'Proposta de valor aceita.',
+                solicitacao,
+                servico: solicitacao,
+            });
+        } catch (erro) {
+            console.error('Erro ao aceitar proposta de valor:', erro);
+            return res.status(500).json({ erro: 'Erro interno ao aceitar proposta de valor.' });
+        }
+    },
+
+    recusarPropostaValor: async (req, res) => {
+        try {
+            const id = Number(req.params.id);
+            const cidadaoId = req.usuarioLogado.id;
+
+            if (!id) {
+                return res.status(400).json({ erro: 'ID da solicitacao invalido.' });
+            }
+
+            const solicitacao = await ServicoModel.recusarPropostaValor(id, cidadaoId);
+            if (!solicitacao) {
+                return res.status(404).json({ erro: 'Proposta de valor nao encontrada.' });
+            }
+
+            notificarUsuarioSemBloquear({
+                usuarioId: solicitacao.prof_id,
+                tipo: 'proposta_valor_recusada',
+                titulo: 'Proposta recusada',
+                corpo: 'O cliente recusou o novo valor. O orcamento anterior foi mantido.',
+                payload: {
+                    solicitacao_id: solicitacao.id,
+                    status: solicitacao.status,
+                    destino: 'agendamento',
+                },
+            });
+
+            return res.status(200).json({
+                mensagem: 'Proposta de valor recusada.',
+                solicitacao,
+                servico: solicitacao,
+            });
+        } catch (erro) {
+            console.error('Erro ao recusar proposta de valor:', erro);
+            return res.status(500).json({ erro: 'Erro interno ao recusar proposta de valor.' });
         }
     },
 

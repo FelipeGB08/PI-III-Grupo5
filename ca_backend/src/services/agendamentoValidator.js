@@ -85,7 +85,7 @@ async function validarAgendamento({
         SELECT id
         FROM servicos_solicitados
         WHERE prof_id = $1
-          AND status IN ('pendente', 'aceito', 'remarcacao_solicitada')
+          AND status IN ('pendente', 'proposta_valor', 'aceito', 'remarcacao_solicitada')
           AND (
             agendado_para = $2::timestamp
             OR remarcacao_solicitada_para = $2::timestamp

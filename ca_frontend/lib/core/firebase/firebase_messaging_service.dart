@@ -158,6 +158,9 @@ class FirebaseMessagingService {
   /// Tipos de evento esperados do backend via FCM data payload:
   /// - `novo_chamado` → notifica prestador
   /// - `chamado_aceito` → notifica cliente
+  /// Outros tipos principais: `remarcacao_solicitada`,
+  /// `remarcacao_aceita`, `remarcacao_recusada`, `chamado_concluido` e
+  /// `avaliacao_recebida`.
   static String eventType(Map<String, dynamic> data) =>
       data['tipo']?.toString() ?? '';
 }

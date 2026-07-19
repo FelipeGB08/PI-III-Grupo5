@@ -1,5 +1,6 @@
 enum ChamadoStatus {
   pendente,
+  propostaValor,
   emAndamento,
   remarcacaoSolicitada,
   concluido,
@@ -10,6 +11,7 @@ enum ChamadoStatus {
 extension ChamadoStatusX on ChamadoStatus {
   String get apiValue => switch (this) {
         ChamadoStatus.pendente => 'pendente',
+        ChamadoStatus.propostaValor => 'proposta_valor',
         ChamadoStatus.emAndamento => 'aceito',
         ChamadoStatus.remarcacaoSolicitada => 'remarcacao_solicitada',
         ChamadoStatus.concluido => 'concluido',
@@ -19,6 +21,8 @@ extension ChamadoStatusX on ChamadoStatus {
 
   static ChamadoStatus fromApi(String? value) {
     switch (value?.toLowerCase()) {
+      case 'proposta_valor':
+        return ChamadoStatus.propostaValor;
       case 'em_andamento':
       case 'em andamento':
       case 'aceito':
@@ -40,6 +44,7 @@ extension ChamadoStatusX on ChamadoStatus {
 
   String get label => switch (this) {
         ChamadoStatus.pendente => 'Pendente',
+        ChamadoStatus.propostaValor => 'Proposta',
         ChamadoStatus.emAndamento => 'Confirmado',
         ChamadoStatus.remarcacaoSolicitada => 'Remarcacao',
         ChamadoStatus.concluido => 'Concluido',
@@ -58,6 +63,7 @@ class Chamado {
     this.cidadaoId,
     this.cidadaoNome,
     this.preco,
+    this.precoProposto,
     this.dataSolicitacao,
     this.servicoNome,
     this.enderecoAtendimento,
@@ -81,6 +87,7 @@ class Chamado {
   final int? cidadaoId;
   final String? cidadaoNome;
   final double? preco;
+  final double? precoProposto;
   final String? dataSolicitacao;
   final String? servicoNome;
   final String? enderecoAtendimento;
@@ -98,6 +105,7 @@ class Chamado {
   Chamado copyWith({
     ChamadoStatus? status,
     double? preco,
+    double? precoProposto,
     List<String>? fotosConclusao,
   }) {
     return Chamado(
@@ -109,6 +117,7 @@ class Chamado {
       cidadaoId: cidadaoId,
       cidadaoNome: cidadaoNome,
       preco: preco ?? this.preco,
+      precoProposto: precoProposto ?? this.precoProposto,
       dataSolicitacao: dataSolicitacao,
       servicoNome: servicoNome,
       enderecoAtendimento: enderecoAtendimento,

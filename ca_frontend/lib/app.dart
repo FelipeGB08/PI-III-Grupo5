@@ -5,7 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/firebase/firebase_messaging_service.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/providers/providers.dart';
+import 'presentation/navigation/notification_navigation.dart';
 import 'presentation/screens/home/home_shell.dart';
+
+final appNavigatorKey = GlobalKey<NavigatorState>();
 
 class ConectaAmaucApp extends ConsumerStatefulWidget {
   const ConectaAmaucApp({super.key});
@@ -29,6 +32,14 @@ class _ConectaAmaucAppState extends ConsumerState<ConectaAmaucApp> {
     FirebaseMessagingService.instance.onNotificationTap = (data) {
       final tipo = FirebaseMessagingService.eventType(data);
       debugPrint('[FCM] Notificacao tocada: $tipo');
+      final context = appNavigatorKey.currentContext;
+      if (context == null) return;
+      NotificationNavigation.openFromPayload(
+        context,
+        ref,
+        data,
+        tipo: tipo,
+      );
     };
 
     FirebaseMessagingService.instance.onTokenRefresh = (token) {
@@ -45,7 +56,8 @@ class _ConectaAmaucAppState extends ConsumerState<ConectaAmaucApp> {
     final user = ref.read(authStateProvider).user;
     if (user == null) return;
 
-    if (_ultimoUsuarioRegistrado == user.id && _ultimoTokenRegistrado == token) {
+    if (_ultimoUsuarioRegistrado == user.id &&
+        _ultimoTokenRegistrado == token) {
       return;
     }
 
@@ -83,12 +95,15 @@ class _ConectaAmaucAppState extends ConsumerState<ConectaAmaucApp> {
       });
     }
 
+    final themeMode = ref.watch(appThemeModeProvider);
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      navigatorKey: appNavigatorKey,
       title: 'Conecta AMAUC',
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.dark,
+      themeMode: themeMode,
       home: const HomeShell(),
     );
   }

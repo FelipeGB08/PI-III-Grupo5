@@ -55,16 +55,14 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
 
   Future<void> atualizarStatus(
     int chamadoId,
-    ChamadoStatus status, {
-    double? preco,
-  }) async {
+    ChamadoStatus status,
+  ) async {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
       await _apiService.atualizarStatusChamado(
         chamadoId: chamadoId,
         status: status,
-        preco: preco,
       );
 
       await carregarChamados();

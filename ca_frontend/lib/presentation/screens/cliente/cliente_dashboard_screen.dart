@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../../core/config/amauc_constants.dart';
+import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/prestador.dart';
 import '../../providers/providers.dart';
@@ -177,9 +178,9 @@ class _ExploreHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.darkCard,
+        color: context.appCard,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.darkBorder),
+        border: Border.all(color: context.appBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,7 +207,7 @@ class _ExploreHeader extends StatelessWidget {
                     Text(
                       'Explorar servicos',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: AppColors.textPrimaryDark,
+                            color: context.appTextPrimary,
                             fontWeight: FontWeight.w900,
                           ),
                     ),
@@ -215,7 +216,7 @@ class _ExploreHeader extends StatelessWidget {
                       'Profissionais locais em $cidade',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.muted),
+                      style: TextStyle(color: context.appMuted),
                     ),
                   ],
                 ),
@@ -272,7 +273,7 @@ class _StatBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.darkSurface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withValues(alpha: 0.22)),
       ),
@@ -296,7 +297,7 @@ class _StatBadge extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: AppColors.muted, fontSize: 11),
+                  style: TextStyle(color: context.appMuted, fontSize: 11),
                 ),
               ],
             ),
@@ -316,15 +317,15 @@ class _CitySelector extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return DropdownButtonFormField<String>(
       initialValue: state.cidadeSelecionada,
-      dropdownColor: AppColors.darkCard,
+      dropdownColor: context.appCard,
       decoration: InputDecoration(
         labelText: 'Cidade AMAUC',
         prefixIcon: const Icon(Icons.location_on_outlined),
         filled: true,
-        fillColor: AppColors.darkSurface,
+        fillColor: context.appSurface,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: AppColors.darkBorder),
+          borderSide: BorderSide(color: context.appBorder),
         ),
       ),
       items: AmaucConstants.cidades
@@ -440,10 +441,10 @@ class _CategoryChip extends StatelessWidget {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
         decoration: BoxDecoration(
-          color: selected ? color.withValues(alpha: 0.18) : AppColors.darkCard,
+          color: selected ? color.withValues(alpha: 0.18) : context.appCard,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: selected ? color : AppColors.darkBorder,
+            color: selected ? color : context.appBorder,
           ),
         ),
         child: Row(
@@ -454,7 +455,7 @@ class _CategoryChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                color: selected ? AppColors.textPrimaryDark : AppColors.muted,
+                color: selected ? context.appTextPrimary : context.appMuted,
                 fontWeight: FontWeight.w900,
                 fontSize: 12,
               ),
@@ -522,15 +523,15 @@ class _EmptyExplore extends StatelessWidget {
               'Nenhum prestador encontrado',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppColors.textPrimaryDark,
+                    color: context.appTextPrimary,
                     fontWeight: FontWeight.w900,
                   ),
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'Tente mudar a cidade, limpar filtros ou buscar outro servico.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.muted),
+              style: TextStyle(color: context.appMuted),
             ),
           ],
         ),

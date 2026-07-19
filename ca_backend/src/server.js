@@ -2,8 +2,12 @@ require('dotenv').config();
 const http = require('http');
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 const { Server } = require('socket.io');
+const { avisarCredenciaisSociaisAusentes } = require('./config/socialAuthConfig');
+
+avisarCredenciaisSociaisAusentes();
 require('./config/db');
 
 const authRoutes = require('./routes/authRoutes');
@@ -23,19 +27,42 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const favoritoRoutes = require('./routes/favoritoRoutes');
 const { initChatSocket } = require('./services/chatSocketService');
 
+const configuredOrigins = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+const corsOrigin = configuredOrigins.length > 0
+    ? configuredOrigins
+    : (process.env.NODE_ENV === 'production' ? [] : '*');
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: '*',
+        origin: corsOrigin,
         methods: ['GET', 'POST'],
     },
 });
 
 initChatSocket(io);
 
+const apiDocsEnabled = process.env.ENABLE_API_DOCS === 'true' || (
+    process.env.ENABLE_API_DOCS !== 'false' &&
+    process.env.NODE_ENV !== 'production'
+);
+
+if (apiDocsEnabled) {
+    const swaggerUi = require('swagger-ui-express');
+    const swaggerSpec = require('./config/swagger');
+    app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+        customSiteTitle: 'Conecta AMAUC API',
+    }));
+}
+
+app.use(helmet());
+
 app.use(cors({
-    origin: '*',
+    origin: corsOrigin,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Limit', 'X-Total-Pages'],
@@ -44,7 +71,11 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-app.use('/uploads', express.static(path.resolve(__dirname, '..', '..', 'uploads')));
+app.use(
+    '/uploads',
+    helmet.crossOriginResourcePolicy({ policy: 'cross-origin' }),
+    express.static(path.resolve(__dirname, '..', 'uploads')),
+);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/usuarios', userRoutes);
@@ -62,6 +93,22 @@ app.use('/api/dispositivos', dispositivoRoutes);
 app.use('/api/notificacoes', notificationRoutes);
 app.use('/api/favoritos', favoritoRoutes);
 
+/**
+ * @swagger
+ * /api/status:
+ *   get:
+ *     tags: [Status]
+ *     summary: Verifica se a API está disponível
+ *     responses:
+ *       '200':
+ *         description: API em execução.
+ *         content:
+ *           application/json:
+ *             example:
+ *               mensagem: API do Conecta Amauc rodando !
+ *       '500':
+ *         $ref: '#/components/responses/InternalError'
+ */
 app.get('/api/status', (req, res) => {
     res.json({ mensagem: 'API do Conecta Amauc rodando !' });
 });

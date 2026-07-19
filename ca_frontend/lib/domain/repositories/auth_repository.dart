@@ -1,10 +1,15 @@
 import '../entities/user.dart';
 
 class AuthResult {
-  const AuthResult({required this.token, required this.user});
+  const AuthResult({
+    required this.token,
+    required this.user,
+    this.refreshToken,
+  });
 
   final String token;
   final User user;
+  final String? refreshToken;
 }
 
 class RegisterParams {

@@ -10,6 +10,7 @@ class ChamadoModel extends Chamado {
     super.cidadaoId,
     super.cidadaoNome,
     super.preco,
+    super.precoProposto,
     super.dataSolicitacao,
     super.servicoNome,
     super.enderecoAtendimento,
@@ -35,6 +36,7 @@ class ChamadoModel extends Chamado {
       cidadaoId: _parseIntNullable(json['cidadao_id']),
       cidadaoNome: json['cidadao_nome']?.toString(),
       preco: _parseDoubleNullable(json['preco']),
+      precoProposto: _parseDoubleNullable(json['preco_proposto']),
       dataSolicitacao:
           json['data_solicitacao']?.toString() ?? json['criado_em']?.toString(),
       servicoNome: json['servico_nome']?.toString(),
@@ -76,9 +78,8 @@ class ChamadoModel extends Chamado {
         if (fotoUrl != null && fotoUrl.isNotEmpty) 'foto_url': fotoUrl,
       };
 
-  Map<String, dynamic> toStatusJson(ChamadoStatus status, {double? preco}) => {
+  Map<String, dynamic> toStatusJson(ChamadoStatus status) => {
         'status': status.apiValue,
-        if (preco != null) 'preco': preco,
       };
 
   static int _parseInt(dynamic v) =>

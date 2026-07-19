@@ -9,6 +9,9 @@ import 'auth_interceptor.dart';
 class DioClient {
   DioClient({
     required TokenProvider tokenProvider,
+    required TokenProvider refreshTokenProvider,
+    required TokenSaver tokenSaver,
+    required SessionClearer sessionClearer,
     OnUnauthorized? onUnauthorized,
     Dio? dio,
   }) : _dio = dio ??
@@ -29,7 +32,11 @@ class DioClient {
 
     _dio.interceptors.addAll([
       AuthInterceptor(
+        dio: _dio,
         tokenProvider: tokenProvider,
+        refreshTokenProvider: refreshTokenProvider,
+        tokenSaver: tokenSaver,
+        sessionClearer: sessionClearer,
         onUnauthorized: onUnauthorized,
       ),
       if (kDebugMode)

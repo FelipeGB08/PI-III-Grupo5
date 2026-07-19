@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/chamado.dart';
 import '../../../domain/entities/financeiro.dart';
@@ -31,10 +32,10 @@ class _FinanceiroScreenState extends ConsumerState<FinanceiroScreen> {
     final data = state.data;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appBackground,
       appBar: AppBar(
         title: const Text('Financeiro'),
-        backgroundColor: AppColors.background,
+        backgroundColor: context.appBackground,
         actions: [
           IconButton(
             tooltip: 'Atualizar',
@@ -252,9 +253,9 @@ class _MetricCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.appCard,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: context.appBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -298,7 +299,7 @@ class _CountCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       decoration: BoxDecoration(
-        color: AppColors.darkCard,
+        color: context.appCard,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -339,6 +340,7 @@ class _StatusFilter extends StatelessWidget {
     final options = <ChamadoStatus?>[
       null,
       ChamadoStatus.pendente,
+      ChamadoStatus.propostaValor,
       ChamadoStatus.emAndamento,
       ChamadoStatus.remarcacaoSolicitada,
       ChamadoStatus.concluido,
@@ -387,9 +389,9 @@ class _FinanceiroItemCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.appCard,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: context.appBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -415,7 +417,7 @@ class _FinanceiroItemCard extends StatelessWidget {
                 ? 'Cliente: ${item.contraparteNome}'
                 : 'Prestador: ${item.contraparteNome}',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondaryDark,
+                  color: context.appTextSecondary,
                 ),
           ),
           if (date != null) ...[
@@ -482,6 +484,7 @@ class _StatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = switch (status) {
       ChamadoStatus.pendente => AppColors.statusPendente,
+      ChamadoStatus.propostaValor => AppColors.primary,
       ChamadoStatus.emAndamento => AppColors.statusEmAndamento,
       ChamadoStatus.remarcacaoSolicitada => AppColors.statusPendente,
       ChamadoStatus.concluido => AppColors.statusConcluido,
@@ -524,9 +527,9 @@ class _StatePanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.appCard,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: context.appBorder),
       ),
       child: Column(
         children: [
@@ -544,7 +547,7 @@ class _StatePanel extends StatelessWidget {
             subtitle,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondaryDark,
+                  color: context.appTextSecondary,
                   height: 1.35,
                 ),
           ),

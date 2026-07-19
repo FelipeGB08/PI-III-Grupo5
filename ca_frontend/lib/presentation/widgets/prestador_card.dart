@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/config/amauc_constants.dart';
+import '../../core/theme/adaptive_colors.dart';
 import '../../core/theme/app_colors.dart';
 import '../../domain/entities/prestador.dart';
 import 'profile_avatar.dart';
@@ -35,7 +36,7 @@ class PrestadorCard extends StatelessWidget {
             border: Border.all(
               color: prestador.disponivel
                   ? AppColors.primary.withValues(alpha: 0.2)
-                  : AppColors.darkBorder,
+                  : context.appBorder,
             ),
           ),
           child: Row(

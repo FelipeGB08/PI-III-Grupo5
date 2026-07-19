@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/user.dart';
 import '../../providers/providers.dart';
@@ -122,9 +123,9 @@ class _MainNavigationState extends ConsumerState<_MainNavigation> {
       bottomNavigationBar: Container(
         margin: const EdgeInsets.fromLTRB(24, 0, 24, 20),
         decoration: BoxDecoration(
-          color: Theme.of(context).cardTheme.color,
+          color: context.appCard,
           borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          border: Border.all(color: context.appBorder),
           boxShadow: [
             BoxShadow(
               color: AppColors.primary.withValues(alpha: 0.1),

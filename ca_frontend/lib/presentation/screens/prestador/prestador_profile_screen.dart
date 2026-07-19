@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/api_config.dart';
+import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/prestador.dart';
 import '../../providers/providers.dart';
@@ -134,7 +135,7 @@ class PrestadorProfileScreen extends ConsumerWidget {
                   : 'Profissional ainda nao cadastrou biografia.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     height: 1.45,
-                    color: AppColors.textSecondaryDark,
+                    color: context.appTextSecondary,
                   ),
             ),
           ),
@@ -161,7 +162,7 @@ class PrestadorProfileScreen extends ConsumerWidget {
                 prestador.curriculoTexto!,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       height: 1.45,
-                      color: AppColors.textSecondaryDark,
+                      color: context.appTextSecondary,
                     ),
               ),
             ),
@@ -205,8 +206,8 @@ class PrestadorProfileScreen extends ConsumerWidget {
                   children: [
                     Text(
                       'Media: ${resumo.media.toStringAsFixed(1)} estrelas',
-                      style: const TextStyle(
-                        color: AppColors.textPrimaryDark,
+                      style: TextStyle(
+                        color: context.appTextPrimary,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -306,7 +307,7 @@ class _ImageGallery extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             child: Container(
               width: 128,
-              color: AppColors.darkSurface,
+              color: context.appSurface,
               child: Image.network(
                 ApiConfig.resolveAssetUrl(url),
                 fit: BoxFit.cover,
@@ -338,7 +339,7 @@ class _PrestadorHero extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.darkCard,
+        color: context.appCard,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
         boxShadow: [
@@ -377,7 +378,7 @@ class _PrestadorHero extends StatelessWidget {
                                 .textTheme
                                 .headlineSmall
                                 ?.copyWith(
-                                  color: AppColors.textPrimaryDark,
+                                  color: context.appTextPrimary,
                                   fontWeight: FontWeight.w900,
                                 ),
                           ),
@@ -394,7 +395,7 @@ class _PrestadorHero extends StatelessWidget {
                     Text(
                       categoria ?? 'Profissional AMAUC',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textSecondaryDark,
+                            color: context.appTextSecondary,
                             fontWeight: FontWeight.w700,
                           ),
                     ),
@@ -477,9 +478,9 @@ class _MetricTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.darkSurface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.darkBorder),
+        border: Border.all(color: context.appBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -526,9 +527,9 @@ class _SectionCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.darkCard,
+        color: context.appCard,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.darkBorder),
+        border: Border.all(color: context.appBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -541,7 +542,7 @@ class _SectionCard extends StatelessWidget {
                 child: Text(
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.textPrimaryDark,
+                        color: context.appTextPrimary,
                         fontWeight: FontWeight.w900,
                       ),
                 ),
@@ -584,8 +585,8 @@ class _FeatureChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: const TextStyle(
-              color: AppColors.textPrimaryDark,
+            style: TextStyle(
+              color: context.appTextPrimary,
               fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
