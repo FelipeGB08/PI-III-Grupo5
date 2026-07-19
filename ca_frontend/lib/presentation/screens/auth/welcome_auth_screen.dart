@@ -7,6 +7,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../../core/config/amauc_constants.dart';
 import '../../../core/config/app_env.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/validation/form_validators.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/repositories/auth_repository.dart';
@@ -391,6 +392,7 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
             child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
           ),
           onPressed: () => Navigator.of(context).pop(),
+          tooltip: 'Voltar',
         ),
         title: Row(
           mainAxisSize: MainAxisSize.min,
@@ -431,8 +433,8 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
                       ),
                       indicatorSize: TabBarIndicatorSize.tab,
                       dividerColor: Colors.transparent,
-                      labelColor: Colors.white,
-                      unselectedLabelColor: Colors.grey,
+                      labelColor: AppColors.actionForeground,
+                      unselectedLabelColor: Colors.white70,
                       labelStyle: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -535,6 +537,7 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
               const SizedBox(height: 8),
               AuthTextField(
                 controller: _loginSenha,
+                label: 'Senha',
                 hint: '••••••••',
                 icon: Icons.lock_outline,
                 obscureText: _obscureLoginSenha,
@@ -552,6 +555,7 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
               onPressed: loading ? null : _login,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF3B82F6),
+                foregroundColor: AppColors.actionForeground,
                 disabledBackgroundColor:
                     const Color(0xFF3B82F6).withValues(alpha: 0.5),
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -565,7 +569,7 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
                       width: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: AppColors.actionForeground,
                       ),
                     )
                   : Row(
@@ -578,14 +582,14 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: AppColors.actionForeground,
                           ),
                         ),
                         if (!_magicLinkMode) ...[
                           const SizedBox(width: 8),
                           const Icon(
                             Icons.arrow_forward,
-                            color: Colors.white,
+                            color: AppColors.actionForeground,
                             size: 20,
                           ),
                         ],
@@ -801,11 +805,14 @@ class _MagicLinkVerifySheetState extends State<_MagicLinkVerifySheet> {
             const SizedBox(height: 18),
             ElevatedButton.icon(
               onPressed: _submit,
-              icon: const Icon(Icons.login_rounded, color: Colors.white),
+              icon: const Icon(
+                Icons.login_rounded,
+                color: AppColors.actionForeground,
+              ),
               label: const Text(
                 'Entrar',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppColors.actionForeground,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -1006,14 +1013,17 @@ class _PasswordResetSheetState extends ConsumerState<_PasswordResetSheet> {
                       width: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: AppColors.actionForeground,
                       ),
                     )
-                  : const Icon(Icons.check_rounded, color: Colors.white),
+                  : const Icon(
+                      Icons.check_rounded,
+                      color: AppColors.actionForeground,
+                    ),
               label: const Text(
                 'Alterar senha',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppColors.actionForeground,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -1117,11 +1127,14 @@ class _SocialCitySheetState extends State<_SocialCitySheet> {
             const SizedBox(height: 18),
             ElevatedButton.icon(
               onPressed: _submit,
-              icon: const Icon(Icons.login_rounded, color: Colors.white),
+              icon: const Icon(
+                Icons.login_rounded,
+                color: AppColors.actionForeground,
+              ),
               label: Text(
                 'Entrar com ${widget.provider}',
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: AppColors.actionForeground,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -1243,7 +1256,7 @@ class _SocialLoginSheetState extends State<_SocialLoginSheet> {
                     ),
                   ),
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.actionForeground,
                     fontWeight: FontWeight.w700,
                   ),
                   items: AmaucConstants.cidades
@@ -1261,11 +1274,14 @@ class _SocialLoginSheetState extends State<_SocialLoginSheet> {
                 const SizedBox(height: 18),
                 ElevatedButton.icon(
                   onPressed: _submit,
-                  icon: const Icon(Icons.login_rounded, color: Colors.white),
+                  icon: const Icon(
+                    Icons.login_rounded,
+                    color: AppColors.actionForeground,
+                  ),
                   label: Text(
                     'Entrar com ${widget.provider}',
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: AppColors.actionForeground,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -1301,36 +1317,49 @@ class _LoginModeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label == 'Sem senha'
+          ? 'Entrar sem senha com magic link'
+          : 'Entrar com senha',
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? const Color(0xFF3B82F6) : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: selected ? Colors.white : Colors.white54,
+      child: GestureDetector(
+        onTap: onTap,
+        child: ExcludeSemantics(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: selected ? const Color(0xFF3B82F6) : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: selected ? Colors.white : Colors.white54,
-                  fontSize: 12,
-                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 16,
+                  color: selected ? AppColors.actionForeground : Colors.white70,
                 ),
-              ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected
+                          ? AppColors.actionForeground
+                          : Colors.white70,
+                      fontSize: 12,
+                      fontWeight:
+                          selected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

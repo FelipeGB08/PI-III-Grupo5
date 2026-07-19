@@ -78,6 +78,13 @@ class ApiService {
     );
   }
 
+  Future<void> excluirConta({required String confirmacao}) async {
+    await _dio.delete(
+      ApiConfig.perfilConta,
+      data: {'confirmacao': confirmacao},
+    );
+  }
+
   Future<Map<String, dynamic>> register(RegisterParams params) async {
     final categoriaPrincipal = params.categorias.isNotEmpty
         ? AmaucConstants.categoriaNomePorId(params.categorias.first)
@@ -505,29 +512,79 @@ class ApiService {
   }
 
   /// Lista chamados do Prestador. Opcionalmente filtra por status (pendente, aceito, etc).
-  Future<List<ChamadoModel>> listarChamadosPrestador({String? status}) async {
+  Future<PaginaChamados> listarChamadosPrestador({
+    String? status,
+    int page = 1,
+    int pageSize = 20,
+  }) async {
     final response = await _dio.get(
       ApiConfig.chamadosPrestador,
       queryParameters: {
         if (status != null) 'status': status,
+        'page': page,
+        'pageSize': pageSize,
       },
     );
-    return _asListResponse(response.data, const ['solicitacoes', 'pedidos'])
+    return _paginaChamados(
+      response.data,
+      const ['solicitacoes', 'pedidos'],
+      page,
+      pageSize,
+    );
+  }
+
+  PaginaChamados _paginaChamados(
+    dynamic responseData,
+    List<String> keys,
+    int fallbackPage,
+    int fallbackPageSize,
+  ) {
+    final items = _asListResponse(responseData, keys)
         .map((e) => ChamadoModel.fromJson(e as Map<String, dynamic>))
         .toList();
+    final data = responseData is Map<String, dynamic>
+        ? responseData
+        : const <String, dynamic>{};
+    final total = int.tryParse('${data['total']}') ?? items.length;
+    final currentPage = int.tryParse('${data['page']}') ?? fallbackPage;
+    final currentPageSize =
+        int.tryParse('${data['pageSize']}') ?? fallbackPageSize;
+    final totalPages = int.tryParse('${data['totalPages']}') ??
+        (total == 0 ? 0 : (total / currentPageSize).ceil());
+    final hasMore = data['hasMore'] is bool
+        ? data['hasMore'] as bool
+        : currentPage < totalPages;
+
+    return PaginaChamados(
+      items: items,
+      total: total,
+      page: currentPage,
+      pageSize: currentPageSize,
+      totalPages: totalPages,
+      hasMore: hasMore,
+    );
   }
 
   /// Lista chamados do Cliente. Opcionalmente filtra por status.
-  Future<List<ChamadoModel>> listarChamadosCliente({String? status}) async {
+  Future<PaginaChamados> listarChamadosCliente({
+    String? status,
+    int page = 1,
+    int pageSize = 20,
+  }) async {
     final response = await _dio.get(
       ApiConfig.chamadosCliente,
       queryParameters: {
         if (status != null) 'status': status,
+        'page': page,
+        'pageSize': pageSize,
       },
     );
-    return _asListResponse(response.data, const ['pedidos', 'solicitacoes'])
-        .map((e) => ChamadoModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _paginaChamados(
+      response.data,
+      const ['pedidos', 'solicitacoes'],
+      page,
+      pageSize,
+    );
   }
 
   /// Busca um chamado acessível pelo usuário autenticado.
@@ -737,8 +794,15 @@ class ApiService {
   }
 
   /// Busca resumo das avaliações de um prestador.
-  Future<AvaliacoesResumoModel> listarAvaliacoesProfissional(int id) async {
-    final response = await _dio.get(ApiConfig.avaliacoesProfissional(id));
+  Future<AvaliacoesResumoModel> listarAvaliacoesProfissional(
+    int id, {
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    final response = await _dio.get(
+      ApiConfig.avaliacoesProfissional(id),
+      queryParameters: {'page': page, 'pageSize': pageSize},
+    );
     return AvaliacoesResumoModel.fromJson(
         response.data as Map<String, dynamic>);
   }

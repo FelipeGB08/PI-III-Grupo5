@@ -25,78 +25,99 @@ class PrestadorCard extends StatelessWidget {
 
     return Material(
       color: Colors.transparent,
-      child: InkWell(
+      child: Semantics(
+        button: true,
+        label: _semanticLabel,
+        hint: 'Abrir perfil do profissional',
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: theme.cardTheme.color,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: prestador.disponivel
-                  ? AppColors.primary.withValues(alpha: 0.2)
-                  : context.appBorder,
-            ),
-          ),
-          child: Row(
-            children: [
-              _Avatar(prestador: prestador),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      prestador.nome,
-                      style: theme.textTheme.titleLarge?.copyWith(fontSize: 16),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      prestador.cidade,
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                    if (prestador.verificado) ...[
-                      const SizedBox(height: 8),
-                      const _VerifiedBadge(),
-                    ],
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: prestador.categorias
-                          .take(3)
-                          .map((c) => _CategoriaBadge(categoriaId: c))
-                          .toList(),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        const Icon(Icons.star_rounded,
-                            color: Colors.amber, size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          prestador.mediaAvaliacao.toStringAsFixed(1),
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        if (prestador.distanciaKm != null) ...[
-                          const SizedBox(width: 12),
-                          Icon(Icons.near_me, size: 14, color: theme.hintColor),
-                          const SizedBox(width: 2),
-                          Text(
-                            '${prestador.distanciaKm!.toStringAsFixed(1)} km',
-                            style: theme.textTheme.bodyMedium
-                                ?.copyWith(fontSize: 12),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
+        child: InkWell(
+          excludeFromSemantics: true,
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: ExcludeSemantics(
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: theme.cardTheme.color,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: prestador.disponivel
+                      ? context.appBrand.withValues(alpha: 0.2)
+                      : context.appBorder,
                 ),
               ),
-              Icon(Icons.arrow_forward_ios_rounded,
-                  size: 16, color: AppColors.primary),
-            ],
+              child: Row(
+                children: [
+                  _Avatar(prestador: prestador),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          prestador.nome,
+                          style: theme.textTheme.titleLarge
+                              ?.copyWith(fontSize: 16),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          prestador.cidade,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        if (prestador.verificado) ...[
+                          const SizedBox(height: 8),
+                          const _VerifiedBadge(),
+                        ],
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: prestador.categorias
+                              .take(3)
+                              .map((c) => _CategoriaBadge(categoriaId: c))
+                              .toList(),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.star_rounded,
+                              color: Colors.amber,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              prestador.mediaAvaliacao.toStringAsFixed(1),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            if (prestador.distanciaKm != null) ...[
+                              const SizedBox(width: 12),
+                              Icon(
+                                Icons.near_me,
+                                size: 14,
+                                color: theme.hintColor,
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                '${prestador.distanciaKm!.toStringAsFixed(1)} km',
+                                style: theme.textTheme.bodyMedium
+                                    ?.copyWith(fontSize: 12),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 16,
+                    color: context.appBrand,
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -104,6 +125,19 @@ class PrestadorCard extends StatelessWidget {
         .animate()
         .fadeIn(duration: 400.ms, delay: (index * 80).ms)
         .slideY(begin: 0.1, end: 0);
+  }
+
+  String get _semanticLabel {
+    final categorias = prestador.categorias.isEmpty
+        ? 'sem categoria informada'
+        : prestador.categorias.take(3).join(', ');
+    final distancia = prestador.distanciaKm == null
+        ? ''
+        : ', a ${prestador.distanciaKm!.toStringAsFixed(1)} quilometros';
+    final disponibilidade =
+        prestador.disponivel ? 'disponivel' : 'indisponivel';
+    return '${prestador.nome}, ${prestador.cidade}, $categorias, avaliacao '
+        '${prestador.mediaAvaliacao.toStringAsFixed(1)}$distancia, $disponibilidade';
   }
 }
 
@@ -165,7 +199,7 @@ class _CategoriaBadge extends StatelessWidget {
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w700,
-          color: cat.cor,
+          color: context.appTextPrimary,
         ),
       ),
     );
@@ -184,15 +218,15 @@ class _VerifiedBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppColors.accent.withValues(alpha: 0.45)),
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.verified_rounded, size: 13, color: AppColors.accent),
-          SizedBox(width: 5),
+          Icon(Icons.verified_rounded, size: 13, color: context.appAccent),
+          const SizedBox(width: 5),
           Text(
             'Profissional verificado',
             style: TextStyle(
-              color: AppColors.accent,
+              color: context.appAccent,
               fontSize: 10,
               fontWeight: FontWeight.w800,
             ),

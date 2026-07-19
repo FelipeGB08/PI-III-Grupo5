@@ -31,6 +31,7 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
   bool _notificacoes = true;
   bool _altoContraste = true;
   bool _capturandoLocalizacao = false;
+  bool _excluindoConta = false;
   XFile? _fotoLocal;
   Uint8List? _fotoPreviewBytes;
   String? _fotoUrlRemota;
@@ -269,6 +270,50 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
     }
   }
 
+  Future<void> _excluirConta() async {
+    final continuar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.warning_amber_rounded, color: Colors.red),
+        title: const Text('Excluir conta permanentemente?'),
+        content: const Text(
+          'Esta ação é irreversível. Seus dados pessoais, localização e fotos '
+          'serão removidos. O histórico de serviços será mantido apenas de forma '
+          'anonimizada para a outra parte.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+    if (continuar != true || !mounted) return;
+
+    final confirmacao = await showDialog<String>(
+      context: context,
+      builder: (_) => const _ConfirmacaoExclusaoDialog(),
+    );
+
+    if (confirmacao == null || !mounted) return;
+    setState(() => _excluindoConta = true);
+    final excluida =
+        await ref.read(authStateProvider.notifier).deleteAccount(confirmacao);
+    if (!mounted) return;
+
+    setState(() => _excluindoConta = false);
+    if (!excluida) {
+      _mostrarErro(ref.read(authStateProvider).error ??
+          'Não foi possível excluir a conta.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).user;
@@ -420,10 +465,12 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
                     ButtonSegment(
                       value: ThemeMode.light,
                       icon: Icon(Icons.light_mode_rounded, size: 18),
+                      tooltip: 'Usar tema claro',
                     ),
                     ButtonSegment(
                       value: ThemeMode.dark,
                       icon: Icon(Icons.dark_mode_rounded, size: 18),
+                      tooltip: 'Usar tema escuro',
                     ),
                   ],
                   selected: {
@@ -442,18 +489,29 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
                 icon: Icons.notifications_none_rounded,
                 title: 'Notificacoes Push',
                 subtitle: 'Avisos de agendamentos e respostas',
-                trailing: Switch(
-                  value: _notificacoes,
-                  onChanged: (value) => setState(() => _notificacoes = value),
+                trailing: Semantics(
+                  label: 'Notificacoes Push',
+                  value: _notificacoes ? 'Ativadas' : 'Desativadas',
+                  toggled: _notificacoes,
+                  child: Switch(
+                    value: _notificacoes,
+                    onChanged: (value) => setState(() => _notificacoes = value),
+                  ),
                 ),
               ),
               _SettingsTile(
                 icon: Icons.contrast_rounded,
                 title: 'Alto contraste',
                 subtitle: 'Melhora a leitura em ambientes externos',
-                trailing: Switch(
-                  value: _altoContraste,
-                  onChanged: (value) => setState(() => _altoContraste = value),
+                trailing: Semantics(
+                  label: 'Alto contraste',
+                  value: _altoContraste ? 'Ativado' : 'Desativado',
+                  toggled: _altoContraste,
+                  child: Switch(
+                    value: _altoContraste,
+                    onChanged: (value) =>
+                        setState(() => _altoContraste = value),
+                  ),
                 ),
               ),
             ],
@@ -497,6 +555,17 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
               ),
             ],
           ),
+          _SettingsSection(
+            title: 'Zona de perigo',
+            children: [
+              _SettingsTile(
+                icon: Icons.delete_forever_outlined,
+                title: _excluindoConta ? 'Excluindo conta...' : 'Excluir conta',
+                subtitle: 'Remove seus dados pessoais de forma irreversível',
+                onTap: _excluindoConta ? null : _excluirConta,
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: _sair,
@@ -512,6 +581,67 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ConfirmacaoExclusaoDialog extends StatefulWidget {
+  const _ConfirmacaoExclusaoDialog();
+
+  @override
+  State<_ConfirmacaoExclusaoDialog> createState() =>
+      _ConfirmacaoExclusaoDialogState();
+}
+
+class _ConfirmacaoExclusaoDialogState
+    extends State<_ConfirmacaoExclusaoDialog> {
+  final _confirmacaoController = TextEditingController();
+
+  @override
+  void dispose() {
+    _confirmacaoController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final confirmacaoValida =
+        _confirmacaoController.text.trim() == 'EXCLUIR MINHA CONTA';
+
+    return AlertDialog(
+      title: const Text('Confirmação final'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Digite EXCLUIR MINHA CONTA para confirmar a exclusão definitiva.',
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _confirmacaoController,
+            autofocus: true,
+            textCapitalization: TextCapitalization.characters,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              labelText: 'Confirmação',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: confirmacaoValida
+              ? () => Navigator.pop(context, _confirmacaoController.text.trim())
+              : null,
+          style: FilledButton.styleFrom(backgroundColor: Colors.red),
+          child: const Text('Excluir conta'),
+        ),
+      ],
     );
   }
 }

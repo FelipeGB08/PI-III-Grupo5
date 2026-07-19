@@ -8,5 +8,9 @@ abstract class AvaliacaoRepository {
     String? comentario,
   });
 
-  Future<AvaliacoesResumo> listarDoProfissional(int profissionalId);
+  Future<AvaliacoesResumo> listarDoProfissional(
+    int profissionalId, {
+    int page = 1,
+    int pageSize = 20,
+  });
 }

@@ -1,4 +1,8 @@
 const pool = require('../config/db');
+const {
+    criarMetadadosPaginacao,
+    normalizarPaginacao,
+} = require('../utils/pagination');
 
 const ServicoModel = {
     criar: async (cidadaoId, profId, descricao, fotoUrl, dadosAgenda = {}) => {
@@ -56,7 +60,12 @@ const ServicoModel = {
         return resultado.rows[0];
     },
 
-    buscarPorProfissional: async (profId, status = null) => {
+    buscarPorProfissional: async (
+        profId,
+        status = null,
+        { page = 1, pageSize = 20 } = {}
+    ) => {
+        const paginacao = normalizarPaginacao({ page, pageSize });
         let query = `
             SELECT s.*, u.nome AS cidadao_nome, u.email AS cidadao_email
             FROM servicos_solicitados s
@@ -70,12 +79,36 @@ const ServicoModel = {
             params.push(status);
         }
 
-        query += ' ORDER BY s.criado_em DESC;';
-        const resultado = await pool.query(query, params);
-        return resultado.rows;
+        const totalResult = await pool.query(
+            `SELECT COUNT(*)::int AS total
+             FROM servicos_solicitados s
+             WHERE s.prof_id = $1${status ? ' AND s.status = $2' : ''};`,
+            params
+        );
+
+        const paramsListagem = [
+            ...params,
+            paginacao.limit,
+            paginacao.offset,
+        ];
+        query += ` ORDER BY s.criado_em DESC
+                   LIMIT $${paramsListagem.length - 1} OFFSET $${paramsListagem.length};`;
+        const resultado = await pool.query(query, paramsListagem);
+        const metadados = criarMetadadosPaginacao({
+            total: totalResult.rows[0]?.total,
+            page: paginacao.page,
+            pageSize: paginacao.pageSize,
+        });
+
+        return { items: resultado.rows, ...metadados };
     },
 
-    buscarPorCidadao: async (cidadaoId, status = null) => {
+    buscarPorCidadao: async (
+        cidadaoId,
+        status = null,
+        { page = 1, pageSize = 20 } = {}
+    ) => {
+        const paginacao = normalizarPaginacao({ page, pageSize });
         let query = `
             SELECT s.*, u.nome AS profissional_nome
             FROM servicos_solicitados s
@@ -89,16 +122,42 @@ const ServicoModel = {
             params.push(status);
         }
 
-        query += ' ORDER BY s.criado_em DESC;';
-        const resultado = await pool.query(query, params);
-        return resultado.rows;
+        const totalResult = await pool.query(
+            `SELECT COUNT(*)::int AS total
+             FROM servicos_solicitados s
+             WHERE s.cidadao_id = $1${status ? ' AND s.status = $2' : ''};`,
+            params
+        );
+
+        const paramsListagem = [
+            ...params,
+            paginacao.limit,
+            paginacao.offset,
+        ];
+        query += ` ORDER BY s.criado_em DESC
+                   LIMIT $${paramsListagem.length - 1} OFFSET $${paramsListagem.length};`;
+        const resultado = await pool.query(query, paramsListagem);
+        const metadados = criarMetadadosPaginacao({
+            total: totalResult.rows[0]?.total,
+            page: paginacao.page,
+            pageSize: paginacao.pageSize,
+        });
+
+        return { items: resultado.rows, ...metadados };
     },
 
-    buscarFinanceiroUsuario: async ({ usuarioId, perfilTipo, status = null }) => {
+    buscarFinanceiroUsuario: async ({
+        usuarioId,
+        perfilTipo,
+        status = null,
+        page = 1,
+        pageSize = 20,
+    }) => {
         const isPrestador = perfilTipo === 'profissional';
         const colunaUsuario = isPrestador ? 's.prof_id' : 's.cidadao_id';
         const colunaContraparte = isPrestador ? 's.cidadao_id' : 's.prof_id';
         const params = [usuarioId];
+        const paginacao = normalizarPaginacao({ page, pageSize });
 
         let filtroStatus = '';
         if (status) {
@@ -106,6 +165,18 @@ const ServicoModel = {
             filtroStatus = ` AND s.status = $${params.length}`;
         }
 
+        const totalResult = await pool.query(
+            `SELECT COUNT(*)::int AS total
+             FROM servicos_solicitados s
+             WHERE ${colunaUsuario} = $1${filtroStatus};`,
+            params
+        );
+
+        const paramsItens = [
+            ...params,
+            paginacao.limit,
+            paginacao.offset,
+        ];
         const itensResult = await pool.query(
             `
             SELECT
@@ -130,9 +201,10 @@ const ServicoModel = {
             JOIN usuarios contraparte ON contraparte.id = ${colunaContraparte}
             WHERE ${colunaUsuario} = $1
               ${filtroStatus}
-            ORDER BY COALESCE(s.agendado_para, s.criado_em) DESC;
+            ORDER BY COALESCE(s.agendado_para, s.criado_em) DESC
+            LIMIT $${paramsItens.length - 1} OFFSET $${paramsItens.length};
             `,
-            params
+            paramsItens
         );
 
         const resumoResult = await pool.query(
@@ -156,6 +228,12 @@ const ServicoModel = {
         );
 
         const resumo = resumoResult.rows[0] || {};
+        const metadados = criarMetadadosPaginacao({
+            total: totalResult.rows[0]?.total,
+            page: paginacao.page,
+            pageSize: paginacao.pageSize,
+        });
+
         return {
             perfil: isPrestador ? 'prestador' : 'cliente',
             resumo: {
@@ -177,6 +255,7 @@ const ServicoModel = {
                 ...item,
                 preco: item.preco === null ? null : Number(item.preco),
             })),
+            paginacao: metadados,
         };
     },
 

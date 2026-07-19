@@ -1,5 +1,6 @@
 const { getFirebaseMessaging } = require('../config/firebaseAdmin');
 const NotificationModel = require('../models/NotificationModel');
+const logger = require('../utils/logger');
 
 const TOKEN_INVALIDO_CODES = new Set([
     'messaging/invalid-registration-token',
@@ -94,7 +95,13 @@ async function notificarUsuario({ usuarioId, tipo, titulo, corpo, payload }) {
             );
         }
     } catch (erro) {
-        console.error('Erro ao enviar Firebase Cloud Messaging:', erro.message);
+        logger.error('Falha ao enviar notificacao Firebase Cloud Messaging.', {
+            erro,
+            componente: 'push',
+            usuarioId,
+            tipo,
+            notificacaoId: notificacao.id,
+        });
         await NotificationModel.marcarFalha(notificacao.id, erro.message);
     }
 
@@ -103,7 +110,12 @@ async function notificarUsuario({ usuarioId, tipo, titulo, corpo, payload }) {
 
 function notificarUsuarioSemBloquear(dados) {
     notificarUsuario(dados).catch((erro) => {
-        console.error('Erro ao registrar notificacao:', erro.message);
+        logger.error('Falha ao registrar notificacao.', {
+            erro,
+            componente: 'push',
+            usuarioId: dados?.usuarioId,
+            tipo: dados?.tipo,
+        });
     });
 }
 

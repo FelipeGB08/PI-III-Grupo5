@@ -52,7 +52,7 @@ const ProfissionalModel = {
             LEFT JOIN categorias c ON c.id = pc.categoria_id
             LEFT JOIN servicos_solicitados s ON s.prof_id = u.id
             LEFT JOIN avaliacoes a ON a.servico_id = s.id
-            WHERE u.perfil_tipo = 'profissional'
+            WHERE u.perfil_tipo = 'profissional' AND u.ativo = TRUE
         `;
         const valores = [];
         let indice = 1;
@@ -125,7 +125,7 @@ const ProfissionalModel = {
             LEFT JOIN categorias c ON c.id = pc.categoria_id
             LEFT JOIN servicos_solicitados s ON s.prof_id = u.id
             LEFT JOIN avaliacoes a ON a.servico_id = s.id
-            WHERE u.id = $1 AND u.perfil_tipo = 'profissional'
+            WHERE u.id = $1 AND u.perfil_tipo = 'profissional' AND u.ativo = TRUE
             GROUP BY u.id, pp.id;
         `;
         const resultado = await pool.query(query, [id]);

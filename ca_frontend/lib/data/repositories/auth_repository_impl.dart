@@ -137,6 +137,16 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<void> deleteAccount({required String confirmation}) async {
+    try {
+      await _api.excluirConta(confirmacao: confirmation);
+      await _storage.clear();
+    } on DioException catch (e) {
+      throw DioClient.unwrapError(e);
+    }
+  }
+
+  @override
   Future<void> logout() async {
     final refreshToken = _storage.getRefreshToken();
     try {

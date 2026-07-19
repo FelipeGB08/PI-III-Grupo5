@@ -1,19 +1,39 @@
 const path = require('path');
 const swaggerJsdoc = require('swagger-jsdoc');
 
+const API_PREFIX_V1 = '/api/v1';
+
+function normalizarServidorV1(url) {
+    const semBarraFinal = String(url || '').replace(/\/$/, '');
+    const semPrefixoAntigo = semBarraFinal.replace(/\/api(?:\/v1)?$/, '');
+    return `${semPrefixoAntigo}${API_PREFIX_V1}`;
+}
+
+function normalizarCaminhoV1(caminho) {
+    if (caminho === '/api') return '/';
+    if (caminho.startsWith(`${API_PREFIX_V1}/`)) {
+        return caminho.slice(API_PREFIX_V1.length);
+    }
+    if (caminho.startsWith('/api/')) return caminho.slice('/api'.length);
+    return caminho;
+}
+
+const servidorDocumentacao = normalizarServidorV1(
+    process.env.API_DOCS_SERVER_URL || `http://localhost:${process.env.PORT || 3000}`
+);
+
 const swaggerSpec = swaggerJsdoc({
     definition: {
         openapi: '3.0.3',
         info: {
             title: 'Conecta AMAUC API',
             version: '1.0.0',
-            description: 'API REST para conectar cidadãos e profissionais da região AMAUC.',
+            description: 'API REST v1 para conectar cidadãos e profissionais da região AMAUC.',
         },
         servers: [
             {
-                url: process.env.API_DOCS_SERVER_URL ||
-                    `http://localhost:${process.env.PORT || 3000}`,
-                description: 'Servidor local',
+                url: servidorDocumentacao,
+                description: 'API v1',
             },
         ],
         tags: [
@@ -349,6 +369,21 @@ const swaggerSpec = swaggerJsdoc({
                     description: 'Perfil sem permissão para a operação.',
                     content: { 'application/json': { schema: { $ref: '#/components/schemas/Erro' }, example: { erro: 'Acesso negado para este perfil de usuario.' } } },
                 },
+                TooManyRequests: {
+                    description: 'Limite de requisicoes atingido para o usuario autenticado. Consulte os headers RateLimit-* e Retry-After.',
+                    headers: {
+                        'RateLimit-Limit': { schema: { type: 'integer' }, description: 'Quantidade maxima na janela.' },
+                        'RateLimit-Remaining': { schema: { type: 'integer' }, description: 'Quantidade restante na janela.' },
+                        'RateLimit-Reset': { schema: { type: 'integer' }, description: 'Momento de renovacao da janela (Unix timestamp).' },
+                        'Retry-After': { schema: { type: 'integer' }, description: 'Segundos para tentar novamente.' },
+                    },
+                    content: {
+                        'application/json': {
+                            schema: { $ref: '#/components/schemas/Erro' },
+                            example: { erro: 'Limite de envio de mensagens atingido. Aguarde um minuto e tente novamente.' },
+                        },
+                    },
+                },
                 NotFound: {
                     description: 'Recurso não encontrado.',
                     content: { 'application/json': { schema: { $ref: '#/components/schemas/Erro' }, example: { erro: 'Recurso nao encontrado.' } } },
@@ -365,6 +400,13 @@ const swaggerSpec = swaggerJsdoc({
         path.join(__dirname, '..', 'server.js').replace(/\\/g, '/'),
     ],
 });
+
+swaggerSpec.paths = Object.fromEntries(
+    Object.entries(swaggerSpec.paths || {}).map(([caminho, item]) => [
+        normalizarCaminhoV1(caminho),
+        item,
+    ])
+);
 
 const httpMethods = ['get', 'post', 'put', 'patch', 'delete'];
 for (const pathItem of Object.values(swaggerSpec.paths || {})) {

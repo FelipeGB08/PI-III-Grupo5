@@ -27,8 +27,14 @@ CREATE TABLE usuarios (
     perfil_tipo VARCHAR(30) NOT NULL
         CHECK (perfil_tipo IN ('cidadao', 'profissional', 'admin')),
     foto_url VARCHAR(500),
+    ativo BOOLEAN NOT NULL DEFAULT TRUE,
+    excluido_em TIMESTAMP NULL,
     criado_em TIMESTAMP DEFAULT NOW()
 );
+
+CREATE INDEX idx_usuarios_ativos_perfil
+    ON usuarios (perfil_tipo)
+    WHERE ativo = TRUE;
 
 CREATE TABLE refresh_tokens (
     id BIGSERIAL PRIMARY KEY,

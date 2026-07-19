@@ -1,4 +1,7 @@
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000/api';
+const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000/api/v1';
+const API_ORIGIN = API_BASE_URL
+  .replace(/\/$/, '')
+  .replace(/\/api(?:\/v1)?$/, '');
 
 const runId = Date.now();
 const senha = 'Teste123456';
@@ -59,6 +62,23 @@ async function request(path, options = {}) {
   }
 
   return data;
+}
+
+async function validarPrefixosApi() {
+  const respostas = await Promise.all([
+    fetch(`${API_ORIGIN}/api/v1/status`),
+    fetch(`${API_ORIGIN}/api/status`),
+  ]);
+
+  for (const resposta of respostas) {
+    if (!resposta.ok) {
+      throw new Error(`Status da API versionada/legada retornou ${resposta.status}.`);
+    }
+    const corpo = await resposta.json();
+    if (!corpo?.mensagem) {
+      throw new Error('Status da API nao retornou a mensagem esperada.');
+    }
+  }
 }
 
 async function uploadFotoConclusao({ solicitacaoId, token }) {
@@ -156,6 +176,9 @@ async function esperarNotificacao({ token, tipo, timeoutMs = 3000 }) {
 }
 
 async function main() {
+  console.log('[E2E] Validando prefixos v1 e legado...');
+  await validarPrefixosApi();
+
   console.log('[E2E] Criando usuários...');
 
   await registrarUsuario({
@@ -376,12 +399,23 @@ async function main() {
   });
 
   console.log('[E2E] Prestador visualiza chamado recebido...');
-  const minhasSolicitacoes = await request('/solicitacoes/minhas-solicitacoes', {
-    token: profissionalToken,
-  });
+  const minhasSolicitacoes = await request(
+    '/solicitacoes/minhas-solicitacoes?status=pendente&page=1&pageSize=1',
+    {
+      token: profissionalToken,
+    },
+  );
   const listaPrestador = minhasSolicitacoes.solicitacoes || minhasSolicitacoes.pedidos || [];
   if (!listaPrestador.some((item) => item.id === solicitacao.id)) {
     throw new Error('Prestador nao recebeu a solicitacao criada pelo cliente.');
+  }
+  if (
+    listaPrestador.length !== 1 ||
+    minhasSolicitacoes.page !== 1 ||
+    minhasSolicitacoes.pageSize !== 1 ||
+    typeof minhasSolicitacoes.total !== 'number'
+  ) {
+    throw new Error('Paginacao de solicitacoes nao foi respeitada pela API.');
   }
 
   console.log('[E2E] Validando bloqueio de horario indisponivel...');
@@ -525,6 +559,37 @@ async function main() {
   console.log('[E2E] Revogando refresh token no logout...');
   await logout(cidadaoSession.refreshToken);
   await renovarSessao(cidadaoSession.refreshToken, 401);
+
+  console.log('[E2E] Anonimizando a conta do cliente...');
+  const sessaoParaExcluir = await login(cidadaoEmail);
+  const exclusao = await request('/perfil/conta', {
+    method: 'DELETE',
+    token: sessaoParaExcluir.accessToken,
+    body: JSON.stringify({ confirmacao: 'EXCLUIR MINHA CONTA' }),
+  });
+
+  if (!Number.isInteger(exclusao.refresh_tokens_revogados) || exclusao.refresh_tokens_revogados < 1) {
+    throw new Error('Exclusao de conta nao revogou os refresh tokens do usuario.');
+  }
+
+  await renovarSessao(sessaoParaExcluir.refreshToken, 401);
+  await request('/auth/login', {
+    method: 'POST',
+    expectedStatus: 401,
+    body: JSON.stringify({ email: cidadaoEmail, senha }),
+  });
+
+  console.log('[E2E] Confirmando que o historico do prestador foi preservado...');
+  const historicoAposExclusao = await request(
+    '/solicitacoes/minhas-solicitacoes?status=concluido&page=1&pageSize=20',
+    { token: profissionalToken }
+  );
+  const solicitacaoPreservada = (historicoAposExclusao.solicitacoes || []).find(
+    (item) => Number(item.id) === Number(solicitacao.id)
+  );
+  if (!solicitacaoPreservada || solicitacaoPreservada.cidadao_nome !== 'Usuário removido') {
+    throw new Error('Historico do prestador nao foi preservado com o cliente anonimizado.');
+  }
 
   console.log('[E2E] Teste finalizado com sucesso!');
 }

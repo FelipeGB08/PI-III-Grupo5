@@ -16,8 +16,10 @@ class FavoritosScreen extends ConsumerStatefulWidget {
 }
 
 class _FavoritosScreenState extends ConsumerState<FavoritosScreen> {
+  static const _pageSize = 20;
   final _searchController = TextEditingController();
   String _busca = '';
+  int _visibleCount = _pageSize;
 
   @override
   void initState() {
@@ -44,9 +46,13 @@ class _FavoritosScreenState extends ConsumerState<FavoritosScreen> {
         .where((p) => favoritos.contains(p.id))
         .where(_matchesSearch)
         .toList();
+    final favoritosVisiveis = favoritosLista.take(_visibleCount).toList();
 
     return RefreshIndicator(
-      onRefresh: () => ref.read(prestadoresProvider.notifier).carregar(),
+      onRefresh: () async {
+        setState(() => _visibleCount = _pageSize);
+        await ref.read(prestadoresProvider.notifier).carregar();
+      },
       color: AppColors.primary,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 110),
@@ -72,7 +78,10 @@ class _FavoritosScreenState extends ConsumerState<FavoritosScreen> {
           const SizedBox(height: 14),
           TextField(
             controller: _searchController,
-            onChanged: (value) => setState(() => _busca = value),
+            onChanged: (value) => setState(() {
+              _busca = value;
+              _visibleCount = _pageSize;
+            }),
             decoration: const InputDecoration(
               hintText: 'Buscar em favoritos...',
               prefixIcon: Icon(Icons.search_rounded),
@@ -91,8 +100,8 @@ class _FavoritosScreenState extends ConsumerState<FavoritosScreen> {
           else if (favoritosLista.isEmpty)
             const _EmptySearch()
           else
-            ...List.generate(favoritosLista.length, (index) {
-              final p = favoritosLista[index];
+            ...List.generate(favoritosVisiveis.length, (index) {
+              final p = favoritosVisiveis[index];
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: PrestadorCard(
@@ -102,6 +111,17 @@ class _FavoritosScreenState extends ConsumerState<FavoritosScreen> {
                 ),
               );
             }),
+          if (favoritosVisiveis.length < favoritosLista.length)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: OutlinedButton.icon(
+                onPressed: () => setState(() {
+                  _visibleCount += _pageSize;
+                }),
+                icon: const Icon(Icons.expand_more_rounded),
+                label: const Text('Carregar mais'),
+              ),
+            ),
         ],
       ),
     );

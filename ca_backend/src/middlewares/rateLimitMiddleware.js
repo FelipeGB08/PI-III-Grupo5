@@ -14,14 +14,8 @@ function criarRateLimiter({
         }
     }
 
-    return (req, res, next) => {
-        const agora = Date.now();
+    function consumir(chave, agora = Date.now()) {
         limparExpirados(agora);
-
-        const chave = keyGenerator
-            ? keyGenerator(req)
-            : `${req.ip}:${req.method}:${req.originalUrl}`;
-
         const registroAtual = tentativas.get(chave);
         const registro = registroAtual && registroAtual.resetAt > agora
             ? registroAtual
@@ -30,22 +24,52 @@ function criarRateLimiter({
         registro.count += 1;
         tentativas.set(chave, registro);
 
-        const remaining = Math.max(max - registro.count, 0);
-        res.setHeader('RateLimit-Limit', String(max));
-        res.setHeader('RateLimit-Remaining', String(remaining));
-        res.setHeader('RateLimit-Reset', String(Math.ceil(registro.resetAt / 1000)));
+        return {
+            permitido: registro.count <= max,
+            remaining: Math.max(max - registro.count, 0),
+            resetAt: registro.resetAt,
+            retryAfter: Math.max(1, Math.ceil((registro.resetAt - agora) / 1000)),
+        };
+    }
 
-        if (registro.count > max) {
+    const middleware = (req, res, next) => {
+        const chave = keyGenerator
+            ? keyGenerator(req)
+            : `${req.ip}:${req.method}:${req.originalUrl}`;
+        const resultado = consumir(chave);
+
+        res.setHeader('RateLimit-Limit', String(max));
+        res.setHeader('RateLimit-Remaining', String(resultado.remaining));
+        res.setHeader('RateLimit-Reset', String(Math.ceil(resultado.resetAt / 1000)));
+
+        if (!resultado.permitido) {
+            res.setHeader('Retry-After', String(resultado.retryAfter));
             return res.status(429).json({ erro: message });
         }
 
         return next();
     };
+
+    middleware.consumir = consumir;
+    middleware.resetar = () => tentativas.clear();
+    middleware.max = max;
+    middleware.windowMs = windowMs;
+
+    return middleware;
 }
 
 function chavePorIpEmail(req) {
     const email = String(req.body?.email || '').trim().toLowerCase();
     return `${req.ip}:${req.method}:${req.originalUrl}:${email || 'sem-email'}`;
+}
+
+function chavePorUsuarioId(usuarioId, ip = 'desconhecido') {
+    return usuarioId ? `usuario:${usuarioId}` : `ip:${ip}`;
+}
+
+function chavePorUsuario(req) {
+    const usuarioId = req.usuarioLogado?.id || req.usuario?.id || req.user?.id;
+    return chavePorUsuarioId(usuarioId, req.ip);
 }
 
 const authRateLimit = criarRateLimiter({
@@ -60,8 +84,34 @@ const cadastroRateLimit = criarRateLimiter({
     keyGenerator: chavePorIpEmail,
 });
 
+const solicitacaoRateLimit = criarRateLimiter({
+    windowMs: Number(process.env.SOLICITACAO_RATE_LIMIT_WINDOW_MS || 60 * 60 * 1000),
+    max: Number(process.env.SOLICITACAO_RATE_LIMIT_MAX || 20),
+    keyGenerator: chavePorUsuario,
+    message: 'Limite de criacao de solicitacoes atingido. Aguarde antes de tentar novamente.',
+});
+
+const chatRateLimit = criarRateLimiter({
+    windowMs: Number(process.env.CHAT_RATE_LIMIT_WINDOW_MS || 60 * 1000),
+    max: Number(process.env.CHAT_RATE_LIMIT_MAX || 60),
+    keyGenerator: chavePorUsuario,
+    message: 'Limite de envio de mensagens atingido. Aguarde um minuto e tente novamente.',
+});
+
+const uploadRateLimit = criarRateLimiter({
+    windowMs: Number(process.env.UPLOAD_RATE_LIMIT_WINDOW_MS || 60 * 60 * 1000),
+    max: Number(process.env.UPLOAD_RATE_LIMIT_MAX || 30),
+    keyGenerator: chavePorUsuario,
+    message: 'Limite de upload de imagens atingido. Aguarde antes de enviar outra imagem.',
+});
+
 module.exports = {
     criarRateLimiter,
     authRateLimit,
     cadastroRateLimit,
+    solicitacaoRateLimit,
+    chatRateLimit,
+    uploadRateLimit,
+    chavePorUsuario,
+    chavePorUsuarioId,
 };

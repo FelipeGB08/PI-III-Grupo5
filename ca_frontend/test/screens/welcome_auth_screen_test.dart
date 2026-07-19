@@ -36,10 +36,18 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    final semantics = tester.ensureSemantics();
 
     expect(find.text('Bem-vindo de volta'), findsOneWidget);
     expect(find.text('Com senha'), findsOneWidget);
     expect(find.text('Criar conta'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('E-mail')), findsAtLeastNWidgets(1));
+    expect(find.bySemanticsLabel(RegExp('Senha')), findsAtLeastNWidgets(1));
+    expect(find.bySemanticsLabel('Entrar com senha'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel('Entrar sem senha com magic link'),
+      findsOneWidget,
+    );
 
     final fields = find.byType(TextFormField);
     expect(fields, findsNWidgets(2));
@@ -54,5 +62,6 @@ void main() {
     expect(authRepository.loginEmail, 'ana@teste.com');
     expect(authRepository.loginSenha, 'senha123');
     expect(find.text('Login realizado com sucesso!'), findsOneWidget);
+    semantics.dispose();
   });
 }

@@ -3,6 +3,10 @@ const {
     coordenadasCidade,
     distanciaKm,
 } = require('../config/amaucCidades');
+const {
+    criarMetadadosPaginacao,
+    normalizarPaginacao,
+} = require('../utils/pagination');
 
 const CAMPOS_FAVORITO = `
     u.id,
@@ -44,7 +48,20 @@ function comDistancia(row, origem = null) {
 }
 
 const FavoritoModel = {
-    listar: async ({ usuarioId, lat = null, lng = null }) => {
+    listar: async ({
+        usuarioId,
+        lat = null,
+        lng = null,
+        page = 1,
+        pageSize = 20,
+    }) => {
+        const paginacao = normalizarPaginacao({ page, pageSize });
+        const totalResult = await pool.query(
+            `SELECT COUNT(*)::int AS total
+             FROM favoritos_profissionais
+             WHERE usuario_id = $1;`,
+            [usuarioId]
+        );
         const result = await pool.query(
             `
             SELECT ${CAMPOS_FAVORITO}
@@ -57,14 +74,23 @@ const FavoritoModel = {
             LEFT JOIN avaliacoes a ON a.servico_id = s.id
             WHERE f.usuario_id = $1
               AND u.perfil_tipo = 'profissional'
+              AND u.ativo = TRUE
             GROUP BY f.id, u.id, pp.id
-            ORDER BY f.criado_em DESC;
+            ORDER BY f.criado_em DESC
+            LIMIT $2 OFFSET $3;
             `,
-            [usuarioId]
+            [usuarioId, paginacao.limit, paginacao.offset]
         );
 
         const origem = lat && lng ? { lat: Number(lat), lng: Number(lng) } : null;
-        return result.rows.map((row) => comDistancia(row, origem));
+        const favoritos = result.rows.map((row) => comDistancia(row, origem));
+        const metadados = criarMetadadosPaginacao({
+            total: totalResult.rows[0]?.total,
+            page: paginacao.page,
+            pageSize: paginacao.pageSize,
+        });
+
+        return { items: favoritos, ...metadados };
     },
 
     ids: async (usuarioId) => {
@@ -91,6 +117,7 @@ const FavoritoModel = {
                 FROM usuarios
                 WHERE id = $2
                   AND perfil_tipo = 'profissional'
+                  AND ativo = TRUE
             )
             ON CONFLICT (usuario_id, profissional_id) DO NOTHING
             RETURNING *;
@@ -133,7 +160,8 @@ const FavoritoModel = {
             SELECT 1
             FROM usuarios
             WHERE id = $1
-              AND perfil_tipo = 'profissional';
+              AND perfil_tipo = 'profissional'
+              AND ativo = TRUE;
             `,
             [profissionalId]
         );

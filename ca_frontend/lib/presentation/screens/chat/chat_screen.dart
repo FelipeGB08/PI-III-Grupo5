@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_formatter.dart';
 import '../../../core/theme/adaptive_colors.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/chamado.dart';
 import '../../../domain/entities/chat_message.dart';
 import '../../../domain/entities/user.dart';
@@ -172,6 +171,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       maxLines: 4,
                       textInputAction: TextInputAction.newline,
                       decoration: InputDecoration(
+                        labelText: 'Mensagem',
                         hintText: 'Digite uma mensagem...',
                         filled: true,
                         fillColor: context.appCard,
@@ -185,6 +185,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   const SizedBox(width: 8),
                   IconButton.filled(
                     onPressed: _sending ? null : _send,
+                    tooltip: _sending ? 'Enviando mensagem' : 'Enviar mensagem',
                     icon: _sending
                         ? const SizedBox(
                             height: 18,
@@ -223,7 +224,7 @@ class _MessageBubble extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: minha ? AppColors.primary : context.appCard,
+          color: minha ? context.appBrand : context.appCard,
           borderRadius: BorderRadius.circular(16).copyWith(
             bottomRight: minha ? const Radius.circular(4) : null,
             bottomLeft: minha ? null : const Radius.circular(4),
@@ -237,8 +238,8 @@ class _MessageBubble extends StatelessWidget {
             if (!minha && mensagem.remetenteNome?.isNotEmpty == true) ...[
               Text(
                 mensagem.remetenteNome!,
-                style: const TextStyle(
-                  color: AppColors.primary,
+                style: TextStyle(
+                  color: context.appBrand,
                   fontWeight: FontWeight.w800,
                   fontSize: 11,
                 ),
@@ -248,7 +249,7 @@ class _MessageBubble extends StatelessWidget {
             Text(
               mensagem.mensagem,
               style: TextStyle(
-                color: minha ? Colors.white : context.appTextPrimary,
+                color: minha ? context.appOnBrand : context.appTextPrimary,
                 height: 1.35,
               ),
             ),
@@ -256,7 +257,7 @@ class _MessageBubble extends StatelessWidget {
             Text(
               _formatHora(mensagem.criadoEm),
               style: TextStyle(
-                color: (minha ? Colors.white : context.appTextSecondary)
+                color: (minha ? context.appOnBrand : context.appTextSecondary)
                     .withValues(alpha: 0.72),
                 fontSize: 10,
               ),

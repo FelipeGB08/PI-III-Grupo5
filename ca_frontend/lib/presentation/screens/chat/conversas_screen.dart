@@ -137,96 +137,117 @@ class _ConversaTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final date = conversa.ultimaMensagemEm ?? conversa.agendadoPara;
     final unread = conversa.naoLidas > 0;
+    final resumoMensagem = conversa.ultimaMensagem?.isNotEmpty == true
+        ? conversa.ultimaMensagem!
+        : 'Sem mensagens ainda';
+    final statusLeitura = unread
+        ? '${conversa.naoLidas} mensagens nao lidas'
+        : 'sem mensagens nao lidas';
 
     return Material(
       color:
           unread ? AppColors.primary.withValues(alpha: 0.12) : context.appCard,
       borderRadius: BorderRadius.circular(18),
-      child: InkWell(
+      child: Semantics(
+        button: true,
+        label: 'Abrir conversa com ${conversa.outroUsuarioNome}. '
+            '${conversa.servicoNome ?? conversa.descricao ?? 'Servico'}. '
+            '$resumoMensagem. $statusLeitura',
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              ProfileAvatar(
-                name: conversa.outroUsuarioNome,
-                imageUrl:
-                    ApiConfig.resolveAssetUrl(conversa.outroUsuarioFotoUrl),
-                radius: 25,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+        child: InkWell(
+          excludeFromSemantics: true,
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: ExcludeSemantics(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  ProfileAvatar(
+                    name: conversa.outroUsuarioNome,
+                    imageUrl:
+                        ApiConfig.resolveAssetUrl(conversa.outroUsuarioFotoUrl),
+                    radius: 25,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            conversa.outroUsuarioNome,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w900,
-                                ),
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                conversa.outroUsuarioNome,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleSmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                              ),
+                            ),
+                            if (date != null)
+                              Text(
+                                DateFormat('dd/MM HH:mm')
+                                    .format(date.toLocal()),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: context.appTextSecondary,
+                                    ),
+                              ),
+                          ],
                         ),
-                        if (date != null)
-                          Text(
-                            DateFormat('dd/MM HH:mm').format(date.toLocal()),
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelSmall
-                                ?.copyWith(
-                                  color: AppColors.muted,
-                                ),
-                          ),
+                        const SizedBox(height: 4),
+                        Text(
+                          conversa.servicoNome ??
+                              conversa.descricao ??
+                              'Serviço',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: context.appBrand,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          conversa.ultimaMensagem?.isNotEmpty == true
+                              ? conversa.ultimaMensagem!
+                              : 'Toque para iniciar a conversa',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: context.appTextSecondary,
+                                  ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      conversa.servicoNome ?? conversa.descricao ?? 'Serviço',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      conversa.ultimaMensagem?.isNotEmpty == true
-                          ? conversa.ultimaMensagem!
-                          : 'Toque para iniciar a conversa',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: context.appTextSecondary,
-                          ),
+                  ),
+                  if (unread) ...[
+                    const SizedBox(width: 10),
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundColor: AppColors.statusRecusado,
+                      child: Text(
+                        conversa.naoLidas > 9 ? '9+' : '${conversa.naoLidas}',
+                        style: const TextStyle(
+                          color: AppColors.actionForeground,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
                     ),
                   ],
-                ),
+                ],
               ),
-              if (unread) ...[
-                const SizedBox(width: 10),
-                CircleAvatar(
-                  radius: 12,
-                  backgroundColor: AppColors.statusRecusado,
-                  child: Text(
-                    conversa.naoLidas > 9 ? '9+' : '${conversa.naoLidas}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
         ),
       ),

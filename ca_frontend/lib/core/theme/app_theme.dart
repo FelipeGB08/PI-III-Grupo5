@@ -19,17 +19,21 @@ class AppTheme {
         isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final textSecondary =
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final brand = isDark ? AppColors.primary : AppColors.primaryAccessibleLight;
+    final accent = isDark ? AppColors.accent : AppColors.accentAccessibleLight;
+    final onBrand = isDark ? AppColors.actionForeground : Colors.white;
 
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
       scaffoldBackgroundColor: bg,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.primary,
+        seedColor: brand,
         brightness: brightness,
         surface: surface,
-        primary: AppColors.primary,
-        secondary: AppColors.accent,
+        primary: brand,
+        secondary: accent,
+        onPrimary: onBrand,
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
@@ -61,7 +65,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.6),
+          borderSide: BorderSide(color: brand, width: 1.6),
         ),
         hintStyle: TextStyle(color: textSecondary),
         contentPadding:
@@ -69,8 +73,8 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: const Color(0xFF031016),
+          backgroundColor: brand,
+          foregroundColor: onBrand,
           elevation: 0,
           minimumSize: const Size(double.infinity, 52),
           shape: RoundedRectangleBorder(
@@ -79,9 +83,9 @@ class AppTheme {
           textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
         ),
       ),
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.black,
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: brand,
+        foregroundColor: onBrand,
         elevation: 4,
       ),
       textTheme: TextTheme(
@@ -105,15 +109,15 @@ class AppTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: card,
-        selectedColor: AppColors.primary.withValues(alpha: 0.18),
+        selectedColor: brand.withValues(alpha: 0.18),
         labelStyle: TextStyle(color: textPrimary),
         side: BorderSide(color: border),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: surface,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.muted,
+        selectedItemColor: brand,
+        unselectedItemColor: textSecondary,
         type: BottomNavigationBarType.fixed,
       ),
     );

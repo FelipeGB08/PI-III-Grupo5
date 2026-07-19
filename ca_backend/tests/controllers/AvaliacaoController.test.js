@@ -5,6 +5,8 @@ jest.mock('../../src/config/db', () => ({
 
 jest.mock('../../src/models/AvaliacaoModel', () => ({
     buscarPorServico: jest.fn(),
+    buscarPorProfissional: jest.fn(),
+    calcularMedia: jest.fn(),
     criar: jest.fn(),
 }));
 
@@ -72,5 +74,41 @@ describe('AvaliacaoController', () => {
             })
         );
         expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    test('lista pagina de avaliacoes do profissional com total', async () => {
+        const avaliacoes = [{ id: 77, nota_estrelas: 5 }];
+        AvaliacaoModel.buscarPorProfissional.mockResolvedValue({
+            items: avaliacoes,
+            total: 21,
+            page: 2,
+            pageSize: 10,
+            totalPages: 3,
+            hasMore: true,
+        });
+        AvaliacaoModel.calcularMedia.mockResolvedValue('4.8');
+        const res = criarRespostaMock();
+
+        await AvaliacaoController.listarDoProfissional(
+            {
+                params: { id: '9' },
+                validated: { query: { page: 2, pageSize: 10 } },
+            },
+            res
+        );
+
+        expect(AvaliacaoModel.buscarPorProfissional).toHaveBeenCalledWith('9', {
+            page: 2,
+            pageSize: 10,
+        });
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                media: 4.8,
+                avaliacoes,
+                total: 21,
+                hasMore: true,
+                paginacao: expect.objectContaining({ totalPages: 3 }),
+            })
+        );
     });
 });

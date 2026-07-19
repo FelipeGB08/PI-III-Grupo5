@@ -1,9 +1,14 @@
 const jwt = require('jsonwebtoken');
 const ChatModel = require('../models/ChatModel');
+const UserModel = require('../models/UserModel');
 const { notificarUsuarioSemBloquear } = require('./notificationService');
+const {
+    chatRateLimit,
+    chavePorUsuarioId,
+} = require('../middlewares/rateLimitMiddleware');
 
-function initChatSocket(io) {
-    io.use((socket, next) => {
+function initChatSocket(io, { rateLimiter = chatRateLimit } = {}) {
+    io.use(async (socket, next) => {
         try {
             const token = socket.handshake.auth?.token ||
                 socket.handshake.headers?.authorization?.replace(/^Bearer\s+/i, '');
@@ -13,9 +18,13 @@ function initChatSocket(io) {
             }
 
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            const usuarioAtivo = await UserModel.buscarAtivoPorId(decoded.id);
+            if (!usuarioAtivo) {
+                return next(new Error('Conta removida ou inativa.'));
+            }
             socket.usuario = {
                 id: decoded.id,
-                perfil_tipo: decoded.perfil_tipo,
+                perfil_tipo: usuarioAtivo.perfil_tipo,
             };
             return next();
         } catch (erro) {
@@ -45,6 +54,20 @@ function initChatSocket(io) {
 
         socket.on('chat:send', async ({ servico_id, mensagem }, ack) => {
             try {
+                const limite = rateLimiter.consumir(
+                    chavePorUsuarioId(socket.usuario.id, socket.handshake?.address)
+                );
+                if (!limite.permitido) {
+                    const erro = {
+                        erro: 'Limite de envio de mensagens atingido. Aguarde um minuto e tente novamente.',
+                        status: 429,
+                        retry_after: limite.retryAfter,
+                    };
+                    if (typeof ack === 'function') ack(erro);
+                    socket.emit('chat:error', erro);
+                    return;
+                }
+
                 const servicoId = Number(servico_id);
                 const novaMensagem = await ChatModel.criarMensagem(
                     servicoId,

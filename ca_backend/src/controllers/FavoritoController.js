@@ -4,16 +4,26 @@ const FavoritoController = {
     listar: async (req, res) => {
         try {
             const usuarioId = req.usuarioLogado.id;
-            const lat = req.query.lat || null;
-            const lng = req.query.lng || null;
+            const query = req.validated?.query || req.query || {};
+            const lat = query.lat ?? null;
+            const lng = query.lng ?? null;
+            const { page, pageSize } = query;
 
-            const favoritos = await FavoritoModel.listar({ usuarioId, lat, lng });
+            const resultado = await FavoritoModel.listar({
+                usuarioId,
+                lat,
+                lng,
+                page,
+                pageSize,
+            });
+            const { items: favoritos, ...paginacao } = resultado;
             const ids = favoritos.map((item) => item.id);
 
             return res.status(200).json({
                 favoritos,
                 ids,
-                total: favoritos.length,
+                ...paginacao,
+                paginacao,
             });
         } catch (erro) {
             console.error('Erro ao listar favoritos:', erro);

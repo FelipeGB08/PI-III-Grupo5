@@ -48,6 +48,7 @@ class ApiConfig {
   static const String prestadoresBusca = '$apiPrefix/perfil/busca';
   static const String perfil = '$apiPrefix/perfil';
   static const String perfilMeu = '$apiPrefix/perfil/meu-perfil';
+  static const String perfilConta = '$apiPrefix/perfil/conta';
   static const String agendaMe = '$apiPrefix/agenda/me';
   static const String servicos = '$apiPrefix/servicos';
   static const String chamados = '$apiPrefix/solicitacoes';

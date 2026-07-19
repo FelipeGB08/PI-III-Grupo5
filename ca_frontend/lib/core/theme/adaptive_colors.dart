@@ -24,5 +24,15 @@ extension AdaptiveColors on BuildContext {
   Color get appTextSecondary =>
       isDarkMode ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
 
-  Color get appMuted => isDarkMode ? AppColors.muted : const Color(0xFF64748B);
+  Color get appMuted =>
+      isDarkMode ? AppColors.muted : AppColors.textSecondaryLight;
+
+  Color get appBrand =>
+      isDarkMode ? AppColors.primary : AppColors.primaryAccessibleLight;
+
+  Color get appAccent =>
+      isDarkMode ? AppColors.accent : AppColors.accentAccessibleLight;
+
+  Color get appOnBrand =>
+      isDarkMode ? AppColors.actionForeground : Colors.white;
 }

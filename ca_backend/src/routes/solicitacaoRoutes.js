@@ -4,7 +4,15 @@ const ChatController = require('../controllers/ChatController');
 const verificarToken = require('../middlewares/authMiddleware');
 const multerConfig = require('../config/multer');
 const validate = require('../middlewares/validateMiddleware');
+const {
+    chatRateLimit,
+    solicitacaoRateLimit,
+    uploadRateLimit,
+} = require('../middlewares/rateLimitMiddleware');
 const { criarSolicitacaoSchema } = require('../validators/solicitacaoSchemas');
+const {
+    solicitacaoListagemQuerySchema,
+} = require('../validators/paginationSchemas');
 
 const router = express.Router();
 
@@ -14,6 +22,7 @@ const router = express.Router();
  *   post:
  *     tags: [Solicitações]
  *     summary: Cria uma solicitação de serviço agendada
+ *     description: Limite de 20 criações por hora para cada usuário autenticado.
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       required: true
@@ -39,6 +48,7 @@ const router = express.Router();
  *         content:
  *           application/json:
  *             example: { erro: 'Profissional ja possui atendimento neste horario.' }
+ *       '429': { $ref: '#/components/responses/TooManyRequests' }
  *       '500': { $ref: '#/components/responses/InternalError' }
  * /api/solicitacoes/meus-pedidos:
  *   get:
@@ -47,6 +57,8 @@ const router = express.Router();
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - { in: query, name: status, schema: { type: string } }
+ *       - { in: query, name: page, schema: { type: integer, minimum: 1, default: 1 } }
+ *       - { in: query, name: pageSize, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
  *     responses:
  *       '200':
  *         description: Pedidos encontrados.
@@ -57,6 +69,8 @@ const router = express.Router();
  *               properties:
  *                 pedidos: { type: array, items: { $ref: '#/components/schemas/Solicitacao' } }
  *                 solicitacoes: { type: array, items: { $ref: '#/components/schemas/Solicitacao' } }
+ *                 total: { type: integer, example: 42 }
+ *                 hasMore: { type: boolean, example: true }
  *       '401': { $ref: '#/components/responses/Unauthorized' }
  *       '500': { $ref: '#/components/responses/InternalError' }
  * /api/solicitacoes/minhas-solicitacoes:
@@ -66,6 +80,8 @@ const router = express.Router();
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - { in: query, name: status, schema: { type: string } }
+ *       - { in: query, name: page, schema: { type: integer, minimum: 1, default: 1 } }
+ *       - { in: query, name: pageSize, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
  *     responses:
  *       '200':
  *         description: Solicitações encontradas.
@@ -76,6 +92,8 @@ const router = express.Router();
  *               properties:
  *                 solicitacoes: { type: array, items: { $ref: '#/components/schemas/Solicitacao' } }
  *                 pedidos: { type: array, items: { $ref: '#/components/schemas/Solicitacao' } }
+ *                 total: { type: integer, example: 42 }
+ *                 hasMore: { type: boolean, example: true }
  *       '401': { $ref: '#/components/responses/Unauthorized' }
  *       '500': { $ref: '#/components/responses/InternalError' }
  * /api/solicitacoes/financeiro:
@@ -85,6 +103,8 @@ const router = express.Router();
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - { in: query, name: status, schema: { type: string } }
+ *       - { in: query, name: page, schema: { type: integer, minimum: 1, default: 1 } }
+ *       - { in: query, name: pageSize, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
  *     responses:
  *       '200':
  *         description: Dados financeiros.
@@ -157,6 +177,7 @@ const router = express.Router();
  *   post:
  *     tags: [Chat]
  *     summary: Envia uma mensagem na solicitação
+ *     description: Limite compartilhado de 60 mensagens por minuto por usuário, também aplicado ao evento Socket.IO chat:send.
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -177,11 +198,13 @@ const router = express.Router();
  *       '400': { $ref: '#/components/responses/BadRequest' }
  *       '401': { $ref: '#/components/responses/Unauthorized' }
  *       '404': { $ref: '#/components/responses/NotFound' }
+ *       '429': { $ref: '#/components/responses/TooManyRequests' }
  *       '500': { $ref: '#/components/responses/InternalError' }
  * /api/solicitacoes/{id}/fotos-conclusao:
  *   post:
  *     tags: [Solicitações, Uploads]
  *     summary: Anexa até cinco fotos de conclusão
+ *     description: Limite de 30 requisições de upload por hora para cada usuário autenticado.
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -206,6 +229,7 @@ const router = express.Router();
  *       '400': { $ref: '#/components/responses/BadRequest' }
  *       '401': { $ref: '#/components/responses/Unauthorized' }
  *       '404': { $ref: '#/components/responses/NotFound' }
+ *       '429': { $ref: '#/components/responses/TooManyRequests' }
  *       '500': { $ref: '#/components/responses/InternalError' }
  * /api/solicitacoes/{id}/status:
  *   patch:
@@ -372,20 +396,42 @@ const router = express.Router();
 router.post(
     '/',
     verificarToken,
+    solicitacaoRateLimit,
     validate(criarSolicitacaoSchema),
     SolicitacaoController.criarSolicitacao
 );
-router.get('/meus-pedidos', verificarToken, SolicitacaoController.listarMeusPedidos);
-router.get('/minhas-solicitacoes', verificarToken, SolicitacaoController.listarMinhasSolicitacoes);
-router.get('/financeiro', verificarToken, SolicitacaoController.buscarFinanceiro);
+router.get(
+    '/meus-pedidos',
+    verificarToken,
+    validate(solicitacaoListagemQuerySchema, 'query'),
+    SolicitacaoController.listarMeusPedidos
+);
+router.get(
+    '/minhas-solicitacoes',
+    verificarToken,
+    validate(solicitacaoListagemQuerySchema, 'query'),
+    SolicitacaoController.listarMinhasSolicitacoes
+);
+router.get(
+    '/financeiro',
+    verificarToken,
+    validate(solicitacaoListagemQuerySchema, 'query'),
+    SolicitacaoController.buscarFinanceiro
+);
 router.get('/conversas', verificarToken, ChatController.listarConversas);
 router.get('/:id', verificarToken, SolicitacaoController.buscarPorId);
 router.get('/:id/mensagens', verificarToken, ChatController.listarMensagens);
-router.post('/:id/mensagens', verificarToken, ChatController.enviarMensagem);
+router.post(
+    '/:id/mensagens',
+    verificarToken,
+    chatRateLimit,
+    ChatController.enviarMensagem
+);
 
 router.post(
     '/:id/fotos-conclusao',
     verificarToken,
+    uploadRateLimit,
     multerConfig.array('fotos', 5),
     SolicitacaoController.uploadFotosConclusao
 );

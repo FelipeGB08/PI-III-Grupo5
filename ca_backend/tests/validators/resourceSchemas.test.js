@@ -6,6 +6,12 @@ const {
 const { criarSolicitacaoSchema } = require('../../src/validators/solicitacaoSchemas');
 const { salvarAgendaSchema } = require('../../src/validators/agendaSchemas');
 const { criarAvaliacaoSchema } = require('../../src/validators/avaliacaoSchemas');
+const { excluirContaSchema } = require('../../src/validators/contaSchemas');
+const {
+    favoritoListagemQuerySchema,
+    paginacaoQuerySchema,
+    solicitacaoListagemQuerySchema,
+} = require('../../src/validators/paginationSchemas');
 
 function primeiraMensagem(resultado) {
     return resultado.error?.issues[0]?.message;
@@ -150,6 +156,63 @@ describe('schema de avaliacao', () => {
         expect(invalido.success).toBe(false);
         expect(primeiraMensagem(invalido)).toBe(
             'A nota deve ser um numero inteiro entre 1 e 5.'
+        );
+    });
+});
+
+describe('schemas de paginacao', () => {
+    test('aplica pagina e tamanho padrao', () => {
+        const resultado = paginacaoQuerySchema.safeParse({});
+
+        expect(resultado.success).toBe(true);
+        expect(resultado.data).toEqual({ page: 1, pageSize: 20 });
+    });
+
+    test('converte query string e limita pageSize a 100', () => {
+        const valido = solicitacaoListagemQuerySchema.safeParse({
+            page: '2',
+            pageSize: '100',
+            status: 'concluido',
+        });
+        const invalido = solicitacaoListagemQuerySchema.safeParse({
+            page: '0',
+            pageSize: '101',
+        });
+
+        expect(valido.success).toBe(true);
+        expect(valido.data).toEqual({
+            page: 2,
+            pageSize: 100,
+            status: 'concluido',
+        });
+        expect(invalido.success).toBe(false);
+    });
+
+    test('valida coordenadas da listagem de favoritos', () => {
+        expect(favoritoListagemQuerySchema.safeParse({
+            lat: '-27.23',
+            lng: '-52.03',
+        }).success).toBe(true);
+
+        expect(favoritoListagemQuerySchema.safeParse({
+            lat: '91',
+            lng: '-52.03',
+        }).success).toBe(false);
+    });
+});
+
+describe('schema de exclusao de conta', () => {
+    test('exige a frase de confirmacao irreversivel', () => {
+        expect(excluirContaSchema.safeParse({
+            confirmacao: 'EXCLUIR MINHA CONTA',
+        }).success).toBe(true);
+
+        const invalido = excluirContaSchema.safeParse({
+            confirmacao: 'excluir',
+        });
+        expect(invalido.success).toBe(false);
+        expect(primeiraMensagem(invalido)).toBe(
+            'Para excluir a conta, digite EXCLUIR MINHA CONTA.'
         );
     });
 });

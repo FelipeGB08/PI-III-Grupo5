@@ -42,13 +42,13 @@ O Compose espera o healthcheck do PostgreSQL, aplica as migrations e, quando o b
 
 ```bash
 docker compose ps
-curl http://localhost:3000/api/status
+curl http://localhost:3000/api/v1/status
 ```
 
 No PowerShell, a verificação da API também pode ser feita com:
 
 ```powershell
-Invoke-RestMethod http://localhost:3000/api/status
+Invoke-RestMethod http://localhost:3000/api/v1/status
 ```
 
 O arquivo `ca_backend/.env` é opcional para o fluxo Docker. Crie-o a partir de `.env.example` apenas se precisar configurar OAuth, SMTP, Firebase ou outros recursos; host e credenciais do PostgreSQL interno são definidos pelo Compose.
@@ -185,7 +185,7 @@ npm run dev
 A API deve responder em:
 
 ```text
-http://localhost:3000/api/status
+http://localhost:3000/api/v1/status
 ```
 
 ### Documentação da API
@@ -193,10 +193,23 @@ http://localhost:3000/api/status
 Com o backend em execução no ambiente de desenvolvimento, a especificação OpenAPI e o Swagger UI ficam disponíveis em:
 
 ```text
-http://localhost:3000/api/docs
+http://localhost:3000/api/v1/docs
 ```
 
-A documentação é desativada por padrão quando `NODE_ENV=production`. Use `ENABLE_API_DOCS=false` para ocultá-la explicitamente em outros ambientes ou `ENABLE_API_DOCS=true` para habilitá-la de forma intencional.
+A documentação é desativada por padrão quando `NODE_ENV=production`. Use `ENABLE_API_DOCS=false` para ocultá-la explicitamente em outros ambientes ou `ENABLE_API_DOCS=true` para habilitá-la de forma intencional. O endereço anterior `/api/docs` continua como alias temporário.
+
+### Versionamento da API
+
+A rota canônica da API é `https://servidor/api/v1`. O prefixo histórico
+`/api` permanece temporariamente como alias compatível de `/api/v1`, para que
+versões já publicadas do aplicativo continuem funcionando durante a migração.
+Novos clientes devem usar `/api/v1` desde já.
+
+Mudanças compatíveis (novos campos opcionais, novas rotas ou correções) podem
+ser feitas dentro da versão `v1`. Uma mudança que remova, renomeie ou altere o
+significado de um campo/endpoint existente só será disponibilizada em um novo
+prefixo major, por exemplo `/api/v2`; a versão anterior continuará disponível
+durante o período de descontinuação comunicado ao time.
 
 ### 2. Flutter
 
@@ -330,7 +343,7 @@ O backend e um PostgreSQL gerenciado podem ser provisionados no Render pelo Blue
 6. Quando o serviço ficar disponível, copie sua URL pública e valide:
 
    ```bash
-   curl https://conecta-amauc-api.onrender.com/api/status
+   curl https://conecta-amauc-api.onrender.com/api/v1/status
    ```
 
    A resposta esperada tem status HTTP `200` e contém a mensagem de que a API está rodando.
@@ -348,7 +361,7 @@ Se o Blueprint não estiver disponível, faça o mesmo provisionamento pelo Dash
    - Build Command: `npm install`
    - Pre-Deploy Command: deixe vazio no plano gratuito; em planos pagos, use `npm run db:migrate`
    - Start Command: `npm run db:migrate && npm start`
-   - Health Check Path: `/api/status`
+   - Health Check Path: `/api/v1/status`
 3. Cadastre as variáveis abaixo no ambiente do serviço, usando `ca_backend/.env.example` como referência:
 
    | Variável | Valor no deploy |
@@ -368,7 +381,24 @@ Se o Blueprint não estiver disponível, faça o mesmo provisionamento pelo Dash
    ```
 
    Em produção real, não execute o seed. No plano gratuito, o Start Command acima aplica migrations idempotentes antes de iniciar a API.
-6. Acesse `https://conecta-amauc-api.onrender.com/api/status` e confirme o status `200`.
+6. Acesse `https://conecta-amauc-api.onrender.com/api/v1/status` e confirme o status `200`.
+
+### Monitoramento de erros com Sentry
+
+O backend registra logs estruturados em JSON e pode enviar exceções de nível
+`error` para o [Sentry](https://sentry.io/). A integração é opcional: sem
+`SENTRY_DSN`, a API continua funcionando e os logs ficam somente no console do
+Render ou do ambiente local.
+
+1. Crie um projeto **Node/Express** no painel do Sentry e copie o DSN fornecido.
+2. No Render, abra **Environment** do serviço `conecta-amauc-api` e adicione
+   `SENTRY_DSN` com esse valor. O campo já consta no `render.yaml` com
+   `sync: false`, portanto nunca é salvo no repositório.
+3. Opcionalmente, defina `SENTRY_ENVIRONMENT=production`; o Blueprint já usa
+   esse valor em produção.
+4. Faça um novo deploy. Para verificar, provoque um erro 500 em um ambiente de
+   teste e confirme o evento em **Issues** no Sentry. Não crie rota de erro de
+   teste nem deixe esse tipo de endpoint exposto em produção.
 
 ### Apontar o Flutter para a API pública
 

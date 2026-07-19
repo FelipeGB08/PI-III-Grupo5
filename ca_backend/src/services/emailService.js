@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const logger = require('../utils/logger');
 
 const VARIAVEIS_SMTP_OBRIGATORIAS = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'];
 
@@ -84,32 +85,35 @@ function classificarErroSmtp(erro) {
 function registrarFallbackSmtp(ausentes) {
     const lista = ausentes.join(', ');
     if (process.env.NODE_ENV !== 'production') {
-        console.warn(
-            `[EMAIL][FALLBACK_LOCAL] SMTP nao configurado (faltando: ${lista}). ` +
-            'Nenhum email foi enviado; o token local sera fornecido pelo fluxo de desenvolvimento.'
-        );
+        logger.warn('SMTP nao configurado; usando fallback local.', {
+            componente: 'email',
+            modo: 'fallback_local',
+            variaveisAusentes: ausentes,
+        });
         return;
     }
 
-    console.error(
-        `[EMAIL][CONFIGURACAO_AUSENTE] SMTP nao configurado em producao (faltando: ${lista}). ` +
-        'O fallback local esta desabilitado.'
-    );
+    logger.error('SMTP nao configurado em producao; fallback local desabilitado.', {
+        componente: 'email',
+        modo: 'configuracao_ausente',
+        variaveisAusentes: ausentes,
+        detalhes: lista,
+    });
 }
 
 function registrarErroSmtp(erro, { operacao, to }) {
     const classificacao = classificarErroSmtp(erro);
-    const detalhes = [
-        erro?.code ? `code=${erro.code}` : null,
-        erro?.responseCode ? `responseCode=${erro.responseCode}` : null,
-        erro?.command ? `command=${erro.command}` : null,
-        erro?.message ? `mensagem=${erro.message}` : null,
-    ].filter(Boolean).join(' ');
-
-    console.error(
-        `[EMAIL][SMTP][${classificacao.categoria}] ${classificacao.descricao}. ` +
-        `operacao=${operacao} destino=${mascararEmail(to)}${detalhes ? ` ${detalhes}` : ''}`
-    );
+    logger.error('Falha no envio SMTP.', {
+        erro,
+        componente: 'email',
+        operacao,
+        destino: mascararEmail(to),
+        categoria: classificacao.categoria,
+        descricao: classificacao.descricao,
+        codigo: erro?.code,
+        responseCode: erro?.responseCode,
+        comando: erro?.command,
+    });
 
     if (erro && typeof erro === 'object') {
         erro.emailCategoria = classificacao.categoria;
@@ -152,10 +156,12 @@ async function verificarSmtp() {
     try {
         const transporter = criarTransporter();
         await transporter.verify();
-        console.info(
-            `[EMAIL][SMTP_PRONTO] Conexao autenticada em ${process.env.SMTP_HOST}:` +
-            `${Number(process.env.SMTP_PORT || 587)} como ${mascararEmail(process.env.SMTP_USER)}.`
-        );
+        logger.info('Conexao SMTP autenticada.', {
+            componente: 'email',
+            host: process.env.SMTP_HOST,
+            porta: Number(process.env.SMTP_PORT || 587),
+            usuario: mascararEmail(process.env.SMTP_USER),
+        });
         return true;
     } catch (erro) {
         registrarErroSmtp(erro, {
@@ -182,10 +188,12 @@ async function enviarEmail({ to, subject, html, text, operacao }) {
             html,
             text,
         });
-        console.info(
-            `[EMAIL][SMTP_ENVIADO] operacao=${operacao} destino=${mascararEmail(to)} ` +
-            `messageId=${info.messageId || 'nao-informado'}`
-        );
+        logger.info('Email enviado pelo SMTP.', {
+            componente: 'email',
+            operacao,
+            destino: mascararEmail(to),
+            messageId: info.messageId || 'nao-informado',
+        });
         return true;
     } catch (erro) {
         registrarErroSmtp(erro, { operacao, to });

@@ -76,4 +76,66 @@ void main() {
     expect(chamadoRepository.lastStatus, ChamadoStatus.concluido);
     expect(chamadoRepository.chamados.single.status, ChamadoStatus.concluido);
   });
+
+  testWidgets('carrega a proxima pagina de chamados sob demanda',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final user = User(
+      id: 9,
+      nome: 'Carlos Prestador',
+      email: 'carlos@teste.com',
+      tipo: UserTipo.profissional,
+    );
+    final chamadoRepository = FakeChamadoRepository(
+      List.generate(
+        21,
+        (index) => Chamado(
+          id: index + 1,
+          descricao: 'Chamado ${index + 1}',
+          status: ChamadoStatus.pendente,
+          profissionalId: 9,
+          cidadaoId: index + 100,
+          cidadaoNome: 'Cliente ${index + 1}',
+          servicoNome: 'Servico ${index + 1}',
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          authStateProvider.overrideWith(
+            (ref) => AuthNotifier(
+              FakeAuthRepository(user),
+              initialState: AuthState(user: user),
+            ),
+          ),
+          chamadoRepositoryProvider.overrideWithValue(chamadoRepository),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(body: ChamadosScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Servico 21'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('Carregar mais'),
+      500,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('Carregar mais'));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Servico 21'),
+      500,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Servico 21'), findsOneWidget);
+    expect(find.text('Carregar mais'), findsNothing);
+  });
 }

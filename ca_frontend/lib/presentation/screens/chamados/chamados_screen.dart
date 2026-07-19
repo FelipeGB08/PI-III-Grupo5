@@ -86,12 +86,16 @@ class _ChamadosScreenState extends ConsumerState<ChamadosScreen>
                               c.status == ChamadoStatus.remarcacaoSolicitada)
                           .toList(),
                       isPrestador: isPrestador,
+                      hasMore: state.hasMore,
+                      isLoadingMore: state.isLoadingMore,
                     ),
                     _ChamadosList(
                       chamados:
                           _filter(state.chamados, ChamadoStatus.emAndamento),
                       isPrestador: isPrestador,
                       showConcluir: true,
+                      hasMore: state.hasMore,
+                      isLoadingMore: state.isLoadingMore,
                     ),
                     _ChamadosList(
                       chamados: state.chamados
@@ -102,6 +106,8 @@ class _ChamadosScreenState extends ConsumerState<ChamadosScreen>
                           .toList(),
                       isPrestador: isPrestador,
                       showAvaliar: !isPrestador,
+                      hasMore: state.hasMore,
+                      isLoadingMore: state.isLoadingMore,
                     ),
                   ],
                 ),
@@ -118,18 +124,22 @@ class _ChamadosList extends ConsumerWidget {
   const _ChamadosList({
     required this.chamados,
     required this.isPrestador,
+    required this.hasMore,
+    required this.isLoadingMore,
     this.showConcluir = false,
     this.showAvaliar = false,
   });
 
   final List<Chamado> chamados;
   final bool isPrestador;
+  final bool hasMore;
+  final bool isLoadingMore;
   final bool showConcluir;
   final bool showAvaliar;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (chamados.isEmpty) {
+    if (chamados.isEmpty && !hasMore) {
       return Center(
         child: Text(
           'Nenhum chamado aqui',
@@ -142,8 +152,23 @@ class _ChamadosList extends ConsumerWidget {
       onRefresh: () => ref.read(chamadosProvider.notifier).carregar(),
       child: ListView.builder(
         padding: const EdgeInsets.all(20),
-        itemCount: chamados.length,
+        itemCount: chamados.length + (hasMore ? 1 : 0),
         itemBuilder: (_, i) {
+          if (i == chamados.length) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: isLoadingMore
+                    ? const CircularProgressIndicator()
+                    : OutlinedButton.icon(
+                        onPressed: () =>
+                            ref.read(chamadosProvider.notifier).carregarMais(),
+                        icon: const Icon(Icons.expand_more_rounded),
+                        label: const Text('Carregar mais'),
+                      ),
+              ),
+            );
+          }
           final c = chamados[i];
           return ChamadoCard(
             chamado: c,

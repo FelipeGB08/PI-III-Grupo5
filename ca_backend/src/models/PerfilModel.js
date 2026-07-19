@@ -108,7 +108,7 @@ const PerfilModel = {
             JOIN usuarios u ON pp.usuario_id = u.id
             LEFT JOIN profissional_categorias pc ON pc.profissional_id = u.id
             LEFT JOIN categorias c ON c.id = pc.categoria_id
-            WHERE u.perfil_tipo = 'profissional'
+            WHERE u.perfil_tipo = 'profissional' AND u.ativo = TRUE
         `;
         const values = [];
         let contador = 1;

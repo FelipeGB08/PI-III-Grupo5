@@ -1,4 +1,6 @@
 require('dotenv').config();
+const { sentryAtivo } = require('./config/sentry');
+const logger = require('./utils/logger');
 const http = require('http');
 const express = require('express');
 const cors = require('cors');
@@ -34,6 +36,8 @@ const configuredOrigins = (process.env.ALLOWED_ORIGINS || '')
 const corsOrigin = configuredOrigins.length > 0
     ? configuredOrigins
     : (process.env.NODE_ENV === 'production' ? [] : '*');
+const API_PREFIX_V1 = '/api/v1';
+const API_PREFIX_LEGADO = '/api';
 
 const app = express();
 const server = http.createServer(app);
@@ -54,9 +58,12 @@ const apiDocsEnabled = process.env.ENABLE_API_DOCS === 'true' || (
 if (apiDocsEnabled) {
     const swaggerUi = require('swagger-ui-express');
     const swaggerSpec = require('./config/swagger');
-    app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    const swaggerUiOptions = {
         customSiteTitle: 'Conecta AMAUC API',
-    }));
+    };
+
+    app.use(`${API_PREFIX_V1}/docs`, swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions));
+    app.use(`${API_PREFIX_LEGADO}/docs`, swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions));
 }
 
 app.use(helmet());
@@ -77,21 +84,32 @@ app.use(
     express.static(path.resolve(__dirname, '..', 'uploads')),
 );
 
-app.use('/api/auth', authRoutes);
-app.use('/api/usuarios', userRoutes);
-app.use('/api/perfil', perfilRoutes);
-app.use('/api/servicos', servicoRoutes);
-app.use('/api/solicitacoes', solicitacaoRoutes);
-app.use('/api/avaliacoes', avaliacaoRoutes);
-app.use('/api/categorias', categoriaRoutes);
-app.use('/api/admin', adminCategoriaRoutes);
-app.use('/api/upload', uploadRoutes);
-app.use('/api/admin/relatorios', relatorioRoutes);
-app.use('/api/profissionais', profissionalRoutes);
-app.use('/api/agenda', agendaRoutes);
-app.use('/api/dispositivos', dispositivoRoutes);
-app.use('/api/notificacoes', notificationRoutes);
-app.use('/api/favoritos', favoritoRoutes);
+const rotasApi = [
+    ['/auth', authRoutes],
+    ['/usuarios', userRoutes],
+    ['/perfil', perfilRoutes],
+    ['/servicos', servicoRoutes],
+    ['/solicitacoes', solicitacaoRoutes],
+    ['/avaliacoes', avaliacaoRoutes],
+    ['/categorias', categoriaRoutes],
+    ['/admin', adminCategoriaRoutes],
+    ['/upload', uploadRoutes],
+    ['/admin/relatorios', relatorioRoutes],
+    ['/profissionais', profissionalRoutes],
+    ['/agenda', agendaRoutes],
+    ['/dispositivos', dispositivoRoutes],
+    ['/notificacoes', notificationRoutes],
+    ['/favoritos', favoritoRoutes],
+];
+
+function registrarRotasApi(prefixo) {
+    for (const [caminho, router] of rotasApi) {
+        app.use(`${prefixo}${caminho}`, router);
+    }
+}
+
+registrarRotasApi(API_PREFIX_V1);
+registrarRotasApi(API_PREFIX_LEGADO);
 
 /**
  * @swagger
@@ -109,9 +127,12 @@ app.use('/api/favoritos', favoritoRoutes);
  *       '500':
  *         $ref: '#/components/responses/InternalError'
  */
-app.get('/api/status', (req, res) => {
+function responderStatus(req, res) {
     res.json({ mensagem: 'API do Conecta Amauc rodando !' });
-});
+}
+
+app.get(`${API_PREFIX_V1}/status`, responderStatus);
+app.get(`${API_PREFIX_LEGADO}/status`, responderStatus);
 
 app.use((req, res, next) => {
     res.status(404).json({ erro: 'Endpoint não encontrado na API.' });
@@ -129,7 +150,12 @@ app.use((err, req, res, next) => {
         });
     }
 
-    console.error(' Erro Crítico Capturado pelo Escudo:', err.stack);
+    logger.error('Erro nao tratado pela API.', {
+        erro: err,
+        metodo: req.method,
+        rota: req.path,
+        usuarioId: req.usuarioLogado?.id,
+    });
     res.status(500).json({
         erro: 'Ocorreu um erro interno inesperado no servidor.',
         detalhe: process.env.NODE_ENV === 'development' ? err.message : undefined,
@@ -138,5 +164,9 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
+    logger.info('Servidor iniciado.', {
+        porta: PORT,
+        sentryAtivo,
+        ambiente: process.env.NODE_ENV || 'development',
+    });
 });

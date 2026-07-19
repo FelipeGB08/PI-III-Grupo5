@@ -141,8 +141,8 @@ class _MainNavigationState extends ConsumerState<_MainNavigation> {
             onTap: (i) => setState(() => _index = i),
             backgroundColor: Colors.transparent,
             elevation: 0,
-            selectedItemColor: AppColors.primary,
-            unselectedItemColor: AppColors.muted,
+            selectedItemColor: context.appBrand,
+            unselectedItemColor: context.appMuted,
             type: BottomNavigationBarType.fixed,
             items: List.generate(labels.length, (i) {
               return BottomNavigationBarItem(

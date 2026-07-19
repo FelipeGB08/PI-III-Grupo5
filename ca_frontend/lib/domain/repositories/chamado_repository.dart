@@ -12,7 +12,11 @@ abstract class ChamadoRepository {
     String? fotoUrl,
   });
 
-  Future<List<Chamado>> listarMeusChamados({bool isPrestador = false});
+  Future<PaginaChamados> listarMeusChamados({
+    bool isPrestador = false,
+    int page = 1,
+    int pageSize = 20,
+  });
 
   Future<Chamado> buscarPorId(int chamadoId);
 

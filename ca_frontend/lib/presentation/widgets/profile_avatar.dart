@@ -102,18 +102,28 @@ class ProfileAvatar extends StatelessWidget {
           Positioned(
             right: -2,
             bottom: -2,
-            child: Material(
-              color: AppColors.primary,
-              shape: const CircleBorder(),
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: onEdit,
-                child: Padding(
-                  padding: EdgeInsets.all(radius >= 44 ? 10 : 7),
-                  child: Icon(
-                    Icons.photo_camera_rounded,
-                    color: Colors.white,
-                    size: radius >= 44 ? 20 : 16,
+            child: Semantics(
+              button: true,
+              label: 'Alterar foto de perfil',
+              onTap: onEdit,
+              child: Tooltip(
+                message: 'Alterar foto de perfil',
+                excludeFromSemantics: true,
+                child: Material(
+                  color: AppColors.primary,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    excludeFromSemantics: true,
+                    customBorder: const CircleBorder(),
+                    onTap: onEdit,
+                    child: Padding(
+                      padding: EdgeInsets.all(radius >= 44 ? 10 : 7),
+                      child: Icon(
+                        Icons.photo_camera_rounded,
+                        color: AppColors.actionForeground,
+                        size: radius >= 44 ? 20 : 16,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -138,7 +148,7 @@ class _Initials extends StatelessWidget {
       child: Text(
         _initials(name),
         style: TextStyle(
-          color: AppColors.primary,
+          color: context.appBrand,
           fontSize: radius * 0.52,
           fontWeight: FontWeight.w900,
         ),

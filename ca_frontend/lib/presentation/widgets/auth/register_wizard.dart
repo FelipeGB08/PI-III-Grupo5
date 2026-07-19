@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../../core/config/amauc_constants.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/validation/form_validators.dart';
 import '../../../domain/entities/user.dart';
 import 'auth_text_field.dart';
@@ -458,12 +459,13 @@ class _RegisterWizardState extends State<RegisterWizard> {
                 avatar: Icon(
                   cat.icon,
                   size: 16,
-                  color: selected ? Colors.white : cat.cor,
+                  color: selected ? AppColors.actionForeground : cat.cor,
                 ),
                 label: Text(
                   cat.nome,
                   style: TextStyle(
-                    color: selected ? Colors.white : Colors.white70,
+                    color:
+                        selected ? AppColors.actionForeground : Colors.white70,
                     fontSize: 12,
                   ),
                 ),
@@ -597,6 +599,7 @@ class _RegisterWizardState extends State<RegisterWizard> {
                     : _nextStep,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF3B82F6),
+              foregroundColor: AppColors.actionForeground,
               disabledBackgroundColor:
                   const Color(0xFF3B82F6).withValues(alpha: 0.5),
               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -610,7 +613,7 @@ class _RegisterWizardState extends State<RegisterWizard> {
                     width: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Colors.white,
+                      color: AppColors.actionForeground,
                     ),
                   )
                 : Text(
@@ -618,7 +621,7 @@ class _RegisterWizardState extends State<RegisterWizard> {
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: AppColors.actionForeground,
                     ),
                   ),
           ),
@@ -645,44 +648,52 @@ class _RoleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '$title: $subtitle',
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: selected
-              ? const Color(0xFF3B82F6).withValues(alpha: 0.2)
-              : const Color(0xFF1E293B),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: selected ? const Color(0xFF3B82F6) : Colors.transparent,
-            width: 2,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              size: 32,
-              color: selected ? const Color(0xFF3B82F6) : Colors.white54,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-                color: selected ? Colors.white : Colors.white70,
+      child: GestureDetector(
+        onTap: onTap,
+        child: ExcludeSemantics(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: selected
+                  ? const Color(0xFF3B82F6).withValues(alpha: 0.2)
+                  : const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selected ? const Color(0xFF3B82F6) : Colors.transparent,
+                width: 2,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            child: Column(
+              children: [
+                Icon(
+                  icon,
+                  size: 32,
+                  color: selected ? const Color(0xFF3B82F6) : Colors.white54,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: selected ? Colors.white : Colors.white70,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

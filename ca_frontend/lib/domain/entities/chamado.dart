@@ -134,3 +134,21 @@ class Chamado {
     );
   }
 }
+
+class PaginaChamados {
+  const PaginaChamados({
+    required this.items,
+    required this.total,
+    required this.page,
+    required this.pageSize,
+    required this.totalPages,
+    required this.hasMore,
+  });
+
+  final List<Chamado> items;
+  final int total;
+  final int page;
+  final int pageSize;
+  final int totalPages;
+  final bool hasMore;
+}

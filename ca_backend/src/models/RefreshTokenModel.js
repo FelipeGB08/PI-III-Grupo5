@@ -15,12 +15,13 @@ const RefreshTokenModel = {
         const result = await pool.query(
             `SELECT u.id, u.nome, u.email, u.telefone, u.cidade_amauc,
                     u.endereco_principal, u.latitude, u.longitude,
-                    u.perfil_tipo, u.foto_url, u.criado_em
+                    u.perfil_tipo, u.foto_url, u.ativo, u.criado_em
              FROM refresh_tokens rt
              INNER JOIN usuarios u ON u.id = rt.usuario_id
              WHERE rt.token_hash = $1
                AND rt.revogado_em IS NULL
                AND rt.expira_em > NOW()
+               AND u.ativo = TRUE
              LIMIT 1`,
             [tokenHash]
         );

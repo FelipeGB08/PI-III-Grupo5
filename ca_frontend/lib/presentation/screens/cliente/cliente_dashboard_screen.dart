@@ -362,6 +362,7 @@ class _SearchField extends StatelessWidget {
       controller: controller,
       onChanged: onChanged,
       decoration: InputDecoration(
+        labelText: 'Buscar profissionais',
         hintText: 'Buscar por nome, cidade ou servico',
         prefixIcon: const Icon(Icons.search_rounded),
         suffixIcon: busca.isNotEmpty
@@ -434,33 +435,43 @@ class _CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    final foreground = selected ? context.appTextPrimary : context.appBrand;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: 'Filtrar por categoria $label',
       onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-        decoration: BoxDecoration(
-          color: selected ? color.withValues(alpha: 0.18) : context.appCard,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: selected ? color : context.appBorder,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 17),
-            const SizedBox(width: 7),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? context.appTextPrimary : context.appMuted,
-                fontWeight: FontWeight.w900,
-                fontSize: 12,
+      child: InkWell(
+        excludeFromSemantics: true,
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: ExcludeSemantics(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+            decoration: BoxDecoration(
+              color: selected ? color.withValues(alpha: 0.18) : context.appCard,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: selected ? color : context.appBorder,
               ),
             ),
-          ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: foreground, size: 17),
+                const SizedBox(width: 7),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: selected ? context.appTextPrimary : context.appMuted,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

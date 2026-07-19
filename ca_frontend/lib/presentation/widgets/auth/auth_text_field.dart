@@ -38,59 +38,65 @@ class AuthTextField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (label != null) ...[
-          Text(
-            label!,
-            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ExcludeSemantics(
+            child: Text(
+              label!,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
           ),
           const SizedBox(height: 8),
         ],
-        TextFormField(
-          controller: controller,
-          keyboardType: keyboardType,
-          maxLines: maxLines,
-          obscureText: obscureText,
-          validator: validator,
-          onChanged: onChanged,
-          textInputAction: textInputAction,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: const TextStyle(color: Colors.white30),
-            prefixIcon: icon != null ? Icon(icon, color: Colors.white54) : null,
-            suffixIcon: suffixIcon,
-            filled: true,
-            fillColor: _fillColor,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: Color(0xFF3B82F6),
-                width: 1.5,
+        Semantics(
+          label: label ?? hint,
+          child: TextFormField(
+            controller: controller,
+            keyboardType: keyboardType,
+            maxLines: maxLines,
+            obscureText: obscureText,
+            validator: validator,
+            onChanged: onChanged,
+            textInputAction: textInputAction,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: const TextStyle(color: Colors.white70),
+              prefixIcon:
+                  icon != null ? Icon(icon, color: Colors.white70) : null,
+              suffixIcon: suffixIcon,
+              filled: true,
+              fillColor: _fillColor,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
               ),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _errorColor, width: 1.5),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _errorColor, width: 1.5),
-            ),
-            errorStyle: const TextStyle(
-              color: _errorColor,
-              fontSize: 12,
-              height: 1.2,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Color(0xFF3B82F6),
+                  width: 1.5,
+                ),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _errorColor, width: 1.5),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _errorColor, width: 1.5),
+              ),
+              errorStyle: const TextStyle(
+                color: _errorColor,
+                fontSize: 12,
+                height: 1.2,
+              ),
             ),
           ),
         ),

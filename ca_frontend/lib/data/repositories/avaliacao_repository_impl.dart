@@ -22,6 +22,14 @@ class AvaliacaoRepositoryImpl implements AvaliacaoRepository {
       );
 
   @override
-  Future<AvaliacoesResumo> listarDoProfissional(int profissionalId) =>
-      _api.listarAvaliacoesProfissional(profissionalId);
+  Future<AvaliacoesResumo> listarDoProfissional(
+    int profissionalId, {
+    int page = 1,
+    int pageSize = 20,
+  }) =>
+      _api.listarAvaliacoesProfissional(
+        profissionalId,
+        page: page,
+        pageSize: pageSize,
+      );
 }

@@ -172,7 +172,7 @@ class PrestadorProfileScreen extends ConsumerWidget {
               icon: Icons.collections_outlined,
               child: SelectableText(
                 prestador.portfolioUrl!,
-                style: const TextStyle(color: AppColors.primary),
+                style: TextStyle(color: context.appBrand),
               ),
             ),
           if (prestador.portfolioUrls.isNotEmpty)
@@ -310,6 +310,8 @@ class _ImageGallery extends StatelessWidget {
               color: context.appSurface,
               child: Image.network(
                 ApiConfig.resolveAssetUrl(url),
+                semanticLabel:
+                    'Imagem do portfolio ${index + 1} de ${urls.length}',
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => const Center(
                   child: Icon(
@@ -475,6 +477,7 @@ class _MetricTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final foreground = _foreground(context);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -485,14 +488,14 @@ class _MetricTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: accent, size: 18),
+          Icon(icon, color: foreground, size: 18),
           const SizedBox(height: 8),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: accent,
+              color: foreground,
               fontSize: 16,
               fontWeight: FontWeight.w900,
             ),
@@ -502,11 +505,20 @@ class _MetricTile extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: AppColors.muted, fontSize: 11),
+            style: TextStyle(color: context.appTextSecondary, fontSize: 11),
           ),
         ],
       ),
     );
+  }
+
+  Color _foreground(BuildContext context) {
+    if (context.isDarkMode) return accent;
+    if (accent == AppColors.accent) return context.appAccent;
+    if (accent == AppColors.statusPendente) {
+      return AppColors.statusPendenteAccessibleLight;
+    }
+    return context.appBrand;
   }
 }
 
@@ -536,7 +548,7 @@ class _SectionCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: AppColors.primary, size: 18),
+              Icon(icon, color: context.appBrand, size: 18),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -571,6 +583,7 @@ class _FeatureChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = highlighted ? AppColors.accent : AppColors.primary;
+    final foreground = highlighted ? context.appAccent : context.appBrand;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
@@ -581,7 +594,7 @@ class _FeatureChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 15),
+          Icon(icon, color: foreground, size: 15),
           const SizedBox(width: 6),
           Text(
             label,

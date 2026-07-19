@@ -13,6 +13,7 @@ class FakeAuthRepository implements AuthRepository {
   User user;
   String? loginEmail;
   String? loginSenha;
+  String? deleteAccountConfirmation;
 
   AuthResult get _result => AuthResult(token: 'fake-token', user: user);
 
@@ -96,6 +97,11 @@ class FakeAuthRepository implements AuthRepository {
   }) async {}
 
   @override
+  Future<void> deleteAccount({required String confirmation}) async {
+    deleteAccountConfirmation = confirmation;
+  }
+
+  @override
   Future<String> uploadAvatar(String filePath) async => 'fake-avatar.png';
 
   @override
@@ -173,9 +179,26 @@ class FakeChamadoRepository implements ChamadoRepository {
   }
 
   @override
-  Future<List<Chamado>> listarMeusChamados({bool isPrestador = false}) async {
+  Future<PaginaChamados> listarMeusChamados({
+    bool isPrestador = false,
+    int page = 1,
+    int pageSize = 20,
+  }) async {
     lastListWasForPrestador = isPrestador;
-    return List<Chamado>.from(chamados);
+    final start = (page - 1) * pageSize;
+    final items = start >= chamados.length
+        ? const <Chamado>[]
+        : chamados.skip(start).take(pageSize).toList();
+    final totalPages =
+        chamados.isEmpty ? 0 : (chamados.length / pageSize).ceil();
+    return PaginaChamados(
+      items: items,
+      total: chamados.length,
+      page: page,
+      pageSize: pageSize,
+      totalPages: totalPages,
+      hasMore: page < totalPages,
+    );
   }
 
   @override
@@ -298,7 +321,11 @@ class FakeAvaliacaoRepository implements AvaliacaoRepository {
   }
 
   @override
-  Future<AvaliacoesResumo> listarDoProfissional(int profissionalId) async {
+  Future<AvaliacoesResumo> listarDoProfissional(
+    int profissionalId, {
+    int page = 1,
+    int pageSize = 20,
+  }) async {
     return const AvaliacoesResumo(media: 0, avaliacoes: []);
   }
 }

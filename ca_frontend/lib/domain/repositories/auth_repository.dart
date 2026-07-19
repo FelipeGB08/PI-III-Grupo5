@@ -58,6 +58,7 @@ abstract class AuthRepository {
     required String token,
     required String senha,
   });
+  Future<void> deleteAccount({required String confirmation});
   Future<void> logout();
   Future<String?> getToken();
   Future<User?> getCurrentUser();

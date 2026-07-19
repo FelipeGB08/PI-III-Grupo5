@@ -190,14 +190,26 @@ const SolicitacaoController = {
     listarMeusPedidos: async (req, res) => {
         try {
             const cidadaoId = obterIdUsuarioLogado(req);
-            const status = req.query.status || null;
+            const query = req.validated?.query || req.query || {};
+            const status = query.status || null;
+            const { page, pageSize } = query;
 
             if (!cidadaoId) {
                 return res.status(401).json({ erro: 'Usuario nao autenticado.' });
             }
 
-            const pedidos = await ServicoModel.buscarPorCidadao(cidadaoId, status);
-            return res.status(200).json({ pedidos, solicitacoes: pedidos });
+            const resultado = await ServicoModel.buscarPorCidadao(
+                cidadaoId,
+                status,
+                { page, pageSize }
+            );
+            const { items: pedidos, ...paginacao } = resultado;
+            return res.status(200).json({
+                pedidos,
+                solicitacoes: pedidos,
+                ...paginacao,
+                paginacao,
+            });
         } catch (erro) {
             console.error('Erro ao listar pedidos do cidadao:', erro);
             return res.status(500).json({ erro: 'Erro interno ao listar pedidos.' });
@@ -207,14 +219,26 @@ const SolicitacaoController = {
     listarMinhasSolicitacoes: async (req, res) => {
         try {
             const profId = obterIdUsuarioLogado(req);
-            const status = req.query.status || null;
+            const query = req.validated?.query || req.query || {};
+            const status = query.status || null;
+            const { page, pageSize } = query;
 
             if (!profId) {
                 return res.status(401).json({ erro: 'Usuario nao autenticado.' });
             }
 
-            const solicitacoes = await ServicoModel.buscarPorProfissional(profId, status);
-            return res.status(200).json({ solicitacoes, pedidos: solicitacoes });
+            const resultado = await ServicoModel.buscarPorProfissional(
+                profId,
+                status,
+                { page, pageSize }
+            );
+            const { items: solicitacoes, ...paginacao } = resultado;
+            return res.status(200).json({
+                solicitacoes,
+                pedidos: solicitacoes,
+                ...paginacao,
+                paginacao,
+            });
         } catch (erro) {
             console.error('Erro ao listar solicitacoes do profissional:', erro);
             return res.status(500).json({ erro: 'Erro interno ao listar solicitacoes.' });
@@ -225,7 +249,9 @@ const SolicitacaoController = {
         try {
             const usuarioId = obterIdUsuarioLogado(req);
             const perfilTipo = req.usuarioLogado?.perfil_tipo;
-            const status = req.query.status || null;
+            const query = req.validated?.query || req.query || {};
+            const status = query.status || null;
+            const { page, pageSize } = query;
 
             if (!usuarioId) {
                 return res.status(401).json({ erro: 'Usuario nao autenticado.' });
@@ -239,6 +265,8 @@ const SolicitacaoController = {
                 usuarioId,
                 perfilTipo,
                 status,
+                page,
+                pageSize,
             });
 
             return res.status(200).json(financeiro);

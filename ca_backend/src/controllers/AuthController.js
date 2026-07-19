@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const UserModel = require('../models/UserModel');
+const logger = require('../utils/logger');
 const { cidadePermitida, CIDADES_AMAUC } = require('../config/amaucCidades');
 const {
     ACCESS_TOKEN_EXPIRES_IN_SECONDS,
@@ -116,7 +117,11 @@ const AuthController = {
                 usuario: montarRespostaUsuario(novoUsuario),
             });
         } catch (erro) {
-            console.error('Erro no cadastro:', erro);
+            logger.error('Falha no cadastro.', {
+                erro,
+                componente: 'autenticacao',
+                operacao: 'cadastro',
+            });
             if (erro.message === 'Categoria profissional invalida.') {
                 return res.status(400).json({ erro: erro.message });
             }
@@ -130,7 +135,7 @@ const AuthController = {
             const emailNormalizado = String(email || '').trim().toLowerCase();
 
             const usuario = await UserModel.buscarPorEmail(emailNormalizado);
-            if (!usuario) {
+            if (!usuario || usuario.ativo === false) {
                 return res.status(401).json({ erro: 'Email ou senha incorretos.' });
             }
 
@@ -148,7 +153,11 @@ const AuthController = {
                 await criarRespostaLogin(usuario, 'Login realizado com sucesso!')
             );
         } catch (erro) {
-            console.error('Erro no login:', erro);
+            logger.error('Falha no login.', {
+                erro,
+                componente: 'autenticacao',
+                operacao: 'login',
+            });
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
         }
     },
@@ -172,7 +181,11 @@ const AuthController = {
                 usuario: montarRespostaUsuario(usuario),
             });
         } catch (erro) {
-            console.error('Erro ao renovar sessao:', erro);
+            logger.error('Falha ao renovar sessao.', {
+                erro,
+                componente: 'autenticacao',
+                operacao: 'refresh',
+            });
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
         }
     },
@@ -182,7 +195,11 @@ const AuthController = {
             await revogarRefreshToken(req.body.refresh_token);
             return res.status(200).json({ mensagem: 'Logout realizado com sucesso!' });
         } catch (erro) {
-            console.error('Erro ao realizar logout:', erro);
+            logger.error('Falha ao realizar logout.', {
+                erro,
+                componente: 'autenticacao',
+                operacao: 'logout',
+            });
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
         }
     },

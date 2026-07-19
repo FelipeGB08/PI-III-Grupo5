@@ -38,10 +38,10 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      final lista = await _apiService.listarChamadosPrestador(status: status);
+      final pagina = await _apiService.listarChamadosPrestador(status: status);
 
       state = state.copyWith(
-        chamados: lista,
+        chamados: pagina.items.cast<ChamadoModel>(),
         isLoading: false,
         error: null,
       );

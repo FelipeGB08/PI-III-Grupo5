@@ -66,7 +66,7 @@ services:
       migrate:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:3000/api/status"]
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:3000/api/v1/status"]
       interval: 10s
       timeout: 5s
       retries: 6

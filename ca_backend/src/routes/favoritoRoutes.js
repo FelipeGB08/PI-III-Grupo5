@@ -1,6 +1,10 @@
 const express = require('express');
 const FavoritoController = require('../controllers/FavoritoController');
 const verificarToken = require('../middlewares/authMiddleware');
+const validate = require('../middlewares/validateMiddleware');
+const {
+    favoritoListagemQuerySchema,
+} = require('../validators/paginationSchemas');
 
 const router = express.Router();
 
@@ -14,6 +18,8 @@ const router = express.Router();
  *     parameters:
  *       - { in: query, name: lat, schema: { type: number, format: double } }
  *       - { in: query, name: lng, schema: { type: number, format: double } }
+ *       - { in: query, name: page, schema: { type: integer, minimum: 1, default: 1 } }
+ *       - { in: query, name: pageSize, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
  *     responses:
  *       '200':
  *         description: Favoritos encontrados.
@@ -84,7 +90,12 @@ const router = express.Router();
  *       '500': { $ref: '#/components/responses/InternalError' }
  */
 
-router.get('/', verificarToken, FavoritoController.listar);
+router.get(
+    '/',
+    verificarToken,
+    validate(favoritoListagemQuerySchema, 'query'),
+    FavoritoController.listar
+);
 router.get('/ids', verificarToken, FavoritoController.ids);
 router.post('/:profissionalId', verificarToken, FavoritoController.adicionar);
 router.delete('/:profissionalId', verificarToken, FavoritoController.remover);

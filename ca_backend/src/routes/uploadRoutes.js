@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs'); // Importa o manipulador de arquivos nativo do Node.js
 const multerConfig = require('../config/multer');
 const verificarToken = require('../middlewares/authMiddleware');
+const { uploadRateLimit } = require('../middlewares/rateLimitMiddleware');
 
 const router = express.Router();
 
@@ -11,6 +12,7 @@ const router = express.Router();
  *   post:
  *     tags: [Uploads]
  *     summary: Envia uma imagem
+ *     description: Limite de 30 requisições de upload por hora para cada usuário autenticado.
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       required: true
@@ -37,11 +39,12 @@ const router = express.Router();
  *             example: { erro: 'Nenhuma imagem foi enviada.' }
  *       '401': { $ref: '#/components/responses/Unauthorized' }
  *       '403': { $ref: '#/components/responses/Forbidden' }
+ *       '429': { $ref: '#/components/responses/TooManyRequests' }
  *       '500': { $ref: '#/components/responses/InternalError' }
  */
 
 // Usamos o middleware do Multer esperando um campo chamado 'foto'
-router.post('/', verificarToken, multerConfig.single('foto'), (req, res) => {
+router.post('/', verificarToken, uploadRateLimit, multerConfig.single('foto'), (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ erro: 'Nenhuma imagem foi enviada.' });

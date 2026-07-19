@@ -741,6 +741,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  Future<bool> deleteAccount(String confirmation) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      await _repo.deleteAccount(confirmation: confirmation);
+      state = const AuthState();
+      return true;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: formatApiError(e));
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     await _repo.logout();
     state = const AuthState();
@@ -959,11 +971,19 @@ class ChamadosState {
   const ChamadosState({
     this.chamados = const [],
     this.isLoading = false,
+    this.isLoadingMore = false,
+    this.page = 0,
+    this.total = 0,
+    this.hasMore = false,
     this.pendingReview,
   });
 
   final List<Chamado> chamados;
   final bool isLoading;
+  final bool isLoadingMore;
+  final int page;
+  final int total;
+  final bool hasMore;
   final Chamado? pendingReview;
 }
 
@@ -972,17 +992,57 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
 
   final ChamadoRepository _repo;
   final User? _user;
+  static const _pageSize = 20;
 
   Future<void> carregar() async {
     state = ChamadosState(isLoading: true, chamados: state.chamados);
-    final list = await _repo.listarMeusChamados(
+    final pagina = await _repo.listarMeusChamados(
       isPrestador: _user?.tipo.isPrestador ?? false,
+      page: 1,
+      pageSize: _pageSize,
     );
-    state = ChamadosState(chamados: list);
+    state = ChamadosState(
+      chamados: pagina.items,
+      page: pagina.page,
+      total: pagina.total,
+      hasMore: pagina.hasMore,
+    );
+  }
+
+  Future<void> carregarMais() async {
+    if (state.isLoading || state.isLoadingMore || !state.hasMore) return;
+
+    state = ChamadosState(
+      chamados: state.chamados,
+      isLoadingMore: true,
+      page: state.page,
+      total: state.total,
+      hasMore: state.hasMore,
+    );
+    final pagina = await _repo.listarMeusChamados(
+      isPrestador: _user?.tipo.isPrestador ?? false,
+      page: state.page + 1,
+      pageSize: _pageSize,
+    );
+    final idsExistentes = state.chamados.map((item) => item.id).toSet();
+    final novos =
+        pagina.items.where((item) => !idsExistentes.contains(item.id)).toList();
+    state = ChamadosState(
+      chamados: [...state.chamados, ...novos],
+      page: pagina.page,
+      total: pagina.total,
+      hasMore: pagina.hasMore,
+    );
   }
 
   Future<void> cancelarSolicitacao(int chamadoId, {String? motivo}) async {
-    state = ChamadosState(isLoading: true, chamados: state.chamados);
+    state = ChamadosState(
+      isLoading: true,
+      chamados: state.chamados,
+      page: state.page,
+      total: state.total,
+      hasMore: state.hasMore,
+    );
 
     await _repo.cancelarSolicitacao(chamadoId: chamadoId, motivo: motivo);
 
@@ -994,7 +1054,13 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
     required DateTime novaDataHora,
     String? motivo,
   }) async {
-    state = ChamadosState(isLoading: true, chamados: state.chamados);
+    state = ChamadosState(
+      isLoading: true,
+      chamados: state.chamados,
+      page: state.page,
+      total: state.total,
+      hasMore: state.hasMore,
+    );
 
     await _repo.solicitarRemarcacao(
       chamadoId: chamadoId,
@@ -1006,13 +1072,25 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
   }
 
   Future<void> aceitarRemarcacao(int chamadoId) async {
-    state = ChamadosState(isLoading: true, chamados: state.chamados);
+    state = ChamadosState(
+      isLoading: true,
+      chamados: state.chamados,
+      page: state.page,
+      total: state.total,
+      hasMore: state.hasMore,
+    );
     await _repo.aceitarRemarcacao(chamadoId: chamadoId);
     await carregar();
   }
 
   Future<void> recusarRemarcacao(int chamadoId) async {
-    state = ChamadosState(isLoading: true, chamados: state.chamados);
+    state = ChamadosState(
+      isLoading: true,
+      chamados: state.chamados,
+      page: state.page,
+      total: state.total,
+      hasMore: state.hasMore,
+    );
     await _repo.recusarRemarcacao(chamadoId: chamadoId);
     await carregar();
   }
@@ -1047,12 +1125,20 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
     if (status == ChamadoStatus.concluido && (_user?.tipo.isCliente ?? false)) {
       state = ChamadosState(
         chamados: state.chamados,
+        page: state.page,
+        total: state.total,
+        hasMore: state.hasMore,
         pendingReview: updated,
       );
     }
   }
 
   void clearPendingReview() {
-    state = ChamadosState(chamados: state.chamados);
+    state = ChamadosState(
+      chamados: state.chamados,
+      page: state.page,
+      total: state.total,
+      hasMore: state.hasMore,
+    );
   }
 }

@@ -73,10 +73,24 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    final semantics = tester.ensureSemantics();
 
     expect(find.text('Instalacao eletrica'), findsOneWidget);
     expect(find.text('23:59'), findsOneWidget);
     expect(find.text('Rua Teste, 123'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel(RegExp('Selecionar servico Instalacao eletrica')),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsLabel(RegExp('Selecionar data')),
+      findsAtLeastNWidgets(1),
+    );
+    expect(find.bySemanticsLabel('Horario 23:59'), findsAtLeastNWidgets(1));
+    expect(
+      find.bySemanticsLabel(RegExp('Endereco do atendimento')),
+      findsAtLeastNWidgets(1),
+    );
 
     final addressField = find.byType(TextField).first;
     await tester.enterText(addressField, 'Rua Nova, 456');
@@ -95,5 +109,6 @@ void main() {
     expect(
         chamadoRepository.createdChamado!.enderecoAtendimento, 'Rua Nova, 456');
     expect(find.text('Agendamento Confirmado!'), findsOneWidget);
+    semantics.dispose();
   });
 }

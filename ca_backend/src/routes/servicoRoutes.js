@@ -2,6 +2,7 @@ const express = require('express');
 const ServicoController = require('../controllers/ServicoController');
 const verificarToken = require('../middlewares/authMiddleware');
 const multerConfig = require('../config/multer');
+const { solicitacaoRateLimit } = require('../middlewares/rateLimitMiddleware');
 
 const router = express.Router();
 
@@ -11,6 +12,7 @@ const router = express.Router();
  *   post:
  *     tags: [Serviços]
  *     summary: Cria uma solicitação pelo endpoint legado com foto opcional
+ *     description: Limite de 20 criações por hora para cada usuário autenticado.
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       required: true
@@ -37,6 +39,7 @@ const router = express.Router();
  *       '401': { $ref: '#/components/responses/Unauthorized' }
  *       '403': { $ref: '#/components/responses/Forbidden' }
  *       '404': { $ref: '#/components/responses/NotFound' }
+ *       '429': { $ref: '#/components/responses/TooManyRequests' }
  *       '500': { $ref: '#/components/responses/InternalError' }
  * /api/servicos/{id}/status:
  *   put:
@@ -69,6 +72,7 @@ const router = express.Router();
 router.post(
     '/',
     verificarToken,
+    solicitacaoRateLimit,
     multerConfig.single('foto'),
     ServicoController.criarServico
 );

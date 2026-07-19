@@ -1,4 +1,10 @@
-const admin = require('firebase-admin');
+const {
+    applicationDefault,
+    cert,
+    getApps,
+    initializeApp,
+} = require('firebase-admin/app');
+const { getMessaging } = require('firebase-admin/messaging');
 
 function getServiceAccountFromEnv() {
     const projectId = process.env.FIREBASE_PROJECT_ID;
@@ -17,21 +23,21 @@ function getServiceAccountFromEnv() {
 function getCredential() {
     const envServiceAccount = getServiceAccountFromEnv();
     if (envServiceAccount) {
-        return admin.credential.cert(envServiceAccount);
+        return cert(envServiceAccount);
     }
 
-    return admin.credential.applicationDefault();
+    return applicationDefault();
 }
 
 function getFirebaseMessaging() {
-    if (!admin.apps.length) {
-        admin.initializeApp({
+    if (!getApps().length) {
+        initializeApp({
             credential: getCredential(),
             projectId: process.env.FIREBASE_PROJECT_ID || undefined,
         });
     }
 
-    return admin.messaging();
+    return getMessaging();
 }
 
 module.exports = {

@@ -326,6 +326,8 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
           final item = servicos[index];
           return _SelectablePanel(
             selected: _servicoIndex == index,
+            semanticLabel:
+                'Selecionar servico ${item.nome}, ${item.duracaoLabel}, R\$ ${item.preco.toStringAsFixed(2)}',
             onTap: () => setState(() => _servicoIndex = index),
             child: Row(
               children: [
@@ -382,11 +384,15 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
           runSpacing: 10,
           children: horarios.map((horario) {
             final selected = _horario == horario;
-            return ChoiceChip(
-              label: Text(horario),
+            return Semantics(
+              label: 'Horario $horario',
               selected: selected,
-              onSelected: (_) => setState(() => _horario = horario),
-              selectedColor: AppColors.primary.withValues(alpha: 0.25),
+              child: ChoiceChip(
+                label: Text(horario),
+                selected: selected,
+                onSelected: (_) => setState(() => _horario = horario),
+                selectedColor: AppColors.primary.withValues(alpha: 0.25),
+              ),
             );
           }).toList(),
         ),
@@ -398,6 +404,7 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
           maxLines: 2,
           decoration: const InputDecoration(
             prefixIcon: Icon(Icons.home_work_outlined),
+            labelText: 'Endereco do atendimento',
             hintText: 'Rua, numero, bairro e cidade',
           ),
         ),
@@ -426,6 +433,7 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
           controller: _observacaoController,
           maxLines: 4,
           decoration: const InputDecoration(
+            labelText: 'Observacoes para o profissional',
             hintText: 'Detalhes adicionais para o profissional...',
           ),
         ),
@@ -450,6 +458,7 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
             borderRadius: BorderRadius.circular(16),
             child: Image.memory(
               _fotoProblemaBytes!,
+              semanticLabel: 'Foto do problema anexada',
               height: 150,
               width: double.infinity,
               fit: BoxFit.cover,
@@ -521,8 +530,8 @@ class _ProfessionalHeader extends StatelessWidget {
           backgroundColor: AppColors.primary.withValues(alpha: 0.18),
           child: Text(
             prestador.nome.isNotEmpty ? prestador.nome[0].toUpperCase() : '?',
-            style: const TextStyle(
-              color: AppColors.primary,
+            style: TextStyle(
+              color: context.appBrand,
               fontSize: 20,
               fontWeight: FontWeight.w900,
             ),
@@ -566,8 +575,8 @@ class _StepTitle extends StatelessWidget {
           backgroundColor: AppColors.primary.withValues(alpha: 0.18),
           child: Text(
             '$number',
-            style: const TextStyle(
-              color: AppColors.primary,
+            style: TextStyle(
+              color: context.appBrand,
               fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
@@ -588,11 +597,13 @@ class _StepTitle extends StatelessWidget {
 class _SelectablePanel extends StatelessWidget {
   const _SelectablePanel({
     required this.selected,
+    required this.semanticLabel,
     required this.onTap,
     required this.child,
   });
 
   final bool selected;
+  final String semanticLabel;
   final VoidCallback onTap;
   final Widget child;
 
@@ -600,19 +611,28 @@ class _SelectablePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
+      child: Semantics(
+        button: true,
+        selected: selected,
+        label: semanticLabel,
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: selected ? context.appPanel : context.appCard,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: selected ? AppColors.primary : context.appBorder,
+        child: InkWell(
+          excludeFromSemantics: true,
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: ExcludeSemantics(
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: selected ? context.appPanel : context.appCard,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: selected ? context.appBrand : context.appBorder,
+                ),
+              ),
+              child: child,
             ),
           ),
-          child: child,
         ),
       ),
     );
@@ -632,31 +652,50 @@ class _DateTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    final foreground =
+        selected ? AppColors.actionForeground : context.appTextPrimary;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: 'Selecionar data ${dia.label}',
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        height: 80,
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primaryDark : context.appCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: selected ? AppColors.primary : context.appBorder,
+      child: InkWell(
+        excludeFromSemantics: true,
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: ExcludeSemantics(
+          child: Container(
+            height: 80,
+            decoration: BoxDecoration(
+              color: selected ? AppColors.primaryDark : context.appCard,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: selected ? context.appBrand : context.appBorder,
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  dia.titulo,
+                  style: TextStyle(
+                    color: foreground,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  dia.numero,
+                  style: TextStyle(
+                    color: foreground,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              dia.titulo,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              dia.numero,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-            ),
-          ],
         ),
       ),
     );

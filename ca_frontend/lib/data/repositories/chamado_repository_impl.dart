@@ -31,12 +31,16 @@ class ChamadoRepositoryImpl implements ChamadoRepository {
   }
 
   @override
-  Future<List<Chamado>> listarMeusChamados({bool isPrestador = false}) {
+  Future<PaginaChamados> listarMeusChamados({
+    bool isPrestador = false,
+    int page = 1,
+    int pageSize = 20,
+  }) {
     if (isPrestador) {
-      return _api.listarChamadosPrestador();
+      return _api.listarChamadosPrestador(page: page, pageSize: pageSize);
     }
 
-    return _api.listarChamadosCliente();
+    return _api.listarChamadosCliente(page: page, pageSize: pageSize);
   }
 
   @override

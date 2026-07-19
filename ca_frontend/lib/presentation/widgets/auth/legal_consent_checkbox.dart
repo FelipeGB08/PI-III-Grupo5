@@ -1,6 +1,8 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_colors.dart';
+
 /// Checkbox obrigatório de consentimento legal (LGPD/GDPR).
 class LegalConsentCheckbox extends StatelessWidget {
   const LegalConsentCheckbox({
@@ -31,17 +33,22 @@ class LegalConsentCheckbox extends StatelessWidget {
             SizedBox(
               width: 24,
               height: 24,
-              child: Checkbox(
-                value: value,
-                onChanged: onChanged,
-                activeColor: const Color(0xFF3B82F6),
-                checkColor: Colors.white,
-                side: BorderSide(
-                  color: errorText != null
-                      ? _errorColor
-                      : Colors.white.withValues(alpha: 0.3),
+              child: Semantics(
+                label: 'Aceito os Termos de Uso e a Politica de Privacidade',
+                checked: value,
+                onTap: () => onChanged(!value),
+                child: Checkbox(
+                  value: value,
+                  onChanged: onChanged,
+                  activeColor: const Color(0xFF3B82F6),
+                  checkColor: AppColors.actionForeground,
+                  side: BorderSide(
+                    color: errorText != null
+                        ? _errorColor
+                        : Colors.white.withValues(alpha: 0.3),
+                  ),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),
             const SizedBox(width: 10),

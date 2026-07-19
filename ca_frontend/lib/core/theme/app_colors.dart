@@ -8,6 +8,10 @@ class AppColors {
   static const Color primary = Color(0xFF22D3EE);
   static const Color primaryDark = Color(0xFF0891B2);
   static const Color accent = Color(0xFF39FF88);
+  static const Color primaryAccessibleLight = Color(0xFF075985);
+  static const Color accentAccessibleLight = Color(0xFF15803D);
+  static const Color statusPendenteAccessibleLight = Color(0xFF92400E);
+  static const Color actionForeground = Color(0xFF031016);
 
   // Dark
   static const Color darkBackground = Color(0xFF07111F);
@@ -25,7 +29,7 @@ class AppColors {
   static const Color textPrimaryDark = Color(0xFFF4F8FF);
   static const Color textSecondaryDark = Color(0xFFB7C6DA);
   static const Color textPrimaryLight = Color(0xFF0F172A);
-  static const Color textSecondaryLight = Color(0xFF64748B);
+  static const Color textSecondaryLight = Color(0xFF475569);
   static const Color muted = Color(0xFF8AA0B8);
 
   // Status chamados

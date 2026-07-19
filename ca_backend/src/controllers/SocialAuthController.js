@@ -2,6 +2,7 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const UserModel = require('../models/UserModel');
+const logger = require('../utils/logger');
 const { cidadePermitida, CIDADES_AMAUC } = require('../config/amaucCidades');
 const {
     criarRespostaLogin,
@@ -143,6 +144,12 @@ const SocialAuthController = {
 
             let usuario = await UserModel.buscarPorEmail(emailNormalizado);
 
+            if (usuario?.ativo === false) {
+                return res.status(401).json({
+                    erro: 'Esta conta foi removida e nao pode mais ser acessada.',
+                });
+            }
+
             if (!usuario) {
                 const cidadeInformada = cidade_amauc || cidade;
                 const cidadeValidada = cidadePermitida(cidadeInformada);
@@ -180,7 +187,16 @@ const SocialAuthController = {
                 )
             );
         } catch (erro) {
-            console.error('Erro no login social:', erro);
+            const contexto = {
+                erro,
+                componente: 'autenticacao_social',
+                status: erro.status || 500,
+            };
+            if (erro.status && erro.status < 500) {
+                logger.warn('Login social recusado.', contexto);
+            } else {
+                logger.error('Falha no login social.', contexto);
+            }
             return res.status(erro.status || 500).json({
                 erro: erro.status ? erro.message : 'Erro interno no servidor.',
             });

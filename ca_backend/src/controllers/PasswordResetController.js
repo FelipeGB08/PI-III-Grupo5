@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const UserModel = require('../models/UserModel');
+const logger = require('../utils/logger');
 const { criarRespostaLogin } = require('../services/authResponseService');
 const { enviarMagicLink, enviarResetSenha } = require('../services/emailService');
 const {
@@ -44,7 +45,12 @@ const PasswordResetController = {
 
                 if (!enviado && ambienteDesenvolvimento()) {
                     resposta.dev_token = token;
-                    console.info(`[DEV] Magic link token para ${emailNormalizado}: ${token}`);
+                    logger.info('Magic link gerado no modo de desenvolvimento.', {
+                        componente: 'autenticacao',
+                        operacao: 'magic_link_dev',
+                        email: emailNormalizado,
+                        token,
+                    });
                 }
 
                 if (enviado) {
@@ -54,7 +60,11 @@ const PasswordResetController = {
 
             return res.status(202).json(resposta);
         } catch (erro) {
-            console.error('Erro ao solicitar magic link:', erro);
+            logger.error('Falha ao solicitar magic link.', {
+                erro,
+                componente: 'autenticacao',
+                operacao: 'magic_link_solicitar',
+            });
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
         }
     },
@@ -80,7 +90,7 @@ const PasswordResetController = {
             const usuario = await UserModel.buscarPorId(dados.usuarioId);
             magicLinkTokens.delete(tokenHash);
 
-            if (!usuario) {
+            if (!usuario || usuario.ativo === false) {
                 return res.status(404).json({ erro: 'Usuario nao encontrado.' });
             }
 
@@ -88,7 +98,11 @@ const PasswordResetController = {
                 await criarRespostaLogin(usuario, 'Login sem senha realizado com sucesso!')
             );
         } catch (erro) {
-            console.error('Erro ao verificar magic link:', erro);
+            logger.error('Falha ao verificar magic link.', {
+                erro,
+                componente: 'autenticacao',
+                operacao: 'magic_link_verificar',
+            });
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
         }
     },
@@ -124,7 +138,12 @@ const PasswordResetController = {
 
                 if (!enviado && ambienteDesenvolvimento()) {
                     resposta.dev_token = token;
-                    console.info(`[DEV] Reset de senha token para ${emailNormalizado}: ${token}`);
+                    logger.info('Token de reset gerado no modo de desenvolvimento.', {
+                        componente: 'autenticacao',
+                        operacao: 'reset_senha_dev',
+                        email: emailNormalizado,
+                        token,
+                    });
                 }
 
                 if (enviado) {
@@ -134,7 +153,11 @@ const PasswordResetController = {
 
             return res.status(202).json(resposta);
         } catch (erro) {
-            console.error('Erro ao solicitar reset de senha:', erro);
+            logger.error('Falha ao solicitar reset de senha.', {
+                erro,
+                componente: 'autenticacao',
+                operacao: 'reset_senha_solicitar',
+            });
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
         }
     },
@@ -171,7 +194,11 @@ const PasswordResetController = {
 
             return res.status(200).json({ mensagem: 'Senha alterada com sucesso.' });
         } catch (erro) {
-            console.error('Erro ao confirmar reset de senha:', erro);
+            logger.error('Falha ao confirmar reset de senha.', {
+                erro,
+                componente: 'autenticacao',
+                operacao: 'reset_senha_confirmar',
+            });
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
         }
     },

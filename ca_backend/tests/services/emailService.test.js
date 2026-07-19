@@ -58,7 +58,11 @@ test('mantem fallback local explicito quando SMTP nao esta configurado', async (
 
     expect(smtpConfigurado()).toBe(false);
     expect(nodemailer.createTransport).not.toHaveBeenCalled();
-    expect(aviso).toHaveBeenCalledWith(expect.stringContaining('[EMAIL][FALLBACK_LOCAL]'));
+    expect(JSON.parse(aviso.mock.calls[0][0])).toEqual(expect.objectContaining({
+        nivel: 'warn',
+        componente: 'email',
+        modo: 'fallback_local',
+    }));
 });
 
 test('registra configuracao ausente sem anunciar fallback em producao', async () => {
@@ -68,7 +72,11 @@ test('registra configuracao ausente sem anunciar fallback em producao', async ()
 
     await expect(enviarResetSenha('teste@exemplo.com', 'token-local')).resolves.toBe(false);
 
-    expect(erroLog).toHaveBeenCalledWith(expect.stringContaining('[EMAIL][CONFIGURACAO_AUSENTE]'));
+    expect(JSON.parse(erroLog.mock.calls[0][0])).toEqual(expect.objectContaining({
+        nivel: 'error',
+        componente: 'email',
+        modo: 'configuracao_ausente',
+    }));
 });
 
 test('envia magic link quando o SMTP aceita a mensagem', async () => {
@@ -102,7 +110,12 @@ test('classifica claramente credenciais SMTP rejeitadas', async () => {
     await expect(enviarResetSenha('destino@exemplo.com', 'token-real')).rejects.toBe(erroAuth);
 
     expect(erroAuth.emailCategoria).toBe('CREDENCIAIS_INVALIDAS');
-    expect(erroLog).toHaveBeenCalledWith(expect.stringContaining('[CREDENCIAIS_INVALIDAS]'));
+    expect(JSON.parse(erroLog.mock.calls[0][0])).toEqual(expect.objectContaining({
+        nivel: 'error',
+        componente: 'email',
+        categoria: 'CREDENCIAIS_INVALIDAS',
+        codigo: 'EAUTH',
+    }));
 });
 
 test('verifica a conexao SMTP antes do teste manual', async () => {

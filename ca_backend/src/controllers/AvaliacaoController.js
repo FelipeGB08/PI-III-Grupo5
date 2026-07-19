@@ -70,11 +70,21 @@ const AvaliacaoController = {
     listarDoProfissional: async (req, res) => {
         try {
             const { id } = req.params;
-            const avaliacoes = await AvaliacaoModel.buscarPorProfissional(id);
+            const query = req.validated?.query || req.query || {};
+            const resultado = await AvaliacaoModel.buscarPorProfissional(id, {
+                page: query.page,
+                pageSize: query.pageSize,
+            });
             const mediaResult = await AvaliacaoModel.calcularMedia(id);
             const media = mediaResult ? parseFloat(mediaResult) : 0;
+            const { items: avaliacoes, ...paginacao } = resultado;
 
-            return res.status(200).json({ media, avaliacoes });
+            return res.status(200).json({
+                media,
+                avaliacoes,
+                ...paginacao,
+                paginacao,
+            });
         } catch (erro) {
             console.error('Erro ao buscar avaliações:', erro);
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
