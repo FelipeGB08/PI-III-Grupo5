@@ -326,7 +326,7 @@ O backend e um PostgreSQL gerenciado podem ser provisionados no Render pelo Blue
    - `FRONTEND_URL`: URL pública do Flutter Web ou URL usada nos links de recuperação de senha, sem barra final.
    - `ALLOWED_ORIGINS`: origens Web autorizadas pelo CORS, com protocolo e separadas por vírgula, por exemplo `https://app.exemplo.com,https://admin.exemplo.com`.
 4. Confirme a criação de `conecta-amauc-db` e `conecta-amauc-api`. O `DATABASE_URL` é ligado automaticamente ao banco e o `JWT_SECRET` é gerado pelo Render; nenhum desses valores deve ser copiado para o repositório.
-5. O Render executa `npm run db:migrate` antes de cada deploy e `npm run db:seed` somente após o primeiro deploy. Para um ambiente de produção com dados reais, remova `initialDeployHook: npm run db:seed` do `render.yaml` antes de criar o Blueprint.
+5. No plano gratuito, o Render executa `npm run db:migrate` no início do serviço e `npm run db:seed` somente após o primeiro deploy. Para um ambiente de produção com dados reais, remova `initialDeployHook: npm run db:seed` do `render.yaml` antes de criar o Blueprint. Em um serviço pago, a migration pode ser movida para `preDeployCommand`.
 6. Quando o serviço ficar disponível, copie sua URL pública e valide:
 
    ```bash
@@ -346,8 +346,8 @@ Se o Blueprint não estiver disponível, faça o mesmo provisionamento pelo Dash
    - Root Directory: `ca_backend`
    - Runtime: `Node`
    - Build Command: `npm install`
-   - Pre-Deploy Command: `npm run db:migrate`
-   - Start Command: `npm start`
+   - Pre-Deploy Command: deixe vazio no plano gratuito; em planos pagos, use `npm run db:migrate`
+   - Start Command: `npm run db:migrate && npm start`
    - Health Check Path: `/api/status`
 3. Cadastre as variáveis abaixo no ambiente do serviço, usando `ca_backend/.env.example` como referência:
 
@@ -367,7 +367,7 @@ Se o Blueprint não estiver disponível, faça o mesmo provisionamento pelo Dash
    npm run db:seed
    ```
 
-   Em produção real, não execute o seed. Se o Pre-Deploy Command não estiver configurado, execute antes `npm run db:migrate` no mesmo Shell.
+   Em produção real, não execute o seed. No plano gratuito, o Start Command acima aplica migrations idempotentes antes de iniciar a API.
 6. Acesse `https://SEU-SERVICO.onrender.com/api/status` e confirme o status `200`.
 
 ### Apontar o Flutter para a API pública

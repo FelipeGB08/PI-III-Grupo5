@@ -6,8 +6,7 @@ services:
     region: oregon
     rootDir: ca_backend
     buildCommand: npm install
-    preDeployCommand: npm run db:migrate
-    startCommand: npm start
+    startCommand: npm run db:migrate && npm start
     initialDeployHook: npm run db:seed
     healthCheckPath: /api/status
     autoDeployTrigger: off
