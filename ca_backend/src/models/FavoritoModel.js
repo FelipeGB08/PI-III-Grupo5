@@ -11,8 +11,6 @@ const {
 const CAMPOS_FAVORITO = `
     u.id,
     u.nome,
-    u.email,
-    u.telefone,
     u.foto_url,
     u.cidade_amauc,
     pp.biografia,
@@ -105,6 +103,25 @@ const FavoritoModel = {
         );
 
         return result.rows.map((row) => row.profissional_id);
+    },
+
+    listarClientesParaNotificarDisponibilidade: async (profissionalId) => {
+        const result = await pool.query(
+            `
+            SELECT f.usuario_id AS cliente_id
+            FROM favoritos_profissionais f
+            JOIN usuarios u ON u.id = f.usuario_id
+            LEFT JOIN preferencias_notificacao pn ON pn.usuario_id = u.id
+            WHERE f.profissional_id = $1
+              AND u.perfil_tipo = 'cidadao'
+              AND u.ativo = TRUE
+              AND COALESCE(pn.novos_horarios_favoritos, TRUE) = TRUE
+            ORDER BY f.usuario_id ASC;
+            `,
+            [profissionalId]
+        );
+
+        return result.rows;
     },
 
     adicionar: async ({ usuarioId, profissionalId }) => {

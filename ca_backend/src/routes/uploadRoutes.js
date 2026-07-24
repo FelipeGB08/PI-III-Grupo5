@@ -1,8 +1,12 @@
 const express = require('express');
-const fs = require('fs'); // Importa o manipulador de arquivos nativo do Node.js
 const multerConfig = require('../config/multer');
 const verificarToken = require('../middlewares/authMiddleware');
 const { uploadRateLimit } = require('../middlewares/rateLimitMiddleware');
+const {
+    comLimpezaDeUpload,
+    tratarErroDeUpload,
+    validarEArmazenarImagens,
+} = require('../middlewares/uploadMiddleware');
 
 const router = express.Router();
 
@@ -12,7 +16,7 @@ const router = express.Router();
  *   post:
  *     tags: [Uploads]
  *     summary: Envia uma imagem
- *     description: Limite de 30 requisições de upload por hora para cada usuário autenticado.
+ *     description: Aceita somente JPEG, PNG ou WEBP validos pela assinatura binaria, com ate 5 MB por arquivo. Limite de 30 requisicoes por hora para cada usuario autenticado.
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       required: true
@@ -25,54 +29,42 @@ const router = express.Router();
  *               foto:
  *                 type: string
  *                 format: binary
- *                 description: Imagem JPG, PNG, WEBP ou HEIC de até 5 MB.
+ *                 description: Imagem JPEG, PNG ou WEBP de ate 5 MB.
  *     responses:
  *       '200':
  *         description: Upload realizado.
  *         content:
  *           application/json:
- *             example: { mensagem: 'Upload realizado com sucesso!', foto_url: '/uploads/imagem.jpg' }
+ *             example: { mensagem: 'Upload realizado com sucesso!', foto_url: '/uploads/550e8400-e29b-41d4-a716-446655440000.jpg' }
  *       '400':
- *         description: Arquivo ausente, inválido ou acima do limite.
+ *         description: Arquivo ausente, invalido ou acima do limite.
  *         content:
  *           application/json:
- *             example: { erro: 'Nenhuma imagem foi enviada.' }
+ *             example: { erro: 'Arquivo invalido. Envie uma imagem JPEG, PNG ou WEBP valida.' }
  *       '401': { $ref: '#/components/responses/Unauthorized' }
  *       '403': { $ref: '#/components/responses/Forbidden' }
  *       '429': { $ref: '#/components/responses/TooManyRequests' }
  *       '500': { $ref: '#/components/responses/InternalError' }
  */
 
-// Usamos o middleware do Multer esperando um campo chamado 'foto'
-router.post('/', verificarToken, uploadRateLimit, multerConfig.single('foto'), (req, res) => {
-    try {
+router.post(
+    '/',
+    verificarToken,
+    uploadRateLimit,
+    multerConfig.single('foto'),
+    validarEArmazenarImagens,
+    comLimpezaDeUpload((req, res) => {
         if (!req.file) {
             return res.status(400).json({ erro: 'Nenhuma imagem foi enviada.' });
         }
 
-        // Essa é a URL que o aplicativo vai ler depois para mostrar a foto na tela
-        const urlImagem = `/uploads/${req.file.filename}`;
-
         return res.status(200).json({
             mensagem: 'Upload realizado com sucesso!',
-            foto_url: urlImagem
+            foto_url: req.file.url,
         });
-    } catch (erro) {
-        console.error('Erro no upload:', erro);
-        // Se o servidor crashar por algum motivo, deletamos a imagem que o multer 
-        // tentou salvar para não gerar um arquivo órfão/corrompido no HD.
-        if (req.file && req.file.path) {
-            fs.unlink(req.file.path, (errFs) => {
-                if (errFs) {
-                    console.error('⚠️ Falha ao deletar arquivo corrompido:', errFs);
-                } else {
-                    console.log('🗑️ Arquivo corrompido removido da pasta uploads com sucesso.');
-                }
-            });
-        }
+    })
+);
 
-        return res.status(500).json({ erro: 'Erro interno no servidor.' });
-    }
-});
+router.use(tratarErroDeUpload);
 
 module.exports = router;

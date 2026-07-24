@@ -1,18 +1,33 @@
 const express = require('express');
 const SolicitacaoController = require('../controllers/SolicitacaoController');
+const DenunciaController = require('../controllers/DenunciaController');
 const ChatController = require('../controllers/ChatController');
 const verificarToken = require('../middlewares/authMiddleware');
+const { requireRole } = require('../middlewares/roleMiddleware');
 const multerConfig = require('../config/multer');
+const {
+    comLimpezaDeUpload,
+    tratarErroDeUpload,
+    validarEArmazenarImagens,
+} = require('../middlewares/uploadMiddleware');
 const validate = require('../middlewares/validateMiddleware');
 const {
     chatRateLimit,
     solicitacaoRateLimit,
     uploadRateLimit,
 } = require('../middlewares/rateLimitMiddleware');
-const { criarSolicitacaoSchema } = require('../validators/solicitacaoSchemas');
 const {
+    atualizarStatusSchema,
+    chatMensagemSchema,
+    criarSolicitacaoSchema,
+    propostaValorSchema,
+} = require('../validators/solicitacaoSchemas');
+const { criarDenunciaSchema } = require('../validators/denunciaSchemas');
+const {
+    chatMensagensQuerySchema,
     solicitacaoListagemQuerySchema,
 } = require('../validators/paginationSchemas');
+const { idParamSchema } = require('../validators/commonSchemas');
 
 const router = express.Router();
 
@@ -71,6 +86,7 @@ const router = express.Router();
  *                 solicitacoes: { type: array, items: { $ref: '#/components/schemas/Solicitacao' } }
  *                 total: { type: integer, example: 42 }
  *                 hasMore: { type: boolean, example: true }
+ *       '400': { $ref: '#/components/responses/BadRequest' }
  *       '401': { $ref: '#/components/responses/Unauthorized' }
  *       '500': { $ref: '#/components/responses/InternalError' }
  * /api/solicitacoes/minhas-solicitacoes:
@@ -94,6 +110,7 @@ const router = express.Router();
  *                 pedidos: { type: array, items: { $ref: '#/components/schemas/Solicitacao' } }
  *                 total: { type: integer, example: 42 }
  *                 hasMore: { type: boolean, example: true }
+ *       '400': { $ref: '#/components/responses/BadRequest' }
  *       '401': { $ref: '#/components/responses/Unauthorized' }
  *       '500': { $ref: '#/components/responses/InternalError' }
  * /api/solicitacoes/financeiro:
@@ -112,6 +129,7 @@ const router = express.Router();
  *           application/json:
  *             schema: { type: object, additionalProperties: true }
  *             example: { resumo: { total_concluido: 120, total_cancelado: 0 }, itens: [] }
+ *       '400': { $ref: '#/components/responses/BadRequest' }
  *       '401': { $ref: '#/components/responses/Unauthorized' }
  *       '403': { $ref: '#/components/responses/Forbidden' }
  *       '500': { $ref: '#/components/responses/InternalError' }
@@ -177,7 +195,7 @@ const router = express.Router();
  *   post:
  *     tags: [Chat]
  *     summary: Envia uma mensagem na solicitação
- *     description: Limite compartilhado de 60 mensagens por minuto por usuário, também aplicado ao evento Socket.IO chat:send.
+ *     description: Limite compartilhado de 60 mensagens por minuto por usuário, também aplicado ao evento Socket.IO chat:send. O client_id opcional torna novas tentativas idempotentes.
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -204,7 +222,7 @@ const router = express.Router();
  *   post:
  *     tags: [Solicitações, Uploads]
  *     summary: Anexa até cinco fotos de conclusão
- *     description: Limite de 30 requisições de upload por hora para cada usuário autenticado.
+ *     description: Aceita no maximo cinco imagens JPEG, PNG ou WEBP validas pela assinatura binaria, com ate 5 MB por arquivo. Limite de 30 requisicoes de upload por hora para cada usuario autenticado.
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -252,6 +270,34 @@ const router = express.Router();
  *       '400': { $ref: '#/components/responses/BadRequest' }
  *       '401': { $ref: '#/components/responses/Unauthorized' }
  *       '404': { $ref: '#/components/responses/NotFound' }
+ *       '409':
+ *         description: Conclusão sem chamado aceito ou sem foto de evidência.
+ *         content:
+ *           application/json:
+ *             example: { erro: 'A conclusao exige um chamado aceito e ao menos uma foto de evidencia.' }
+ *       '500': { $ref: '#/components/responses/InternalError' }
+ * /api/solicitacoes/{id}/confirmar-conclusao:
+ *   patch:
+ *     tags: [SolicitaÃ§Ãµes]
+ *     summary: Cliente confirma a conclusÃ£o informada pelo prestador
+ *     description: Finaliza um chamado que esteja aguardando confirmaÃ§Ã£o do cliente. Sem confirmaÃ§Ã£o manual, a finalizaÃ§Ã£o ocorre automaticamente apÃ³s 72 horas.
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: id, required: true, schema: { type: integer } }
+ *     responses:
+ *       '200':
+ *         description: ConclusÃ£o confirmada manual ou automaticamente.
+ *         content:
+ *           application/json:
+ *             example: { mensagem: 'Conclusao confirmada com sucesso.', solicitacao: { id: 101, status: 'concluido', conclusao_confirmada_automaticamente: false } }
+ *       '400': { $ref: '#/components/responses/BadRequest' }
+ *       '401': { $ref: '#/components/responses/Unauthorized' }
+ *       '403': { $ref: '#/components/responses/Forbidden' }
+ *       '409':
+ *         description: Chamado sem confirmaÃ§Ã£o de conclusÃ£o pendente.
+ *         content:
+ *           application/json:
+ *             example: { erro: 'Solicitacao nao encontrada, ja concluida ou sem confirmacao pendente.' }
  *       '500': { $ref: '#/components/responses/InternalError' }
  * /api/solicitacoes/{id}/proposta-valor:
  *   patch:
@@ -393,22 +439,60 @@ const router = express.Router();
  *       '500': { $ref: '#/components/responses/InternalError' }
  */
 
+/**
+ * @swagger
+ * /api/solicitacoes/{id}/denuncia:
+ *   post:
+ *     tags: [SolicitaÃ§Ãµes]
+ *     summary: Registra uma denuncia ou disputa sobre um chamado
+ *     description: Requer autenticaÃ§Ã£o. Somente o cliente ou o profissional participante do chamado pode registrar a denuncia.
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: id, required: true, schema: { type: integer } }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [motivo, descricao]
+ *             properties:
+ *               motivo: { type: string, enum: [servico_nao_realizado, cobranca_indevida, comportamento_inadequado, outro] }
+ *               descricao: { type: string, minLength: 10, maxLength: 4000, example: 'O atendimento combinado nao foi realizado.' }
+ *     responses:
+ *       '201': { description: Denuncia registrada para analise administrativa. }
+ *       '400': { $ref: '#/components/responses/BadRequest' }
+ *       '401': { $ref: '#/components/responses/Unauthorized' }
+ *       '404': { description: Chamado inexistente ou sem participacao do usuario autenticado. }
+ *       '500': { $ref: '#/components/responses/InternalError' }
+ */
+
 router.post(
     '/',
     verificarToken,
+    requireRole('cidadao'),
     solicitacaoRateLimit,
     validate(criarSolicitacaoSchema),
     SolicitacaoController.criarSolicitacao
 );
+router.post(
+    '/:id/denuncia',
+    verificarToken,
+    validate(idParamSchema, 'params'),
+    validate(criarDenunciaSchema),
+    DenunciaController.criar
+);
 router.get(
     '/meus-pedidos',
     verificarToken,
+    requireRole('cidadao'),
     validate(solicitacaoListagemQuerySchema, 'query'),
     SolicitacaoController.listarMeusPedidos
 );
 router.get(
     '/minhas-solicitacoes',
     verificarToken,
+    requireRole('profissional'),
     validate(solicitacaoListagemQuerySchema, 'query'),
     SolicitacaoController.listarMinhasSolicitacoes
 );
@@ -419,29 +503,104 @@ router.get(
     SolicitacaoController.buscarFinanceiro
 );
 router.get('/conversas', verificarToken, ChatController.listarConversas);
-router.get('/:id', verificarToken, SolicitacaoController.buscarPorId);
-router.get('/:id/mensagens', verificarToken, ChatController.listarMensagens);
+router.get(
+    '/:id',
+    verificarToken,
+    validate(idParamSchema, 'params'),
+    SolicitacaoController.buscarPorId
+);
+router.get(
+    '/:id/mensagens',
+    verificarToken,
+    validate(idParamSchema, 'params'),
+    validate(chatMensagensQuerySchema, 'query'),
+    ChatController.listarMensagens
+);
 router.post(
     '/:id/mensagens',
     verificarToken,
+    validate(idParamSchema, 'params'),
     chatRateLimit,
+    validate(chatMensagemSchema),
     ChatController.enviarMensagem
 );
 
 router.post(
     '/:id/fotos-conclusao',
     verificarToken,
+    requireRole('profissional'),
+    validate(idParamSchema, 'params'),
     uploadRateLimit,
     multerConfig.array('fotos', 5),
-    SolicitacaoController.uploadFotosConclusao
+    validarEArmazenarImagens,
+    comLimpezaDeUpload(SolicitacaoController.uploadFotosConclusao)
 );
-router.patch('/:id/status', verificarToken, SolicitacaoController.atualizarStatus);
-router.patch('/:id/proposta-valor', verificarToken, SolicitacaoController.proporValor);
-router.patch('/:id/proposta-valor/aceitar', verificarToken, SolicitacaoController.aceitarPropostaValor);
-router.patch('/:id/proposta-valor/recusar', verificarToken, SolicitacaoController.recusarPropostaValor);
-router.patch('/:id/cancelar', verificarToken, SolicitacaoController.cancelarPeloCliente);
-router.patch('/:id/remarcar', verificarToken, SolicitacaoController.solicitarRemarcacao);
-router.patch('/:id/remarcacao/aceitar', verificarToken, SolicitacaoController.aceitarRemarcacao);
-router.patch('/:id/remarcacao/recusar', verificarToken, SolicitacaoController.recusarRemarcacao);
+router.patch(
+    '/:id/status',
+    verificarToken,
+    requireRole('profissional'),
+    validate(idParamSchema, 'params'),
+    validate(atualizarStatusSchema),
+    SolicitacaoController.atualizarStatus
+);
+router.patch(
+    '/:id/confirmar-conclusao',
+    verificarToken,
+    requireRole('cidadao'),
+    validate(idParamSchema, 'params'),
+    SolicitacaoController.confirmarConclusao
+);
+router.patch(
+    '/:id/proposta-valor',
+    verificarToken,
+    requireRole('profissional'),
+    validate(idParamSchema, 'params'),
+    validate(propostaValorSchema),
+    SolicitacaoController.proporValor
+);
+router.patch(
+    '/:id/proposta-valor/aceitar',
+    verificarToken,
+    requireRole('cidadao'),
+    validate(idParamSchema, 'params'),
+    SolicitacaoController.aceitarPropostaValor
+);
+router.patch(
+    '/:id/proposta-valor/recusar',
+    verificarToken,
+    requireRole('cidadao'),
+    validate(idParamSchema, 'params'),
+    SolicitacaoController.recusarPropostaValor
+);
+router.patch(
+    '/:id/cancelar',
+    verificarToken,
+    requireRole('cidadao'),
+    validate(idParamSchema, 'params'),
+    SolicitacaoController.cancelarPeloCliente
+);
+router.patch(
+    '/:id/remarcar',
+    verificarToken,
+    requireRole('profissional'),
+    validate(idParamSchema, 'params'),
+    SolicitacaoController.solicitarRemarcacao
+);
+router.patch(
+    '/:id/remarcacao/aceitar',
+    verificarToken,
+    requireRole('cidadao'),
+    validate(idParamSchema, 'params'),
+    SolicitacaoController.aceitarRemarcacao
+);
+router.patch(
+    '/:id/remarcacao/recusar',
+    verificarToken,
+    requireRole('cidadao'),
+    validate(idParamSchema, 'params'),
+    SolicitacaoController.recusarRemarcacao
+);
+
+router.use(tratarErroDeUpload);
 
 module.exports = router;

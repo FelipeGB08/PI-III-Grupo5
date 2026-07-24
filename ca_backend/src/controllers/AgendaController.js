@@ -1,5 +1,12 @@
 const AgendaModel = require('../models/AgendaModel');
 const UserModel = require('../models/UserModel');
+const {
+    notificarFavoritosSobreNovosHorariosSemBloquear,
+} = require('../services/notificationService');
+
+function chaveHorario({ dia_semana, horario }) {
+    return `${Number(dia_semana)}-${String(horario).slice(0, 5)}`;
+}
 
 function normalizarServico(item) {
     const nome = String(item?.nome || '').trim();
@@ -118,6 +125,18 @@ const AgendaController = {
 
             const horarios = normalizarHorarios(req.body);
 
+            const horariosAnteriores = await AgendaModel.listarHorariosAtivos(
+                req.usuarioLogado.id
+            );
+            const chavesAnteriores = new Set(horariosAnteriores.map(chaveHorario));
+            const chavesNovas = new Set();
+            const novosHorarios = horarios.filter((horario) => {
+                const chave = chaveHorario(horario);
+                if (chavesAnteriores.has(chave) || chavesNovas.has(chave)) return false;
+                chavesNovas.add(chave);
+                return true;
+            });
+
             const agenda = await AgendaModel.salvarParaProfissional(
                 req.usuarioLogado.id,
                 {
@@ -125,6 +144,14 @@ const AgendaController = {
                     horarios,
                 }
             );
+
+            if (novosHorarios.length > 0) {
+                notificarFavoritosSobreNovosHorariosSemBloquear({
+                    profissionalId: req.usuarioLogado.id,
+                    profissionalNome: req.usuarioLogado.nome,
+                    novosHorarios,
+                });
+            }
 
             return res.status(200).json({
                 mensagem: 'Agenda salva com sucesso.',

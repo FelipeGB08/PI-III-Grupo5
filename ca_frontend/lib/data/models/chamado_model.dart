@@ -14,6 +14,8 @@ class ChamadoModel extends Chamado {
     super.dataSolicitacao,
     super.servicoNome,
     super.enderecoAtendimento,
+    super.atendimentoLatitude,
+    super.atendimentoLongitude,
     super.agendadoPara,
     super.fotoUrl,
     super.fotosConclusao,
@@ -24,6 +26,9 @@ class ChamadoModel extends Chamado {
     super.politicaCancelamento,
     super.reembolsoStatus,
     super.canceladoEm,
+    super.conclusaoSolicitadaEm,
+    super.conclusaoConfirmadaEm,
+    super.conclusaoConfirmadaAutomaticamente,
   });
 
   factory ChamadoModel.fromJson(Map<String, dynamic> json) {
@@ -41,6 +46,8 @@ class ChamadoModel extends Chamado {
           json['data_solicitacao']?.toString() ?? json['criado_em']?.toString(),
       servicoNome: json['servico_nome']?.toString(),
       enderecoAtendimento: json['endereco_atendimento']?.toString(),
+      atendimentoLatitude: _parseDoubleNullable(json['atendimento_latitude']),
+      atendimentoLongitude: _parseDoubleNullable(json['atendimento_longitude']),
       agendadoPara: json['agendado_para']?.toString(),
       fotoUrl: json['foto_url']?.toString(),
       fotosConclusao: _parseStringList(json['fotos_conclusao']),
@@ -51,6 +58,10 @@ class ChamadoModel extends Chamado {
       politicaCancelamento: json['politica_cancelamento']?.toString(),
       reembolsoStatus: json['reembolso_status']?.toString(),
       canceladoEm: json['cancelado_em']?.toString(),
+      conclusaoSolicitadaEm: json['conclusao_solicitada_em']?.toString(),
+      conclusaoConfirmadaEm: json['conclusao_confirmada_em']?.toString(),
+      conclusaoConfirmadaAutomaticamente:
+          json['conclusao_confirmada_automaticamente'] == true,
     );
   }
 
@@ -62,6 +73,8 @@ class ChamadoModel extends Chamado {
     double? preco,
     DateTime? agendadoPara,
     String? enderecoAtendimento,
+    double? atendimentoLatitude,
+    double? atendimentoLongitude,
     String? fotoUrl,
   }) =>
       {
@@ -75,6 +88,10 @@ class ChamadoModel extends Chamado {
           'agendado_para': agendadoPara.toIso8601String(),
         if (enderecoAtendimento != null && enderecoAtendimento.isNotEmpty)
           'endereco_atendimento': enderecoAtendimento,
+        if (atendimentoLatitude != null)
+          'atendimento_latitude': atendimentoLatitude,
+        if (atendimentoLongitude != null)
+          'atendimento_longitude': atendimentoLongitude,
         if (fotoUrl != null && fotoUrl.isNotEmpty) 'foto_url': fotoUrl,
       };
 

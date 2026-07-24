@@ -60,6 +60,7 @@ services:
       - "3000:3000"
     volumes:
       - backend_uploads:/app/uploads
+      - backend_verification_documents:/app/private_uploads/verificacoes
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,3 +77,4 @@ services:
 volumes:
   postgres_data:
   backend_uploads:
+  backend_verification_documents:

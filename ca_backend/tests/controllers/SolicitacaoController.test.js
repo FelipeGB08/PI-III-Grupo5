@@ -6,6 +6,8 @@ jest.mock('../../src/config/db', () => ({
 jest.mock('../../src/models/ServicoModel', () => ({
     criar: jest.fn(),
     atualizarStatus: jest.fn(),
+    marcarConclusaoPeloPrestador: jest.fn(),
+    confirmarConclusaoPeloCliente: jest.fn(),
     adicionarFotosConclusao: jest.fn(),
     buscarPorId: jest.fn(),
     buscarDetalhadoPorId: jest.fn(),
@@ -33,14 +35,25 @@ jest.mock('../../src/services/notificationService', () => ({
     notificarUsuarioSemBloquear: jest.fn(),
 }));
 
+jest.mock('../../src/services/conclusaoService', () => ({
+    confirmarConclusoesExpiradas: jest.fn(),
+}));
+
 const ServicoModel = require('../../src/models/ServicoModel');
 const UserModel = require('../../src/models/UserModel');
 const { validarAgendamento } = require('../../src/services/agendamentoValidator');
 const { notificarUsuarioSemBloquear } = require('../../src/services/notificationService');
+const {
+    confirmarConclusoesExpiradas,
+} = require('../../src/services/conclusaoService');
 const SolicitacaoController = require('../../src/controllers/SolicitacaoController');
 const { criarRespostaMock } = require('../helpers/httpMocks');
 
 describe('SolicitacaoController', () => {
+    beforeEach(() => {
+        confirmarConclusoesExpiradas.mockResolvedValue([]);
+    });
+
     afterEach(() => {
         jest.useRealTimers();
         jest.restoreAllMocks();
@@ -132,6 +145,8 @@ describe('SolicitacaoController', () => {
                 fotoUrl: '   ',
                 agenda_servico_id: '19',
                 agendadoPara: '2030-01-03T14:30:00',
+                atendimentoLatitude: '-27.2335',
+                atendimentoLongitude: '-52.0277',
             },
         };
 
@@ -146,6 +161,8 @@ describe('SolicitacaoController', () => {
                 agenda_servico_id: 19,
                 servico_nome: 'Eletricista',
                 endereco_atendimento: 'Rua Central',
+                atendimento_latitude: -27.2335,
+                atendimento_longitude: -52.0277,
                 agendado_para: '2030-01-03T14:30:00',
                 preco: 150,
                 duracao_minutos: 60,
@@ -340,14 +357,15 @@ describe('SolicitacaoController', () => {
         expect(res.status).toHaveBeenCalledWith(200);
     });
 
-    test('conclui chamado e dispara notificacao de avaliacao', async () => {
+    test('prestador solicita conclusao e aguarda confirmacao do cliente', async () => {
         const solicitacao = {
             id: 44,
             prof_id: 9,
             cidadao_id: 12,
-            status: 'concluido',
+            status: 'aguardando_confirmacao_cliente',
+            fotos_conclusao: ['/uploads/evidencia.jpg'],
         };
-        ServicoModel.atualizarStatus.mockResolvedValue(solicitacao);
+        ServicoModel.marcarConclusaoPeloPrestador.mockResolvedValue(solicitacao);
         const req = {
             params: { id: '44' },
             usuarioLogado: { id: 9 },
@@ -357,13 +375,101 @@ describe('SolicitacaoController', () => {
 
         await SolicitacaoController.atualizarStatus(req, res);
 
+        expect(ServicoModel.marcarConclusaoPeloPrestador)
+            .toHaveBeenCalledWith(44, 9);
+        expect(ServicoModel.atualizarStatus).not.toHaveBeenCalled();
         expect(notificarUsuarioSemBloquear).toHaveBeenCalledWith(
             expect.objectContaining({
                 usuarioId: 12,
-                tipo: 'chamado_concluido',
+                tipo: 'confirmacao_conclusao_pendente',
             })
         );
         expect(res.status).toHaveBeenCalledWith(200);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            solicitacao: expect.objectContaining({
+                status: 'aguardando_confirmacao_cliente',
+            }),
+        }));
+    });
+
+    test('prestador nao conclui chamado aceito sem foto de evidencia', async () => {
+        ServicoModel.marcarConclusaoPeloPrestador.mockResolvedValue(undefined);
+        const res = criarRespostaMock();
+
+        await SolicitacaoController.atualizarStatus(
+            {
+                params: { id: '44' },
+                usuarioLogado: { id: 9 },
+                body: { status: 'concluido' },
+            },
+            res
+        );
+
+        expect(ServicoModel.marcarConclusaoPeloPrestador)
+            .toHaveBeenCalledWith(44, 9);
+        expect(notificarUsuarioSemBloquear).not.toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(409);
+        expect(res.json).toHaveBeenCalledWith({
+            erro: 'A conclusao exige um chamado aceito e ao menos uma foto de evidencia.',
+        });
+    });
+
+    test('cliente confirma conclusao pendente e libera status concluido', async () => {
+        const solicitacao = {
+            id: 44,
+            prof_id: 9,
+            cidadao_id: 12,
+            status: 'concluido',
+            conclusao_confirmada_automaticamente: false,
+        };
+        ServicoModel.confirmarConclusaoPeloCliente.mockResolvedValue(solicitacao);
+        const res = criarRespostaMock();
+
+        await SolicitacaoController.confirmarConclusao(
+            {
+                params: { id: '44' },
+                usuarioLogado: { id: 12, perfil_tipo: 'cidadao' },
+            },
+            res
+        );
+
+        expect(ServicoModel.confirmarConclusaoPeloCliente)
+            .toHaveBeenCalledWith(44, 12);
+        expect(notificarUsuarioSemBloquear).toHaveBeenCalledWith(
+            expect.objectContaining({
+                usuarioId: 9,
+                tipo: 'conclusao_confirmada_cliente',
+            })
+        );
+        expect(res.status).toHaveBeenCalledWith(200);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            solicitacao: expect.objectContaining({ status: 'concluido' }),
+        }));
+    });
+
+    test('retorna conclusao automatica quando prazo venceu antes do clique', async () => {
+        confirmarConclusoesExpiradas.mockResolvedValueOnce([{
+            id: 44,
+            prof_id: 9,
+            cidadao_id: 12,
+            status: 'concluido',
+            conclusao_confirmada_automaticamente: true,
+        }]);
+        const res = criarRespostaMock();
+
+        await SolicitacaoController.confirmarConclusao(
+            {
+                params: { id: '44' },
+                usuarioLogado: { id: 12 },
+            },
+            res
+        );
+
+        expect(ServicoModel.confirmarConclusaoPeloCliente).not.toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(200);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            mensagem: expect.stringContaining('automaticamente'),
+        }));
     });
 
     test('impede alterar preco pelo endpoint generico de status', async () => {
@@ -392,8 +498,8 @@ describe('SolicitacaoController', () => {
             params: { id: '44' },
             usuarioLogado: { id: 9 },
             files: [
-                { filename: 'evidencia-1.jpg' },
-                { filename: 'evidencia-2.png' },
+                { url: '/uploads/evidencia-1.jpg' },
+                { url: '/uploads/evidencia-2.png' },
             ],
         };
         const res = criarRespostaMock();
@@ -407,10 +513,10 @@ describe('SolicitacaoController', () => {
         );
         expect(res.status).toHaveBeenCalledWith(200);
 
-        ServicoModel.atualizarStatus.mockResolvedValue({
+        ServicoModel.marcarConclusaoPeloPrestador.mockResolvedValue({
             ...solicitacao,
             cidadao_id: 12,
-            status: 'concluido',
+            status: 'aguardando_confirmacao_cliente',
         });
         const conclusaoReq = {
             params: { id: '44' },
@@ -423,7 +529,9 @@ describe('SolicitacaoController', () => {
 
         expect(
             ServicoModel.adicionarFotosConclusao.mock.invocationCallOrder[0]
-        ).toBeLessThan(ServicoModel.atualizarStatus.mock.invocationCallOrder[0]);
+        ).toBeLessThan(
+            ServicoModel.marcarConclusaoPeloPrestador.mock.invocationCallOrder[0]
+        );
         expect(conclusaoRes.status).toHaveBeenCalledWith(200);
     });
 
@@ -1063,7 +1171,7 @@ describe('SolicitacaoController', () => {
             {
                 params: { id: 'invalido' },
                 usuarioLogado: { id: 9 },
-                files: [{ filename: 'foto.jpg' }],
+                files: [{ url: '/uploads/foto.jpg' }],
             },
             400,
         ],
@@ -1084,7 +1192,7 @@ describe('SolicitacaoController', () => {
             {
                 params: { id: '44' },
                 usuarioLogado: { id: 9 },
-                files: [{ filename: 'foto.jpg' }],
+                files: [{ url: '/uploads/foto.jpg' }],
             },
             res
         );

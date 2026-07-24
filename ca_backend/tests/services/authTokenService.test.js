@@ -1,6 +1,7 @@
 jest.mock('../../src/models/RefreshTokenModel', () => ({
     criar: jest.fn(),
     buscarValidoPorHash: jest.fn(),
+    buscarUsuarioPorSessaoAtiva: jest.fn(),
     revogarPorHash: jest.fn(),
 }));
 
@@ -28,6 +29,7 @@ describe('authTokenService', () => {
 
         expect(payload.id).toBe(usuario.id);
         expect(payload.perfil_tipo).toBe('cidadao');
+        expect(payload.sid).toBe('1');
         expect(payload.exp - payload.iat).toBe(15 * 60);
         expect(payload.jti).toBeTruthy();
         expect(sessao.expiresIn).toBe(15 * 60);
@@ -57,5 +59,33 @@ describe('authTokenService', () => {
 
         expect(RefreshTokenModel.buscarValidoPorHash).toHaveBeenCalledWith(hash);
         expect(RefreshTokenModel.revogarPorHash).toHaveBeenCalledWith(hash);
+    });
+
+    test('recusa access token quando a sessao foi revogada ou a conta ficou inativa', async () => {
+        const accessToken = authTokenService.criarAccessToken(usuario, 12);
+        RefreshTokenModel.buscarUsuarioPorSessaoAtiva.mockResolvedValue(null);
+
+        await expect(
+            authTokenService.validarAccessTokenAtivo(accessToken)
+        ).rejects.toMatchObject({
+            codigo: 'sessao_encerrada',
+        });
+
+        expect(RefreshTokenModel.buscarUsuarioPorSessaoAtiva).toHaveBeenCalledWith({
+            sessaoId: '12',
+            usuarioId: usuario.id,
+        });
+    });
+
+    test('aceita access token somente enquanto a sessao e a conta continuam ativas', async () => {
+        const accessToken = authTokenService.criarAccessToken(usuario, 12);
+        RefreshTokenModel.buscarUsuarioPorSessaoAtiva.mockResolvedValue(usuario);
+
+        await expect(
+            authTokenService.validarAccessTokenAtivo(accessToken)
+        ).resolves.toMatchObject({
+            sessaoId: '12',
+            usuario,
+        });
     });
 });

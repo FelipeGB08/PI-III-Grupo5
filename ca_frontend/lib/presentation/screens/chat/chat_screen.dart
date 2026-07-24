@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_formatter.dart';
 import '../../../core/theme/adaptive_colors.dart';
+import '../../../data/services/chat_socket_service.dart';
 import '../../../domain/entities/chamado.dart';
 import '../../../domain/entities/chat_message.dart';
 import '../../../domain/entities/user.dart';
@@ -24,6 +26,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _scrollController = ScrollController();
   final List<ChatMessage> _mensagens = [];
   StreamSubscription<ChatMessage>? _subscription;
+  StreamSubscription<ChatReadReceipt>? _readSubscription;
   bool _loading = true;
   bool _sending = false;
 
@@ -37,7 +40,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
-    _subscription?.cancel();
+    unawaited(_subscription?.cancel());
+    unawaited(_readSubscription?.cancel());
+    unawaited(
+      ref.read(chatSocketServiceProvider).leave(widget.chamado.id),
+    );
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -47,21 +54,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     try {
       final api = ref.read(apiServiceProvider);
       final socket = ref.read(chatSocketServiceProvider);
-      final historico = await api.listarMensagensChat(widget.chamado.id);
-      await socket.join(widget.chamado.id);
 
       _subscription = socket.messages.listen((mensagem) {
         if (mensagem.servicoId != widget.chamado.id) return;
-        if (_mensagens.any((item) => item.id == mensagem.id)) return;
-        setState(() => _mensagens.add(mensagem));
+        if (!mounted) return;
+        setState(() => _mergeMessages([mensagem]));
+        if (mensagem.remetenteId != _usuarioId) {
+          unawaited(socket.markRead(widget.chamado.id));
+        }
         _scrollToBottom();
       });
+      _readSubscription = socket.readReceipts.listen((leitura) {
+        if (leitura.servicoId != widget.chamado.id ||
+            leitura.leitorId == _usuarioId ||
+            !mounted) {
+          return;
+        }
+
+        setState(() {
+          for (var index = 0; index < _mensagens.length; index++) {
+            final mensagem = _mensagens[index];
+            if (mensagem.remetenteId == _usuarioId &&
+                mensagem.id <= leitura.ateMensagemId &&
+                mensagem.lidaEm == null) {
+              _mensagens[index] = mensagem.copyWith(lidaEm: leitura.lidaEm);
+            }
+          }
+        });
+      });
+
+      await socket.join(widget.chamado.id);
+      final historico = await api.listarMensagensChat(widget.chamado.id);
 
       if (!mounted) return;
       setState(() {
-        _mensagens
-          ..clear()
-          ..addAll(historico);
+        _mergeMessages(historico);
         _loading = false;
       });
       _scrollToBottom();
@@ -78,32 +105,89 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final texto = _controller.text.trim();
     if (texto.isEmpty || _sending) return;
 
-    setState(() => _sending = true);
     _controller.clear();
+    await _enviarTexto(texto, _newClientId(), restoreDraftOnFailure: true);
+  }
+
+  Future<void> _enviarTexto(
+    String texto,
+    String clientId, {
+    required bool restoreDraftOnFailure,
+  }) async {
+    if (_sending) return;
+    setState(() => _sending = true);
 
     try {
-      await ref.read(chatSocketServiceProvider).send(
+      final mensagem = await ref.read(chatSocketServiceProvider).send(
             servicoId: widget.chamado.id,
             mensagem: texto,
+            clientId: clientId,
           );
+      if (!mounted) return;
+      setState(() => _mergeMessages([mensagem]));
+      _scrollToBottom();
     } catch (_) {
       try {
         final mensagem = await ref.read(apiServiceProvider).enviarMensagemChat(
               chamadoId: widget.chamado.id,
               mensagem: texto,
+              clientId: clientId,
             );
         if (!mounted) return;
-        setState(() => _mensagens.add(mensagem));
+        setState(() => _mergeMessages([mensagem]));
         _scrollToBottom();
       } catch (e) {
         if (!mounted) return;
+        if (restoreDraftOnFailure && _controller.text.trim().isEmpty) {
+          _controller.text = texto;
+          _controller.selection = TextSelection.collapsed(
+            offset: _controller.text.length,
+          );
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(formatApiError(e))),
+          SnackBar(
+            content: Text(formatApiError(e)),
+            action: SnackBarAction(
+              label: 'Tentar novamente',
+              onPressed: () => unawaited(
+                _enviarTexto(
+                  texto,
+                  clientId,
+                  restoreDraftOnFailure: false,
+                ),
+              ),
+            ),
+          ),
         );
       }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  void _mergeMessages(Iterable<ChatMessage> novasMensagens) {
+    final porId = <int, ChatMessage>{
+      for (final mensagem in _mensagens) mensagem.id: mensagem,
+    };
+    for (final mensagem in novasMensagens) {
+      final atual = porId[mensagem.id];
+      porId[mensagem.id] = atual != null && mensagem.lidaEm == null
+          ? mensagem.copyWith(lidaEm: atual.lidaEm)
+          : mensagem;
+    }
+    _mensagens
+      ..clear()
+      ..addAll(porId.values)
+      ..sort((a, b) => a.id.compareTo(b.id));
+  }
+
+  String _newClientId() {
+    final random = Random.secure();
+    final sufixo = List.generate(
+      3,
+      (_) => random.nextInt(0x100000000).toRadixString(16).padLeft(8, '0'),
+    ).join();
+    return '${DateTime.now().microsecondsSinceEpoch}-$sufixo';
   }
 
   void _scrollToBottom() {
@@ -165,19 +249,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      minLines: 1,
-                      maxLines: 4,
-                      textInputAction: TextInputAction.newline,
-                      decoration: InputDecoration(
-                        labelText: 'Mensagem',
-                        hintText: 'Digite uma mensagem...',
-                        filled: true,
-                        fillColor: context.appCard,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: BorderSide.none,
+                    child: Semantics(
+                      label: 'Mensagem para $otherName',
+                      hint: 'Digite a mensagem e use o botao Enviar mensagem',
+                      textField: true,
+                      child: TextField(
+                        controller: _controller,
+                        onSubmitted: _sending ? null : (_) => _send(),
+                        minLines: 1,
+                        maxLines: 4,
+                        textInputAction: TextInputAction.newline,
+                        decoration: InputDecoration(
+                          labelText: 'Mensagem',
+                          hintText: 'Digite uma mensagem...',
+                          filled: true,
+                          fillColor: context.appCard,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: BorderSide.none,
+                          ),
                         ),
                       ),
                     ),
@@ -215,54 +305,81 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: minha ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.78,
-        ),
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: minha ? context.appBrand : context.appCard,
-          borderRadius: BorderRadius.circular(16).copyWith(
-            bottomRight: minha ? const Radius.circular(4) : null,
-            bottomLeft: minha ? null : const Radius.circular(4),
-          ),
-          border: minha ? null : Border.all(color: context.appBorder),
-        ),
-        child: Column(
-          crossAxisAlignment:
-              minha ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            if (!minha && mensagem.remetenteNome?.isNotEmpty == true) ...[
-              Text(
-                mensagem.remetenteNome!,
-                style: TextStyle(
-                  color: context.appBrand,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 11,
+    final remetente =
+        minha ? 'Voce' : (mensagem.remetenteNome ?? 'Profissional');
+    final status =
+        minha ? (mensagem.lidaEm == null ? 'enviada' : 'lida') : null;
+    return Semantics(
+      label:
+          'Mensagem de $remetente, ${mensagem.mensagem}, enviada as ${_formatHora(mensagem.criadoEm)}${status == null ? '' : ', $status'}',
+      child: ExcludeSemantics(
+        child: Align(
+          alignment: minha ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.78,
+            ),
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: minha ? context.appBrand : context.appCard,
+              borderRadius: BorderRadius.circular(16).copyWith(
+                bottomRight: minha ? const Radius.circular(4) : null,
+                bottomLeft: minha ? null : const Radius.circular(4),
+              ),
+              border: minha ? null : Border.all(color: context.appBorder),
+            ),
+            child: Column(
+              crossAxisAlignment:
+                  minha ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                if (!minha && mensagem.remetenteNome?.isNotEmpty == true) ...[
+                  Text(
+                    mensagem.remetenteNome!,
+                    style: TextStyle(
+                      color: context.appBrand,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                Text(
+                  mensagem.mensagem,
+                  style: TextStyle(
+                    color: minha ? context.appOnBrand : context.appTextPrimary,
+                    height: 1.35,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-            ],
-            Text(
-              mensagem.mensagem,
-              style: TextStyle(
-                color: minha ? context.appOnBrand : context.appTextPrimary,
-                height: 1.35,
-              ),
+                const SizedBox(height: 5),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _formatHora(mensagem.criadoEm),
+                      style: TextStyle(
+                        color: (minha
+                                ? context.appOnBrand
+                                : context.appTextSecondary)
+                            .withValues(alpha: 0.72),
+                        fontSize: 10,
+                      ),
+                    ),
+                    if (minha) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        mensagem.lidaEm == null
+                            ? Icons.check_rounded
+                            : Icons.done_all_rounded,
+                        size: 14,
+                        color: context.appOnBrand.withValues(alpha: 0.82),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 5),
-            Text(
-              _formatHora(mensagem.criadoEm),
-              style: TextStyle(
-                color: (minha ? context.appOnBrand : context.appTextSecondary)
-                    .withValues(alpha: 0.72),
-                fontSize: 10,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

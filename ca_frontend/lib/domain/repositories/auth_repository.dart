@@ -12,6 +12,18 @@ class AuthResult {
   final String? refreshToken;
 }
 
+/// A conta foi removida no servidor, mas algum recurso local da sessao nao
+/// pôde ser limpo. A UI deve encerrar a sessao mesmo assim.
+class AccountDeletedWithLocalCleanupFailure implements Exception {
+  const AccountDeletedWithLocalCleanupFailure(this.cause);
+
+  final Object cause;
+
+  @override
+  String toString() =>
+      'Conta excluida, mas houve falha ao limpar a sessao local: $cause';
+}
+
 class RegisterParams {
   const RegisterParams({
     required this.nome,
@@ -48,6 +60,13 @@ abstract class AuthRepository {
     required String provider,
     required String token,
     required String cidadeAmauc,
+    String? platform,
+    String? state,
+    String? nonce,
+  });
+  Future<AuthResult> concluirGithubOAuth({
+    required String ticket,
+    required String state,
   });
   Future<AuthResult> refreshSession();
   Future<AuthResult> register(RegisterParams params);

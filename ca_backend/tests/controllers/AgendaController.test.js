@@ -5,11 +5,16 @@ jest.mock('../../src/config/db', () => ({
 
 jest.mock('../../src/models/AgendaModel', () => ({
     buscarPorProfissional: jest.fn(),
+    listarHorariosAtivos: jest.fn(),
     salvarParaProfissional: jest.fn(),
     normalizarHorario: jest.fn((horario) => {
         const texto = String(horario || '').trim();
         return /^([01]\d|2[0-3]):[0-5]\d$/.test(texto) ? texto : null;
     }),
+}));
+
+jest.mock('../../src/services/notificationService', () => ({
+    notificarFavoritosSobreNovosHorariosSemBloquear: jest.fn(),
 }));
 
 jest.mock('../../src/models/UserModel', () => ({
@@ -19,6 +24,9 @@ jest.mock('../../src/models/UserModel', () => ({
 const AgendaModel = require('../../src/models/AgendaModel');
 const UserModel = require('../../src/models/UserModel');
 const AgendaController = require('../../src/controllers/AgendaController');
+const {
+    notificarFavoritosSobreNovosHorariosSemBloquear,
+} = require('../../src/services/notificationService');
 const validate = require('../../src/middlewares/validateMiddleware');
 const { salvarAgendaSchema } = require('../../src/validators/agendaSchemas');
 const { criarRespostaMock } = require('../helpers/httpMocks');
@@ -32,6 +40,11 @@ async function salvarMinhaComValidacao(req, res) {
 }
 
 describe('AgendaController', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        AgendaModel.listarHorariosAtivos.mockResolvedValue([]);
+    });
+
     test('rejeita agenda sem servicos', async () => {
         const req = { body: {}, usuarioLogado: { id: 5 } };
         const res = criarRespostaMock();
@@ -145,6 +158,50 @@ describe('AgendaController', () => {
             })
         );
         expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    test('notifica somente quando a agenda abre horarios novos', async () => {
+        AgendaModel.listarHorariosAtivos.mockResolvedValue([
+            { dia_semana: 1, horario: '09:00:00' },
+        ]);
+        AgendaModel.salvarParaProfissional.mockResolvedValue({});
+        const req = {
+            body: {
+                servicos: [{ nome: 'Pintura', duracao_minutos: 60, preco: 100 }],
+                dias_semana: [1],
+                horarios: ['09:00', '14:00'],
+            },
+            usuarioLogado: { id: 5, nome: 'Ana Profissional' },
+        };
+        const res = criarRespostaMock();
+
+        await salvarMinhaComValidacao(req, res);
+
+        expect(notificarFavoritosSobreNovosHorariosSemBloquear).toHaveBeenCalledWith({
+            profissionalId: 5,
+            profissionalNome: 'Ana Profissional',
+            novosHorarios: [{ dia_semana: 1, horario: '14:00' }],
+        });
+    });
+
+    test('nao dispara aviso quando a edicao nao adiciona horario', async () => {
+        AgendaModel.listarHorariosAtivos.mockResolvedValue([
+            { dia_semana: 1, horario: '09:00' },
+        ]);
+        AgendaModel.salvarParaProfissional.mockResolvedValue({});
+        const req = {
+            body: {
+                servicos: [{ nome: 'Pintura', duracao_minutos: 60, preco: 100 }],
+                dias_semana: [1],
+                horarios: ['09:00'],
+            },
+            usuarioLogado: { id: 5, nome: 'Ana Profissional' },
+        };
+        const res = criarRespostaMock();
+
+        await salvarMinhaComValidacao(req, res);
+
+        expect(notificarFavoritosSobreNovosHorariosSemBloquear).not.toHaveBeenCalled();
     });
 
     test('bloqueia consulta publica de usuario que nao e profissional', async () => {

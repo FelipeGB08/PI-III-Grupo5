@@ -5,6 +5,7 @@ const {
     parsePagination,
     setPaginationHeaders,
 } = require('../utils/pagination');
+const { montarProfissionalPublico } = require('../utils/profissionalPublico');
 
 function isProfissional(usuarioLogado) {
     const perfil = usuarioLogado.perfil_tipo || usuarioLogado.tipo_usuario;
@@ -62,6 +63,14 @@ function montarDadosRegionais(body) {
         taxa_deslocamento: Number.isFinite(taxa) ? taxa : undefined,
         portfolio_fotos: normalizarListaTexto(body.portfolio_fotos || body.portfolioFotos),
         certificacoes: normalizarListaTexto(body.certificacoes || body.certificacoes_urls),
+    };
+}
+
+function montarMeuPerfilSeguro(perfil = {}) {
+    const { documento_url, ...dadosPublicaveisAoDono } = perfil;
+    return {
+        ...dadosPublicaveisAoDono,
+        documento_disponivel: Boolean(documento_url),
     };
 }
 
@@ -135,7 +144,7 @@ const PerfilController = {
                 return res.status(404).json({ erro: 'Perfil nao encontrado.' });
             }
 
-            return res.status(200).json(perfil);
+            return res.status(200).json(montarMeuPerfilSeguro(perfil));
         } catch (erro) {
             console.error('Erro ao buscar perfil:', erro);
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
@@ -195,7 +204,9 @@ const PerfilController = {
                 page: pagination.page,
                 limit: pagination.limit,
             });
-            return res.status(200).json(resultado.rows);
+            return res.status(200).json(
+                resultado.rows.map(montarProfissionalPublico)
+            );
         } catch (erro) {
             console.error('Erro ao buscar profissionais:', erro);
             return res.status(500).json({ erro: 'Erro interno no servidor.' });

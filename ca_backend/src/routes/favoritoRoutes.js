@@ -5,6 +5,9 @@ const validate = require('../middlewares/validateMiddleware');
 const {
     favoritoListagemQuerySchema,
 } = require('../validators/paginationSchemas');
+const {
+    profissionalIdParamSchema,
+} = require('../validators/commonSchemas');
 
 const router = express.Router();
 
@@ -28,9 +31,10 @@ const router = express.Router();
  *             schema:
  *               type: object
  *               properties:
- *                 favoritos: { type: array, items: { $ref: '#/components/schemas/Profissional' } }
+ *                 favoritos: { type: array, items: { $ref: '#/components/schemas/ProfissionalPublico' } }
  *                 ids: { type: array, items: { type: integer } }
  *                 total: { type: integer, example: 1 }
+ *       '400': { $ref: '#/components/responses/BadRequest' }
  *       '401': { $ref: '#/components/responses/Unauthorized' }
  *       '403': { $ref: '#/components/responses/Forbidden' }
  *       '500': { $ref: '#/components/responses/InternalError' }
@@ -97,7 +101,17 @@ router.get(
     FavoritoController.listar
 );
 router.get('/ids', verificarToken, FavoritoController.ids);
-router.post('/:profissionalId', verificarToken, FavoritoController.adicionar);
-router.delete('/:profissionalId', verificarToken, FavoritoController.remover);
+router.post(
+    '/:profissionalId',
+    verificarToken,
+    validate(profissionalIdParamSchema, 'params'),
+    FavoritoController.adicionar
+);
+router.delete(
+    '/:profissionalId',
+    verificarToken,
+    validate(profissionalIdParamSchema, 'params'),
+    FavoritoController.remover
+);
 
 module.exports = router;

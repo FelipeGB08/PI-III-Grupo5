@@ -136,8 +136,9 @@ class PrestadorCard extends StatelessWidget {
         : ', a ${prestador.distanciaKm!.toStringAsFixed(1)} quilometros';
     final disponibilidade =
         prestador.disponivel ? 'disponivel' : 'indisponivel';
+    final verificacao = prestador.verificado ? ', profissional verificado' : '';
     return '${prestador.nome}, ${prestador.cidade}, $categorias, avaliacao '
-        '${prestador.mediaAvaliacao.toStringAsFixed(1)}$distancia, $disponibilidade';
+        '${prestador.mediaAvaliacao.toStringAsFixed(1)}$distancia, $disponibilidade$verificacao';
   }
 }
 

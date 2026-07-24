@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/adaptive_colors.dart';
+
 /// Níveis de força da senha para feedback visual.
 enum PasswordStrength {
   empty,
@@ -114,7 +116,7 @@ class PasswordStrengthMeter extends StatelessWidget {
                 margin:
                     EdgeInsets.only(right: index < _totalSegments - 1 ? 6 : 0),
                 decoration: BoxDecoration(
-                  color: isActive ? color : Colors.white.withValues(alpha: 0.1),
+                  color: isActive ? color : context.appBorder,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),

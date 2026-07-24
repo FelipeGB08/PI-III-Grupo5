@@ -14,8 +14,11 @@ class MapRouteResult {
 }
 
 class MapRouteService {
-  MapRouteService({Dio? dio})
-      : _dio = dio ??
+  MapRouteService({
+    Dio? dio,
+    String baseUrl = 'https://router.project-osrm.org',
+  })  : _baseUrl = baseUrl.replaceFirst(RegExp(r'/$'), ''),
+        _dio = dio ??
             Dio(
               BaseOptions(
                 connectTimeout: const Duration(seconds: 8),
@@ -24,12 +27,13 @@ class MapRouteService {
             );
 
   final Dio _dio;
+  final String _baseUrl;
 
   Future<MapRouteResult> drivingRoute({
     required LatLng origin,
     required LatLng destination,
   }) async {
-    final url = 'https://router.project-osrm.org/route/v1/driving/'
+    final url = '$_baseUrl/route/v1/driving/'
         '${origin.longitude},${origin.latitude};'
         '${destination.longitude},${destination.latitude}';
 
@@ -60,12 +64,17 @@ class MapRouteService {
       throw Exception('Rota sem geometria.');
     }
 
-    final points = coordinates.whereType<List>().map((coord) {
+    final points = coordinates.whereType<List>().where((coord) {
+      return coord.length >= 2 && coord[0] is num && coord[1] is num;
+    }).map((coord) {
       return LatLng(
         (coord[1] as num).toDouble(),
         (coord[0] as num).toDouble(),
       );
     }).toList();
+    if (points.isEmpty) {
+      throw Exception('Rota sem coordenadas validas.');
+    }
 
     return MapRouteResult(
       points: points,

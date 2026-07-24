@@ -96,13 +96,16 @@ class _ConectaAmaucAppState extends ConsumerState<ConectaAmaucApp> {
     }
 
     final themeMode = ref.watch(appThemeModeProvider);
+    final highContrast = ref.watch(appHighContrastProvider);
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       navigatorKey: appNavigatorKey,
       title: 'Conecta AMAUC',
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
+      theme: AppTheme.light(highContrast: highContrast),
+      darkTheme: AppTheme.dark(highContrast: highContrast),
+      highContrastTheme: AppTheme.light(highContrast: true),
+      highContrastDarkTheme: AppTheme.dark(highContrast: true),
       themeMode: themeMode,
       home: const HomeShell(),
     );

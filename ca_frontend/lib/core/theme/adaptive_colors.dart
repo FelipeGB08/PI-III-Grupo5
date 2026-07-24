@@ -1,38 +1,36 @@
 import 'package:flutter/material.dart';
 
-import 'app_colors.dart';
+import 'app_color_palette.dart';
 
 extension AdaptiveColors on BuildContext {
   bool get isDarkMode => Theme.of(this).brightness == Brightness.dark;
 
-  Color get appBackground =>
-      isDarkMode ? AppColors.darkBackground : AppColors.lightBackground;
+  AppColorPalette get _palette =>
+      Theme.of(this).extension<AppColorPalette>() ??
+      AppColorPalette.forBrightness(
+        Theme.of(this).brightness,
+        highContrast: false,
+      );
 
-  Color get appSurface =>
-      isDarkMode ? AppColors.darkSurface : AppColors.lightSurface;
+  Color get appBackground => _palette.background;
 
-  Color get appCard => isDarkMode ? AppColors.darkCard : AppColors.lightCard;
+  Color get appSurface => _palette.surface;
 
-  Color get appPanel => isDarkMode ? AppColors.darkPanel : AppColors.lightCard;
+  Color get appCard => _palette.card;
 
-  Color get appBorder =>
-      isDarkMode ? AppColors.darkBorder : const Color(0xFFE2E8F0);
+  Color get appPanel => _palette.panel;
 
-  Color get appTextPrimary =>
-      isDarkMode ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+  Color get appBorder => _palette.border;
 
-  Color get appTextSecondary =>
-      isDarkMode ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+  Color get appTextPrimary => _palette.textPrimary;
 
-  Color get appMuted =>
-      isDarkMode ? AppColors.muted : AppColors.textSecondaryLight;
+  Color get appTextSecondary => _palette.textSecondary;
 
-  Color get appBrand =>
-      isDarkMode ? AppColors.primary : AppColors.primaryAccessibleLight;
+  Color get appMuted => _palette.muted;
 
-  Color get appAccent =>
-      isDarkMode ? AppColors.accent : AppColors.accentAccessibleLight;
+  Color get appBrand => _palette.brand;
 
-  Color get appOnBrand =>
-      isDarkMode ? AppColors.actionForeground : Colors.white;
+  Color get appAccent => _palette.accent;
+
+  Color get appOnBrand => _palette.onBrand;
 }

@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../core/config/api_config.dart';
 import '../../../core/network/api_error_formatter.dart';
 import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/theme/app_colors.dart';
@@ -55,45 +54,38 @@ class _AgendamentoDetalhesScreenState
   }
 
   Future<void> _concluirServico() async {
-    final anexarFotos = await showDialog<bool>(
+    final selecionarFotos = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Concluir servico'),
+        title: const Text('Enviar conclusao ao cliente'),
         content: const Text(
-          'Deseja anexar fotos do servico concluido como evidencia para o cliente?',
+          'Anexe ao menos uma foto do servico concluido. O cliente podera revisar as evidencias antes de confirmar a conclusao.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Voltar'),
-          ),
-          TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Concluir sem fotos'),
+            child: const Text('Voltar'),
           ),
           FilledButton.icon(
             onPressed: () => Navigator.pop(ctx, true),
             icon: const Icon(Icons.add_photo_alternate_outlined),
-            label: const Text('Anexar fotos'),
+            label: const Text('Selecionar fotos'),
           ),
         ],
       ),
     );
 
-    if (anexarFotos == null) return;
+    if (selecionarFotos != true) return;
 
-    var fotos = <XFile>[];
-    if (anexarFotos) {
-      fotos = await ImagePicker().pickMultiImage(
-        imageQuality: 82,
-        maxWidth: 1600,
-      );
+    var fotos = await ImagePicker().pickMultiImage(
+      imageQuality: 82,
+      maxWidth: 1600,
+    );
 
-      if (fotos.isEmpty) return;
+    if (fotos.isEmpty) return;
 
-      if (fotos.length > 5) {
-        fotos = fotos.take(5).toList();
-      }
+    if (fotos.length > 5) {
+      fotos = fotos.take(5).toList();
     }
 
     setState(() => _processando = true);
@@ -122,9 +114,58 @@ class _AgendamentoDetalhesScreenState
       if (!mounted) return;
       setState(() => _chamado = updated);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Servico concluido.')),
+        const SnackBar(
+          content: Text('Conclusao enviada para confirmacao do cliente.'),
+        ),
       );
     } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(formatApiError(e))),
+      );
+    } finally {
+      if (mounted) setState(() => _processando = false);
+    }
+  }
+
+  Future<void> _confirmarConclusao() async {
+    final confirmou = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirmar conclusao'),
+        content: const Text(
+          'Confirme somente depois de revisar as fotos e verificar que o servico foi concluido. Esta acao libera a avaliacao.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Revisar depois'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.verified_rounded),
+            label: const Text('Confirmar conclusao'),
+          ),
+        ],
+      ),
+    );
+    if (confirmou != true) return;
+
+    setState(() => _processando = true);
+    try {
+      final updated =
+          await ref.read(chamadoRepositoryProvider).confirmarConclusao(
+                chamadoId: _chamado.id,
+              );
+      await ref.read(chamadosProvider.notifier).carregar();
+      if (!mounted) return;
+      setState(() => _chamado = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Conclusao confirmada com sucesso.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      await ref.read(chamadosProvider.notifier).carregar();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(formatApiError(e))),
@@ -282,6 +323,108 @@ class _AgendamentoDetalhesScreenState
     } finally {
       if (mounted) setState(() => _processando = false);
     }
+  }
+
+  Future<void> _reportarProblema() async {
+    const motivos = <String, String>{
+      'servico_nao_realizado': 'Servico nao realizado',
+      'cobranca_indevida': 'Cobranca indevida',
+      'comportamento_inadequado': 'Comportamento inadequado',
+      'outro': 'Outro problema',
+    };
+    var motivo = motivos.keys.first;
+    final descricaoController = TextEditingController();
+
+    final dados = await showDialog<({String motivo, String descricao})>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Reportar problema'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Sua denuncia sera analisada pela administracao. Informe somente fatos relacionados a este chamado.',
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: motivo,
+                  decoration: const InputDecoration(labelText: 'Motivo'),
+                  items: motivos.entries
+                      .map(
+                        (item) => DropdownMenuItem(
+                          value: item.key,
+                          child: Text(item.value),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => motivo = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('descricao-denuncia-field'),
+                  controller: descricaoController,
+                  minLines: 3,
+                  maxLines: 5,
+                  maxLength: 4000,
+                  decoration: const InputDecoration(
+                    labelText: 'Descreva o que aconteceu',
+                    hintText: 'Escreva os detalhes relevantes para a analise.',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.tonalIcon(
+              key: const Key('enviar-denuncia-button'),
+              onPressed: () => Navigator.pop(
+                ctx,
+                (motivo: motivo, descricao: descricaoController.text.trim()),
+              ),
+              icon: const Icon(Icons.flag_outlined),
+              label: const Text('Enviar denuncia'),
+            ),
+          ],
+        ),
+      ),
+    );
+    descricaoController.dispose();
+    if (dados == null || dados.descricao.length < 10) {
+      if (mounted && dados != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Descreva o problema com pelo menos 10 caracteres.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    final enviado = await ref.read(denunciaProvider.notifier).enviar(
+          chamadoId: _chamado.id,
+          motivo: dados.motivo,
+          descricao: dados.descricao,
+        );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          enviado
+              ? 'Denuncia enviada para analise administrativa.'
+              : ref.read(denunciaProvider).error ??
+                  'Nao foi possivel enviar a denuncia.',
+        ),
+      ),
+    );
   }
 
   @override
@@ -474,11 +617,10 @@ class _AgendamentoDetalhesScreenState
             _SectionLabel('Foto anexada'),
             ClipRRect(
               borderRadius: BorderRadius.circular(18),
-              child: Image.network(
-                ApiConfig.resolveAssetUrl(_chamado.fotoUrl),
+              child: _AuthenticatedEvidenceImage(
+                url: _chamado.fotoUrl!,
                 height: 210,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const _InfoPanel(
+                error: const _InfoPanel(
                   child: Text('Nao foi possivel carregar a foto anexada.'),
                 ),
               ),
@@ -501,6 +643,13 @@ class _AgendamentoDetalhesScreenState
             ),
           ],
           const SizedBox(height: 18),
+          OutlinedButton.icon(
+            key: const Key('reportar-problema-button'),
+            onPressed: _processando ? null : _reportarProblema,
+            icon: const Icon(Icons.flag_outlined),
+            label: const Text('Reportar problema'),
+          ),
+          const SizedBox(height: 10),
           FilledButton.tonalIcon(
             onPressed: () {
               Navigator.of(context).push(
@@ -542,6 +691,29 @@ class _AgendamentoDetalhesScreenState
               icon: const Icon(Icons.task_alt_rounded),
               label: const Text('Concluir Servico'),
             ),
+          if (_isPrestador &&
+              _chamado.status == ChamadoStatus.aguardandoConfirmacaoCliente)
+            const _InfoPanel(
+              child: Text(
+                'Conclusao enviada. Aguardando o cliente revisar as evidencias. A confirmacao sera automatica apos 72 horas.',
+              ),
+            ),
+          if (!_isPrestador &&
+              _chamado.status ==
+                  ChamadoStatus.aguardandoConfirmacaoCliente) ...[
+            const _InfoPanel(
+              child: Text(
+                'Revise as fotos acima antes de confirmar. Se nenhuma acao for tomada, o chamado sera concluido automaticamente apos 72 horas.',
+              ),
+            ),
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              key: const Key('confirmar-conclusao-button'),
+              onPressed: _processando ? null : _confirmarConclusao,
+              icon: const Icon(Icons.fact_check_outlined),
+              label: const Text('Confirmar conclusao do servico'),
+            ),
+          ],
           if (!_isPrestador && _chamado.status == ChamadoStatus.concluido)
             FilledButton.icon(
               onPressed: () => AvaliacaoBottomSheet.show(context, _chamado),
@@ -611,6 +783,7 @@ class _AgendamentoDetalhesScreenState
         ChamadoStatus.propostaValor => AppColors.primary,
         ChamadoStatus.emAndamento => AppColors.statusEmAndamento,
         ChamadoStatus.remarcacaoSolicitada => AppColors.primary,
+        ChamadoStatus.aguardandoConfirmacaoCliente => AppColors.statusPendente,
         ChamadoStatus.concluido => AppColors.primary,
         ChamadoStatus.recusado => AppColors.statusRecusado,
         ChamadoStatus.cancelado => AppColors.muted,
@@ -621,6 +794,7 @@ class _AgendamentoDetalhesScreenState
         ChamadoStatus.propostaValor => Icons.sell_outlined,
         ChamadoStatus.emAndamento => Icons.check_circle_rounded,
         ChamadoStatus.remarcacaoSolicitada => Icons.event_repeat_rounded,
+        ChamadoStatus.aguardandoConfirmacaoCliente => Icons.fact_check_outlined,
         ChamadoStatus.concluido => Icons.verified_rounded,
         ChamadoStatus.recusado => Icons.cancel_rounded,
         ChamadoStatus.cancelado => Icons.event_busy_rounded,
@@ -634,6 +808,8 @@ class _AgendamentoDetalhesScreenState
           'O profissional confirmou sua solicitacao.',
         ChamadoStatus.remarcacaoSolicitada =>
           'O profissional sugeriu um novo horario.',
+        ChamadoStatus.aguardandoConfirmacaoCliente =>
+          'O prestador enviou evidencias e aguarda a confirmacao do cliente.',
         ChamadoStatus.concluido => 'Servico concluido. Avalie sua experiencia.',
         ChamadoStatus.recusado => 'Solicitacao recusada pelo profissional.',
         ChamadoStatus.cancelado => 'Solicitacao cancelada.',
@@ -733,29 +909,60 @@ class _InfoPanel extends StatelessWidget {
   }
 }
 
-class _EvidenceImage extends StatelessWidget {
+class _EvidenceImage extends ConsumerWidget {
   const _EvidenceImage({required this.url});
 
   final String url;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: Container(
         width: 118,
         height: 118,
         color: context.appCard,
-        child: Image.network(
-          ApiConfig.resolveAssetUrl(url),
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const Center(
+        child: _AuthenticatedEvidenceImage(
+          url: url,
+          height: 118,
+          error: const Center(
             child: Icon(
               Icons.broken_image_outlined,
               color: AppColors.muted,
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _AuthenticatedEvidenceImage extends ConsumerWidget {
+  const _AuthenticatedEvidenceImage({
+    required this.url,
+    required this.height,
+    required this.error,
+  });
+
+  final String url;
+  final double height;
+  final Widget error;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final image = ref.watch(protectedImageBytesProvider(url));
+    return SizedBox(
+      height: height,
+      child: image.when(
+        data: (bytes) => Image.memory(
+          bytes,
+          height: height,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+        ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => error,
       ),
     );
   }

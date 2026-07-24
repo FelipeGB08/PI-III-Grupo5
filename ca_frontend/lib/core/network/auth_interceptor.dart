@@ -46,6 +46,10 @@ class AuthInterceptor extends Interceptor {
     '/api/auth/register',
     '/api/auth/login',
     '/api/auth/social-login',
+    '/api/auth/apple/config',
+    '/api/auth/github/authorize',
+    '/api/auth/github/callback',
+    '/api/auth/github/complete',
     '/api/auth/refresh',
     '/api/auth/logout',
     '/api/auth/magic-link',
@@ -59,7 +63,10 @@ class AuthInterceptor extends Interceptor {
   ];
 
   bool _isPublic(RequestOptions options) {
-    final path = options.path;
+    final path = options.path.replaceFirst(
+      RegExp(r'^/api/v1(?=/|$)'),
+      '/api',
+    );
     return _publicPaths.any((publicPath) => path.startsWith(publicPath));
   }
 

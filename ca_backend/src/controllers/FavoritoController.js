@@ -1,4 +1,5 @@
 const FavoritoModel = require('../models/FavoritoModel');
+const { montarProfissionalPublico } = require('../utils/profissionalPublico');
 
 const FavoritoController = {
     listar: async (req, res) => {
@@ -16,7 +17,8 @@ const FavoritoController = {
                 page,
                 pageSize,
             });
-            const { items: favoritos, ...paginacao } = resultado;
+            const { items, ...paginacao } = resultado;
+            const favoritos = items.map(montarProfissionalPublico);
             const ids = favoritos.map((item) => item.id);
 
             return res.status(200).json({

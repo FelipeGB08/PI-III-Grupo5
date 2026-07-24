@@ -16,4 +16,16 @@ class ChatMessage {
   final String mensagem;
   final DateTime criadoEm;
   final DateTime? lidaEm;
+
+  ChatMessage copyWith({DateTime? lidaEm}) {
+    return ChatMessage(
+      id: id,
+      servicoId: servicoId,
+      remetenteId: remetenteId,
+      mensagem: mensagem,
+      criadoEm: criadoEm,
+      remetenteNome: remetenteNome,
+      lidaEm: lidaEm ?? this.lidaEm,
+    );
+  }
 }

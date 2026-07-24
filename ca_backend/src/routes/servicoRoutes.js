@@ -1,8 +1,17 @@
 const express = require('express');
 const ServicoController = require('../controllers/ServicoController');
 const verificarToken = require('../middlewares/authMiddleware');
+const { requireRole } = require('../middlewares/roleMiddleware');
 const multerConfig = require('../config/multer');
 const { solicitacaoRateLimit } = require('../middlewares/rateLimitMiddleware');
+const validate = require('../middlewares/validateMiddleware');
+const { criarSolicitacaoSchema } = require('../validators/solicitacaoSchemas');
+const { idParamSchema } = require('../validators/commonSchemas');
+const {
+    comLimpezaDeUpload,
+    tratarErroDeUpload,
+    validarEArmazenarImagens,
+} = require('../middlewares/uploadMiddleware');
 
 const router = express.Router();
 
@@ -72,10 +81,21 @@ const router = express.Router();
 router.post(
     '/',
     verificarToken,
+    requireRole('cidadao'),
     solicitacaoRateLimit,
     multerConfig.single('foto'),
-    ServicoController.criarServico
+    validate(criarSolicitacaoSchema),
+    validarEArmazenarImagens,
+    comLimpezaDeUpload(ServicoController.criarServico)
 );
-router.put('/:id/status', verificarToken, ServicoController.atualizarStatus);
+router.put(
+    '/:id/status',
+    verificarToken,
+    requireRole('profissional'),
+    validate(idParamSchema, 'params'),
+    ServicoController.atualizarStatus
+);
+
+router.use(tratarErroDeUpload);
 
 module.exports = router;

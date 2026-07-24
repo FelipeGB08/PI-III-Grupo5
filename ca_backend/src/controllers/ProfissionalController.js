@@ -3,18 +3,24 @@ const {
     parsePagination,
     setPaginationHeaders,
 } = require('../utils/pagination');
+const { montarProfissionalPublico } = require('../utils/profissionalPublico');
 
 const ProfissionalController = {
     listar: async (req, res) => {
         try {
-            const cidade = req.query.cidade || null;
-            const categoria = req.query.categoria || null;
-            const atendeRural = req.query.atende_rural || null;
+            const filtros = req.validated?.query || req.query || {};
+            const cidade = filtros.cidade || null;
+            const categoria = filtros.categoria || null;
+            const atendeRural = filtros.atende_rural ?? null;
             const pagination = {
-                ...parsePagination(req.query),
-                lat: req.query.lat || null,
-                lng: req.query.lng || null,
-                raioKm: req.query.raio_km || req.query.raioKm || null,
+                ...parsePagination(filtros),
+                lat: filtros.lat ?? null,
+                lng: filtros.lng ?? null,
+                raioKm: filtros.raio_km ?? filtros.raioKm ?? null,
+                precoMin: filtros.preco_min ?? null,
+                precoMax: filtros.preco_max ?? null,
+                notaMinima: filtros.nota_minima ?? null,
+                disponivelEm: filtros.disponivel_em ?? null,
             };
 
             const resultado = await ProfissionalModel.buscarPorFiltros(
@@ -28,7 +34,9 @@ const ProfissionalController = {
                 page: pagination.page,
                 limit: pagination.limit,
             });
-            return res.status(200).json(resultado.rows);
+            return res.status(200).json(
+                resultado.rows.map(montarProfissionalPublico)
+            );
         } catch (erro) {
             console.error('Erro ao buscar profissionais:', erro);
             return res.status(500).json({ erro: 'Erro interno ao buscar profissionais.' });
@@ -44,7 +52,7 @@ const ProfissionalController = {
                 return res.status(404).json({ erro: 'Profissional não encontrado.' });
             }
 
-            return res.status(200).json(profissional);
+            return res.status(200).json(montarProfissionalPublico(profissional));
         } catch (erro) {
             console.error('Erro ao buscar profissional:', erro);
             return res.status(500).json({ erro: 'Erro interno ao buscar profissional.' });

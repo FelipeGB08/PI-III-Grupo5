@@ -53,11 +53,18 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    final semantics = tester.ensureSemantics();
 
     expect(find.text('Ola, Ana'), findsOneWidget);
     expect(find.text('Categorias'), findsOneWidget);
 
     final categoria = AmaucConstants.categorias.first;
+    expect(
+      find.bySemanticsLabel(
+        'Buscar profissionais na categoria ${categoria.nome}',
+      ),
+      findsOneWidget,
+    );
     final categoryTile = find.text(categoria.nome);
     await tester.ensureVisible(categoryTile);
     await tester.tap(categoryTile);
@@ -70,5 +77,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Perto de mim'), findsOneWidget);
     expect(find.text('Carlos Eletricista'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel(RegExp('Carlos Eletricista.*avaliacao 4.8')),
+      findsOneWidget,
+    );
+    semantics.dispose();
   });
 }

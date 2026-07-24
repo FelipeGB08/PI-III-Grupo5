@@ -1,6 +1,10 @@
 const { getFirebaseMessaging } = require('../config/firebaseAdmin');
 const NotificationModel = require('../models/NotificationModel');
+const NotificationPreferenceModel = require('../models/NotificationPreferenceModel');
+const FavoritoModel = require('../models/FavoritoModel');
 const logger = require('../utils/logger');
+
+const JANELA_NOTIFICACAO_DISPONIBILIDADE_HORAS = 6;
 
 const TOKEN_INVALIDO_CODES = new Set([
     'messaging/invalid-registration-token',
@@ -119,7 +123,79 @@ function notificarUsuarioSemBloquear(dados) {
     });
 }
 
+async function notificarFavoritosSobreNovosHorarios({
+    profissionalId,
+    profissionalNome,
+    novosHorarios,
+}) {
+    const favoritos = await FavoritoModel.listarClientesParaNotificarDisponibilidade(
+        profissionalId
+    );
+
+    if (!favoritos.length) {
+        return { destinatarios: 0, notificacoesAgendadas: 0 };
+    }
+
+    const nome = String(profissionalNome || 'Um profissional favorito').trim();
+    const quantidade = novosHorarios?.length || 1;
+    const resultados = await Promise.allSettled(
+        favoritos.map(async ({ cliente_id: clienteId }) => {
+            const reserva = await NotificationPreferenceModel.reservarNotificacaoDisponibilidade({
+                clienteId,
+                profissionalId,
+                janelaHoras: JANELA_NOTIFICACAO_DISPONIBILIDADE_HORAS,
+            });
+
+            if (!reserva) return false;
+
+            await notificarUsuario({
+                usuarioId: clienteId,
+                tipo: 'favorito_novo_horario',
+                titulo: 'Novo horario disponivel',
+                corpo: `${nome} adicionou ${quantidade === 1 ? 'um novo horario' : `${quantidade} novos horarios`} na agenda.`,
+                payload: {
+                    profissional_id: profissionalId,
+                    novos_horarios: quantidade,
+                },
+            });
+
+            return true;
+        })
+    );
+
+    let notificacoesAgendadas = 0;
+    for (const resultado of resultados) {
+        if (resultado.status === 'fulfilled' && resultado.value) {
+            notificacoesAgendadas += 1;
+            continue;
+        }
+
+        if (resultado.status === 'rejected') {
+            logger.error('Falha ao notificar favorito sobre novos horarios.', {
+                erro: resultado.reason,
+                componente: 'push',
+                profissionalId,
+            });
+        }
+    }
+
+    return { destinatarios: favoritos.length, notificacoesAgendadas };
+}
+
+function notificarFavoritosSobreNovosHorariosSemBloquear(dados) {
+    notificarFavoritosSobreNovosHorarios(dados).catch((erro) => {
+        logger.error('Falha ao processar notificacoes de disponibilidade para favoritos.', {
+            erro,
+            componente: 'push',
+            profissionalId: dados?.profissionalId,
+        });
+    });
+}
+
 module.exports = {
     notificarUsuario,
     notificarUsuarioSemBloquear,
+    notificarFavoritosSobreNovosHorarios,
+    notificarFavoritosSobreNovosHorariosSemBloquear,
+    JANELA_NOTIFICACAO_DISPONIBILIDADE_HORAS,
 };

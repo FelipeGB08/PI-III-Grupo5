@@ -34,6 +34,8 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
   Uint8List? _fotoProblemaBytes;
   bool _enviando = false;
   bool _capturandoLocalizacao = false;
+  double? _atendimentoLatitude;
+  double? _atendimentoLongitude;
 
   @override
   void initState() {
@@ -42,6 +44,10 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
     _enderecoController.text = user?.enderecoPrincipal?.isNotEmpty == true
         ? user!.enderecoPrincipal!
         : (user?.cidadeAmauc != null ? '${user!.cidadeAmauc} - SC' : '');
+    if (user?.latitude != null && user?.longitude != null) {
+      _atendimentoLatitude = user!.latitude;
+      _atendimentoLongitude = user.longitude;
+    }
   }
 
   @override
@@ -108,6 +114,8 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
             preco: servico.preco,
             agendadoPara: agendadoPara,
             enderecoAtendimento: endereco,
+            atendimentoLatitude: _atendimentoLatitude,
+            atendimentoLongitude: _atendimentoLongitude,
             fotoUrl: fotoUrl,
           );
       await ref.read(chamadosProvider.notifier).carregar();
@@ -214,8 +222,13 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
         ),
       );
       final cidade = ref.read(authStateProvider).user?.cidadeAmauc;
-      _enderecoController.text =
-          'Localizacao atual (${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)})${cidade == null ? '' : ' - $cidade/SC'}';
+      setState(() {
+        _atendimentoLatitude = pos.latitude;
+        _atendimentoLongitude = pos.longitude;
+        _enderecoController.text = cidade == null
+            ? 'Localizacao atual via GPS'
+            : 'Localizacao atual - $cidade/SC';
+      });
       _showSnack('Localizacao atual adicionada ao atendimento.');
     } catch (_) {
       _showSnack('Nao foi possivel capturar sua localizacao agora.');
@@ -385,13 +398,18 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
           children: horarios.map((horario) {
             final selected = _horario == horario;
             return Semantics(
+              button: true,
               label: 'Horario $horario',
               selected: selected,
-              child: ChoiceChip(
-                label: Text(horario),
-                selected: selected,
-                onSelected: (_) => setState(() => _horario = horario),
-                selectedColor: AppColors.primary.withValues(alpha: 0.25),
+              hint: 'Selecionar horario disponivel',
+              onTap: () => setState(() => _horario = horario),
+              child: ExcludeSemantics(
+                child: ChoiceChip(
+                  label: Text(horario),
+                  selected: selected,
+                  onSelected: (_) => setState(() => _horario = horario),
+                  selectedColor: AppColors.primary.withValues(alpha: 0.25),
+                ),
               ),
             );
           }).toList(),
@@ -402,6 +420,15 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
         TextField(
           controller: _enderecoController,
           maxLines: 2,
+          onChanged: (_) {
+            if (_atendimentoLatitude == null && _atendimentoLongitude == null) {
+              return;
+            }
+            setState(() {
+              _atendimentoLatitude = null;
+              _atendimentoLongitude = null;
+            });
+          },
           decoration: const InputDecoration(
             prefixIcon: Icon(Icons.home_work_outlined),
             labelText: 'Endereco do atendimento',
@@ -426,6 +453,29 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
                 : 'Usar localizacao atual',
           ),
         ),
+        if (_atendimentoLatitude != null && _atendimentoLongitude != null) ...[
+          const SizedBox(height: 8),
+          Semantics(
+            label:
+                'Localizacao do atendimento registrada com seguranca e visivel apenas no chamado',
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.location_on_outlined,
+                  size: 16,
+                  color: AppColors.statusConcluido,
+                ),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Localizacao registrada; as coordenadas ficam privadas no chamado.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 20),
         _StepTitle(number: 4, title: 'Observacoes'),
         const SizedBox(height: 10),

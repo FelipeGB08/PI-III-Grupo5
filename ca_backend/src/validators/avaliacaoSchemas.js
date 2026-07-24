@@ -1,6 +1,12 @@
 const { z } = require('zod');
 
 function inteiroNoIntervalo(valor, minimo, maximo) {
+    if (
+        !((typeof valor === 'number' && Number.isFinite(valor)) ||
+        (typeof valor === 'string' && /^\d+$/.test(valor.trim())))
+    ) {
+        return false;
+    }
     const numero = Number(valor);
     return Number.isInteger(numero) && numero >= minimo && numero <= maximo;
 }
@@ -18,7 +24,7 @@ const criarAvaliacaoSchema = z
     })
     .passthrough()
     .superRefine((dados, ctx) => {
-        const servicoId = dados.servico_id || dados.solicitacao_id;
+        const servicoId = dados.servico_id ?? dados.solicitacao_id;
         if (!inteiroNoIntervalo(servicoId, 1, Number.MAX_SAFE_INTEGER)) {
             ctx.addIssue({
                 code: 'custom',
@@ -27,7 +33,7 @@ const criarAvaliacaoSchema = z
             });
         }
 
-        const nota = dados.nota_estrelas || dados.nota;
+        const nota = dados.nota_estrelas ?? dados.nota;
         if (!inteiroNoIntervalo(nota, 1, 5)) {
             ctx.addIssue({
                 code: 'custom',

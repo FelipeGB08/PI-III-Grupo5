@@ -17,6 +17,7 @@ class Prestador {
     this.distanciaKm,
     this.latitude,
     this.longitude,
+    this.localizacaoAproximada = false,
     this.telefone,
     this.anosExperiencia,
     this.curriculoTexto,
@@ -45,6 +46,7 @@ class Prestador {
   final double? distanciaKm;
   final double? latitude;
   final double? longitude;
+  final bool localizacaoAproximada;
   final String? telefone;
   final int? anosExperiencia;
   final String? curriculoTexto;
@@ -78,6 +80,7 @@ class Prestador {
       distanciaKm: distanciaKm,
       latitude: latitude,
       longitude: longitude,
+      localizacaoAproximada: localizacaoAproximada,
       telefone: telefone,
       anosExperiencia: anosExperiencia,
       curriculoTexto: curriculoTexto,

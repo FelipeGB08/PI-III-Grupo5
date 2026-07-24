@@ -4,6 +4,7 @@ const verificarToken = require('../middlewares/authMiddleware');
 const { requireRole } = require('../middlewares/roleMiddleware');
 const validate = require('../middlewares/validateMiddleware');
 const { salvarAgendaSchema } = require('../validators/agendaSchemas');
+const { idParamSchema } = require('../validators/commonSchemas');
 
 const router = express.Router();
 
@@ -68,7 +69,11 @@ const router = express.Router();
  *       '500': { $ref: '#/components/responses/InternalError' }
  */
 
-router.get('/profissionais/:id', AgendaController.buscarPublica);
+router.get(
+    '/profissionais/:id',
+    validate(idParamSchema, 'params'),
+    AgendaController.buscarPublica
+);
 router.get('/me', verificarToken, requireRole('profissional'), AgendaController.buscarMinha);
 router.put(
     '/me',

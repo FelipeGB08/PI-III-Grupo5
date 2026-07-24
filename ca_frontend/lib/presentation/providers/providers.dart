@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -68,8 +70,29 @@ final appThemeModeProvider =
   return AppThemeModeNotifier(ref.watch(sharedPreferencesProvider));
 });
 
+class AppHighContrastNotifier extends StateNotifier<bool> {
+  AppHighContrastNotifier(this._prefs)
+      : super(_prefs.getBool(_highContrastKey) ?? false);
+
+  static const _highContrastKey = 'app_high_contrast';
+
+  final SharedPreferences _prefs;
+
+  Future<void> setEnabled(bool enabled) async {
+    state = enabled;
+    await _prefs.setBool(_highContrastKey, enabled);
+  }
+}
+
+final appHighContrastProvider =
+    StateNotifierProvider<AppHighContrastNotifier, bool>((ref) {
+  return AppHighContrastNotifier(ref.watch(sharedPreferencesProvider));
+});
+
 final tokenStorageProvider = Provider<TokenStorage>((ref) {
-  return TokenStorage(ref.watch(sharedPreferencesProvider));
+  final storage = TokenStorage(ref.watch(sharedPreferencesProvider));
+  ref.onDispose(storage.dispose);
+  return storage;
 });
 
 final dioClientProvider = Provider<DioClient>((ref) {
@@ -87,8 +110,16 @@ final apiServiceProvider = Provider<ApiService>((ref) {
   return ApiService(ref.watch(dioClientProvider).instance);
 });
 
+final protectedImageBytesProvider =
+    FutureProvider.autoDispose.family((ref, String url) {
+  return ref.watch(apiServiceProvider).baixarImagemProtegida(url);
+});
+
 final chatSocketServiceProvider = Provider<ChatSocketService>((ref) {
-  final service = ChatSocketService(ref.watch(tokenStorageProvider));
+  final service = ChatSocketService(
+    ref.watch(tokenStorageProvider),
+    onSessionRevoked: SessionEvents.notifyUnauthorized,
+  );
   ref.onDispose(service.dispose);
   return service;
 });
@@ -123,18 +154,48 @@ final avaliacaoRepositoryProvider = Provider<AvaliacaoRepository>((ref) {
 class AdminState {
   const AdminState({
     this.categorias = const [],
+    this.verificacoesPendentes = const [],
+    this.denuncias = const [],
+    this.usuarios = const [],
+    this.filtroDenuncias,
+    this.filtroPerfilUsuarios,
+    this.buscaUsuarios,
+    this.usuariosPage = 1,
+    this.usuariosTotal = 0,
+    this.usuariosHasMore = false,
     this.relatorio,
     this.isLoading = false,
     this.error,
   });
 
   final List<Map<String, dynamic>> categorias;
+  final List<Map<String, dynamic>> verificacoesPendentes;
+  final List<Map<String, dynamic>> denuncias;
+  final List<Map<String, dynamic>> usuarios;
+  final String? filtroDenuncias;
+  final String? filtroPerfilUsuarios;
+  final String? buscaUsuarios;
+  final int usuariosPage;
+  final int usuariosTotal;
+  final bool usuariosHasMore;
   final Map<String, dynamic>? relatorio;
   final bool isLoading;
   final String? error;
 
   AdminState copyWith({
     List<Map<String, dynamic>>? categorias,
+    List<Map<String, dynamic>>? verificacoesPendentes,
+    List<Map<String, dynamic>>? denuncias,
+    List<Map<String, dynamic>>? usuarios,
+    String? filtroDenuncias,
+    bool atualizarFiltroDenuncias = false,
+    String? filtroPerfilUsuarios,
+    bool atualizarFiltroPerfilUsuarios = false,
+    String? buscaUsuarios,
+    bool atualizarBuscaUsuarios = false,
+    int? usuariosPage,
+    int? usuariosTotal,
+    bool? usuariosHasMore,
     Map<String, dynamic>? relatorio,
     bool? isLoading,
     String? error,
@@ -142,6 +203,20 @@ class AdminState {
   }) {
     return AdminState(
       categorias: categorias ?? this.categorias,
+      verificacoesPendentes:
+          verificacoesPendentes ?? this.verificacoesPendentes,
+      denuncias: denuncias ?? this.denuncias,
+      usuarios: usuarios ?? this.usuarios,
+      filtroDenuncias:
+          atualizarFiltroDenuncias ? filtroDenuncias : this.filtroDenuncias,
+      filtroPerfilUsuarios: atualizarFiltroPerfilUsuarios
+          ? filtroPerfilUsuarios
+          : this.filtroPerfilUsuarios,
+      buscaUsuarios:
+          atualizarBuscaUsuarios ? buscaUsuarios : this.buscaUsuarios,
+      usuariosPage: usuariosPage ?? this.usuariosPage,
+      usuariosTotal: usuariosTotal ?? this.usuariosTotal,
+      usuariosHasMore: usuariosHasMore ?? this.usuariosHasMore,
       relatorio: relatorio ?? this.relatorio,
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
@@ -154,20 +229,86 @@ class AdminNotifier extends StateNotifier<AdminState> {
 
   final ApiService _api;
 
-  Future<void> carregar() async {
+  Future<void> carregar({String? filtroDenuncias}) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final results = await Future.wait([
         _api.listarCategorias(),
         _api.buscarRelatorioAdmin(),
+        _api.listarVerificacoesPendentes(),
+        _api.listarDenunciasAdmin(status: filtroDenuncias),
+        _api.listarUsuariosAdmin(
+          perfilTipo: state.filtroPerfilUsuarios,
+          busca: state.buscaUsuarios,
+        ),
       ]);
+      final usuariosResultado = results[4] as Map<String, dynamic>;
+      final usuarios = (usuariosResultado['usuarios'] as List? ?? const [])
+          .whereType<Map>()
+          .map((usuario) => Map<String, dynamic>.from(usuario))
+          .toList();
       state = state.copyWith(
         categorias: results[0] as List<Map<String, dynamic>>,
         relatorio: results[1] as Map<String, dynamic>,
+        verificacoesPendentes: results[2] as List<Map<String, dynamic>>,
+        denuncias: results[3] as List<Map<String, dynamic>>,
+        usuarios: usuarios,
+        usuariosPage: (usuariosResultado['page'] as num?)?.toInt() ?? 1,
+        usuariosTotal: (usuariosResultado['total'] as num?)?.toInt() ?? 0,
+        usuariosHasMore: usuariosResultado['hasMore'] == true,
+        filtroDenuncias: filtroDenuncias,
+        atualizarFiltroDenuncias: true,
         isLoading: false,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: formatApiError(e));
+    }
+  }
+
+  Future<void> carregarUsuarios({
+    String? perfilTipo,
+    String? busca,
+    int page = 1,
+  }) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final resultado = await _api.listarUsuariosAdmin(
+        page: page,
+        perfilTipo: perfilTipo,
+        busca: busca,
+      );
+      final usuarios = (resultado['usuarios'] as List? ?? const [])
+          .whereType<Map>()
+          .map((usuario) => Map<String, dynamic>.from(usuario))
+          .toList();
+      state = state.copyWith(
+        usuarios: usuarios,
+        usuariosPage: (resultado['page'] as num?)?.toInt() ?? page,
+        usuariosTotal: (resultado['total'] as num?)?.toInt() ?? 0,
+        usuariosHasMore: resultado['hasMore'] == true,
+        filtroPerfilUsuarios: perfilTipo,
+        atualizarFiltroPerfilUsuarios: true,
+        buscaUsuarios: busca,
+        atualizarBuscaUsuarios: true,
+        isLoading: false,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: formatApiError(e));
+    }
+  }
+
+  Future<bool> atualizarStatusUsuario(int usuarioId, bool ativo) async {
+    try {
+      await _api.atualizarStatusUsuarioAdmin(usuarioId, ativo);
+      await carregarUsuarios(
+        page: state.usuariosPage,
+        perfilTipo: state.filtroPerfilUsuarios,
+        busca: state.buscaUsuarios,
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: formatApiError(e));
+      return false;
     }
   }
 
@@ -203,10 +344,177 @@ class AdminNotifier extends StateNotifier<AdminState> {
       return false;
     }
   }
+
+  Future<bool> aprovarVerificacao(int perfilId) async {
+    try {
+      await _api.aprovarVerificacao(perfilId);
+      await carregar();
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: formatApiError(e));
+      return false;
+    }
+  }
+
+  Future<bool> rejeitarVerificacao(int perfilId, String motivo) async {
+    try {
+      await _api.rejeitarVerificacao(perfilId, motivo);
+      await carregar();
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: formatApiError(e));
+      return false;
+    }
+  }
+
+  Future<bool> atualizarDenuncia({
+    required int denunciaId,
+    required String status,
+    String? resolucaoAdmin,
+  }) async {
+    try {
+      await _api.atualizarDenunciaAdmin(
+        denunciaId: denunciaId,
+        status: status,
+        resolucaoAdmin: resolucaoAdmin,
+      );
+      await carregar(filtroDenuncias: state.filtroDenuncias);
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: formatApiError(e));
+      return false;
+    }
+  }
 }
 
 final adminProvider = StateNotifierProvider<AdminNotifier, AdminState>((ref) {
   return AdminNotifier(ref.watch(apiServiceProvider));
+});
+
+class VerificacaoState {
+  const VerificacaoState({
+    this.verificacao,
+    this.isLoading = false,
+    this.isSending = false,
+    this.error,
+  });
+
+  final Map<String, dynamic>? verificacao;
+  final bool isLoading;
+  final bool isSending;
+  final String? error;
+
+  VerificacaoState copyWith({
+    Map<String, dynamic>? verificacao,
+    bool? isLoading,
+    bool? isSending,
+    String? error,
+    bool clearError = false,
+  }) {
+    return VerificacaoState(
+      verificacao: verificacao ?? this.verificacao,
+      isLoading: isLoading ?? this.isLoading,
+      isSending: isSending ?? this.isSending,
+      error: clearError ? null : (error ?? this.error),
+    );
+  }
+}
+
+class VerificacaoNotifier extends StateNotifier<VerificacaoState> {
+  VerificacaoNotifier(this._api) : super(const VerificacaoState());
+
+  final ApiService _api;
+
+  Future<void> carregar() async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final verificacao = await _api.buscarVerificacaoProfissional();
+      state = state.copyWith(verificacao: verificacao, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: formatApiError(e));
+    }
+  }
+
+  Future<bool> enviarArquivo(String filePath) async {
+    state = state.copyWith(isSending: true, clearError: true);
+    try {
+      final verificacao = await _api.enviarDocumentoVerificacao(filePath);
+      state = state.copyWith(verificacao: verificacao, isSending: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSending: false, error: formatApiError(e));
+      return false;
+    }
+  }
+
+  Future<bool> enviarBytes(Uint8List bytes, String filename) async {
+    state = state.copyWith(isSending: true, clearError: true);
+    try {
+      final verificacao = await _api.enviarDocumentoVerificacaoBytes(
+        bytes: bytes,
+        filename: filename,
+      );
+      state = state.copyWith(verificacao: verificacao, isSending: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSending: false, error: formatApiError(e));
+      return false;
+    }
+  }
+}
+
+final verificacaoProvider =
+    StateNotifierProvider<VerificacaoNotifier, VerificacaoState>((ref) {
+  return VerificacaoNotifier(ref.watch(apiServiceProvider));
+});
+
+class DenunciaState {
+  const DenunciaState({this.isSending = false, this.error});
+
+  final bool isSending;
+  final String? error;
+
+  DenunciaState copyWith({
+    bool? isSending,
+    String? error,
+    bool clearError = false,
+  }) {
+    return DenunciaState(
+      isSending: isSending ?? this.isSending,
+      error: clearError ? null : (error ?? this.error),
+    );
+  }
+}
+
+class DenunciaNotifier extends StateNotifier<DenunciaState> {
+  DenunciaNotifier(this._api) : super(const DenunciaState());
+
+  final ApiService _api;
+
+  Future<bool> enviar({
+    required int chamadoId,
+    required String motivo,
+    required String descricao,
+  }) async {
+    state = state.copyWith(isSending: true, clearError: true);
+    try {
+      await _api.criarDenuncia(
+        chamadoId: chamadoId,
+        motivo: motivo,
+        descricao: descricao,
+      );
+      state = state.copyWith(isSending: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSending: false, error: formatApiError(e));
+      return false;
+    }
+  }
+}
+
+final denunciaProvider =
+    StateNotifierProvider<DenunciaNotifier, DenunciaState>((ref) {
+  return DenunciaNotifier(ref.watch(apiServiceProvider));
 });
 
 class CurriculoState {
@@ -587,6 +895,8 @@ final conversasProvider =
 // ─── Auth State ─────────────────────────────────────────────────────────────
 
 class AuthState {
+  static const _notSet = Object();
+
   const AuthState({
     this.user,
     this.isLoading = false,
@@ -602,13 +912,13 @@ class AuthState {
   bool get isAuthenticated => user != null;
 
   AuthState copyWith({
-    User? user,
+    Object? user = _notSet,
     bool? isLoading,
     bool? isInitializing,
     String? error,
   }) {
     return AuthState(
-      user: user,
+      user: identical(user, _notSet) ? this.user : user as User?,
       isLoading: isLoading ?? this.isLoading,
       isInitializing: isInitializing ?? this.isInitializing,
       error: error,
@@ -616,9 +926,15 @@ class AuthState {
   }
 }
 
+typedef SessionEnder = Future<void> Function();
+
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier(this._repo, {AuthState? initialState})
-      : super(initialState ?? const AuthState(isInitializing: true)) {
+  AuthNotifier(
+    this._repo, {
+    AuthState? initialState,
+    SessionEnder? onSessionEnded,
+  })  : _onSessionEnded = onSessionEnded,
+        super(initialState ?? const AuthState(isInitializing: true)) {
     SessionEvents.addListener(_onUnauthorized);
     if (initialState == null) {
       _loadSession();
@@ -626,23 +942,38 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   final AuthRepository _repo;
+  final SessionEnder? _onSessionEnded;
 
   void _onUnauthorized() => logout();
 
   Future<void> _loadSession() async {
-    final token = await _repo.getToken();
-
-    if (token != null && token.isNotEmpty) {
+    try {
+      // Um usuário só é exposto ao app depois de o refresh token seguro ser
+      // validado pelo servidor. Dados de perfil em cache não autenticam.
+      final result = await _repo.refreshSession();
+      state = AuthState(user: result.user);
+    } catch (refreshError) {
+      Object? logoutError;
       try {
-        final result = await _repo.refreshSession();
-        state = AuthState(user: result.user);
-        return;
-      } catch (_) {
         await _repo.logout();
+      } catch (e) {
+        logoutError = e;
       }
+      await _encerrarSessaoLocal(error: logoutError ?? refreshError);
+    }
+  }
+
+  Future<void> _encerrarSessaoLocal({Object? error}) async {
+    Object? cleanupError = error;
+    try {
+      await _onSessionEnded?.call();
+    } catch (e) {
+      cleanupError ??= e;
     }
 
-    state = const AuthState();
+    state = AuthState(
+      error: cleanupError == null ? null : formatApiError(cleanupError),
+    );
   }
 
   Future<bool> login(String email, String senha) async {
@@ -661,18 +992,48 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String provider,
     required String token,
     required String cidadeAmauc,
+    String? platform,
+    String? state,
+    String? nonce,
   }) async {
-    state = state.copyWith(isLoading: true, error: null);
+    this.state = this.state.copyWith(isLoading: true, error: null);
     try {
       final result = await _repo.socialLogin(
         provider: provider,
         token: token,
         cidadeAmauc: cidadeAmauc,
+        platform: platform,
+        state: state,
+        nonce: nonce,
       );
-      state = AuthState(user: result.user);
+      this.state = AuthState(user: result.user);
       return true;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: formatApiError(e));
+      this.state = this.state.copyWith(
+            isLoading: false,
+            error: formatApiError(e),
+          );
+      return false;
+    }
+  }
+
+  Future<bool> concluirGithubOAuth({
+    required String ticket,
+    required String state,
+  }) async {
+    this.state = this.state.copyWith(isLoading: true, error: null);
+    try {
+      final result = await _repo.concluirGithubOAuth(
+        ticket: ticket,
+        state: state,
+      );
+      this.state = AuthState(user: result.user);
+      return true;
+    } catch (e) {
+      this.state = this.state.copyWith(
+            isLoading: false,
+            error: formatApiError(e),
+          );
       return false;
     }
   }
@@ -745,7 +1106,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _repo.deleteAccount(confirmation: confirmation);
-      state = const AuthState();
+      await _encerrarSessaoLocal();
+      return true;
+    } on AccountDeletedWithLocalCleanupFailure catch (e) {
+      await _encerrarSessaoLocal(error: e);
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: formatApiError(e));
@@ -753,9 +1117,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> logout() async {
-    await _repo.logout();
-    state = const AuthState();
+  Future<bool> logout() async {
+    state = state.copyWith(isLoading: true, error: null);
+    Object? logoutError;
+    try {
+      await _repo.logout();
+    } catch (e) {
+      logoutError = e;
+    }
+
+    await _encerrarSessaoLocal(error: logoutError);
+    return logoutError == null;
   }
 
   Future<User?> refreshProfile() async {
@@ -824,18 +1196,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
 }
 
 final authStateProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier(ref.watch(authRepositoryProvider));
+  return AuthNotifier(
+    ref.watch(authRepositoryProvider),
+    onSessionEnded: () => ref.read(chatSocketServiceProvider).disconnect(),
+  );
 });
-
-/// Provider auxiliar para restaurar sessão antes do primeiro frame.
-AuthState? buildInitialAuthState(TokenStorage storage) {
-  final token = storage.getToken();
-  final user = storage.getUser();
-  if (token != null && token.isNotEmpty && user != null) {
-    return AuthState(user: user);
-  }
-  return null;
-}
 
 // ─── Prestadores ────────────────────────────────────────────────────────────
 
@@ -850,6 +1215,10 @@ class PrestadoresState {
     this.lat,
     this.lng,
     this.raioKm = 30,
+    this.precoMinimo,
+    this.precoMaximo,
+    this.notaMinima,
+    this.disponivelEm,
   });
 
   final List<Prestador> prestadores;
@@ -861,6 +1230,10 @@ class PrestadoresState {
   final double? lat;
   final double? lng;
   final double raioKm;
+  final double? precoMinimo;
+  final double? precoMaximo;
+  final double? notaMinima;
+  final DateTime? disponivelEm;
 
   PrestadoresState copyWith({
     List<Prestador>? prestadores,
@@ -872,7 +1245,12 @@ class PrestadoresState {
     double? lat,
     double? lng,
     double? raioKm,
+    double? precoMinimo,
+    double? precoMaximo,
+    double? notaMinima,
+    DateTime? disponivelEm,
     bool clearCategoria = false,
+    bool clearFiltrosAvancados = false,
     bool clearErro = false,
   }) {
     return PrestadoresState(
@@ -887,6 +1265,14 @@ class PrestadoresState {
       lat: lat ?? this.lat,
       lng: lng ?? this.lng,
       raioKm: raioKm ?? this.raioKm,
+      precoMinimo:
+          clearFiltrosAvancados ? null : (precoMinimo ?? this.precoMinimo),
+      precoMaximo:
+          clearFiltrosAvancados ? null : (precoMaximo ?? this.precoMaximo),
+      notaMinima:
+          clearFiltrosAvancados ? null : (notaMinima ?? this.notaMinima),
+      disponivelEm:
+          clearFiltrosAvancados ? null : (disponivelEm ?? this.disponivelEm),
     );
   }
 }
@@ -914,6 +1300,10 @@ class PrestadoresNotifier extends StateNotifier<PrestadoresState> {
         lat: latBusca,
         lng: lngBusca,
         raioKm: state.raioKm,
+        precoMinimo: state.precoMinimo,
+        precoMaximo: state.precoMaximo,
+        notaMinima: state.notaMinima,
+        disponivelEm: state.disponivelEm,
       );
 
       state = state.copyWith(
@@ -948,6 +1338,23 @@ class PrestadoresNotifier extends StateNotifier<PrestadoresState> {
 
   void setRaio(double raioKm) {
     state = state.copyWith(raioKm: raioKm);
+    carregar();
+  }
+
+  void setFiltrosAvancados({
+    double? precoMinimo,
+    double? precoMaximo,
+    double? notaMinima,
+    DateTime? disponivelEm,
+    bool limpar = false,
+  }) {
+    state = state.copyWith(
+      precoMinimo: precoMinimo,
+      precoMaximo: precoMaximo,
+      notaMinima: notaMinima,
+      disponivelEm: disponivelEm,
+      clearFiltrosAvancados: limpar,
+    );
     carregar();
   }
 }
@@ -1093,6 +1500,19 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
     );
     await _repo.recusarRemarcacao(chamadoId: chamadoId);
     await carregar();
+  }
+
+  Future<Chamado> confirmarConclusao(int chamadoId) async {
+    final confirmado = await _repo.confirmarConclusao(chamadoId: chamadoId);
+    await carregar();
+    state = ChamadosState(
+      chamados: state.chamados,
+      page: state.page,
+      total: state.total,
+      hasMore: state.hasMore,
+      pendingReview: confirmado,
+    );
+    return confirmado;
   }
 
   Future<void> aceitar(int id) => _atualizar(id, ChamadoStatus.emAndamento);

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/adaptive_colors.dart';
+
 /// Campo de texto estilizado para telas de autenticação com feedback de erro.
 class AuthTextField extends StatelessWidget {
   const AuthTextField({
@@ -29,11 +31,9 @@ class AuthTextField extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final TextInputAction? textInputAction;
 
-  static const Color _fillColor = Color(0xFF1E293B);
-  static const Color _errorColor = Color(0xFFEF4444);
-
   @override
   Widget build(BuildContext context) {
+    final errorColor = Theme.of(context).colorScheme.error;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -41,13 +41,15 @@ class AuthTextField extends StatelessWidget {
           ExcludeSemantics(
             child: Text(
               label!,
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              style: TextStyle(color: context.appTextSecondary, fontSize: 12),
             ),
           ),
           const SizedBox(height: 8),
         ],
         Semantics(
           label: label ?? hint,
+          hint: obscureText ? 'Campo de senha protegido' : hint,
+          textField: true,
           child: TextFormField(
             controller: controller,
             keyboardType: keyboardType,
@@ -56,44 +58,44 @@ class AuthTextField extends StatelessWidget {
             validator: validator,
             onChanged: onChanged,
             textInputAction: textInputAction,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: context.appTextPrimary),
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: const TextStyle(color: Colors.white70),
+              hintStyle: TextStyle(color: context.appMuted),
               prefixIcon:
-                  icon != null ? Icon(icon, color: Colors.white70) : null,
+                  icon != null ? Icon(icon, color: context.appMuted) : null,
               suffixIcon: suffixIcon,
               filled: true,
-              fillColor: _fillColor,
+              fillColor: context.appPanel,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
                 vertical: 14,
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+                borderSide: BorderSide(color: context.appBorder),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+                borderSide: BorderSide(color: context.appBorder),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: Color(0xFF3B82F6),
+                borderSide: BorderSide(
+                  color: context.appBrand,
                   width: 1.5,
                 ),
               ),
               errorBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: _errorColor, width: 1.5),
+                borderSide: BorderSide(color: errorColor, width: 1.5),
               ),
               focusedErrorBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: _errorColor, width: 1.5),
+                borderSide: BorderSide(color: errorColor, width: 1.5),
               ),
-              errorStyle: const TextStyle(
-                color: _errorColor,
+              errorStyle: TextStyle(
+                color: errorColor,
                 fontSize: 12,
                 height: 1.2,
               ),
@@ -121,7 +123,7 @@ class PasswordVisibilityToggle extends StatelessWidget {
     return IconButton(
       icon: Icon(
         obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-        color: Colors.white54,
+        color: context.appMuted,
       ),
       onPressed: onToggle,
       tooltip: obscure ? 'Mostrar senha' : 'Ocultar senha',

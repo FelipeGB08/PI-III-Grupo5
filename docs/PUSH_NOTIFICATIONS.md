@@ -5,7 +5,7 @@ Este documento descreve o fluxo implementado no Conecta AMAUC e o roteiro para v
 ## Como o fluxo funciona
 
 1. O Flutter inicializa o Firebase, pede permissão para notificações e obtém o token com `FirebaseMessaging.getToken()`.
-2. Depois do login, `ca_frontend/lib/app.dart` envia o token e a plataforma para `POST /api/dispositivos/token`. O listener `onTokenRefresh` repete o cadastro quando o Firebase gera outro token.
+2. Depois do login, `ca_frontend/lib/app.dart` envia o token e a plataforma para `POST /api/v1/dispositivos/token`. O listener `onTokenRefresh` repete o cadastro quando o Firebase gera outro token.
 3. `DispositivoController` associa o token ao usuário autenticado. O `ON CONFLICT (token)` move a associação para o usuário atual e reativa o token, se necessário.
 4. Um evento de negócio chama `notificarUsuarioSemBloquear`. O serviço grava a notificação em `notificacoes`, busca os tokens ativos do destinatário e envia um multicast pelo Firebase Admin SDK.
 5. Tokens que o FCM informa como inválidos ou não registrados são desativados automaticamente. O resultado fica registrado como `pendente`, `enviada` ou `falha` na tabela `notificacoes`.
@@ -29,10 +29,11 @@ O payload `data` sempre inclui `tipo` e `notificacao_id`; IDs e demais valores s
 | `chamado_cancelado` | Cidadão cancela a solicitação | Prestador |
 | `avaliacao_recebida` | Cidadão avalia um chamado concluído | Prestador avaliado |
 | `nova_mensagem_chat` | Uma parte envia mensagem por REST ou Socket.IO | A outra parte do chamado |
+| `favorito_novo_horario` | Prestador adiciona novos horários à agenda | Clientes que o favoritaram e mantiveram a preferência ativada |
 
 Os quatro marcos do fluxo principal — aceite, remarcação, conclusão e avaliação — já possuem disparo e destinatário explícitos. Não foi encontrada lacuna de evento nesse fluxo.
 
-O upload em `POST /api/solicitacoes/:id/fotos-conclusao` não envia um aviso separado: ele é uma etapa intermediária. O push `chamado_concluido` é enviado na alteração de status que ocorre depois do upload. Uma tentativa de avaliação duplicada também não gera push porque a operação é bloqueada antes de criar uma nova avaliação.
+O upload em `POST /api/v1/solicitacoes/:id/fotos-conclusao` não envia um aviso separado: ele é uma etapa intermediária. O push `chamado_concluido` é enviado na alteração de status que ocorre depois do upload. Uma tentativa de avaliação duplicada também não gera push porque a operação é bloqueada antes de criar uma nova avaliação.
 
 ## Configurar o backend
 
@@ -106,8 +107,11 @@ Use duas contas: um cidadão e um prestador. O ideal é manter a conta que receb
 | 4b | Em outro chamado, cidadão recusa a nova data/hora | Prestador recebe `remarcacao_recusada` |
 | 5 | Prestador anexa evidências, se desejado, e conclui | Cidadão recebe `chamado_concluido` |
 | 6 | Cidadão envia nota e comentário | Prestador recebe `avaliacao_recebida` |
+| 7 | Cidadão favorita um prestador; o prestador adiciona um horário novo | Cidadão recebe `favorito_novo_horario` |
 
 Repita pelo menos um evento com o app em primeiro plano, em segundo plano e fechado. Em primeiro plano, o app mostra uma notificação local no canal `chamados_amauc`; em segundo plano ou fechado, o Android exibe a notificação do FCM. O comportamento por estado do app está detalhado no [guia oficial de recebimento no Flutter](https://firebase.google.com/docs/cloud-messaging/flutter/receive-messages).
+
+O aviso de disponibilidade é limitado a uma vez por profissional para cada cliente a cada 6 horas. Em **Minha conta > Novos horários de favoritos**, desligue a preferência e edite a agenda novamente para confirmar que esse evento específico não é enviado; os demais pushes continuam habilitados.
 
 ## Evidências e diagnóstico
 

@@ -487,6 +487,7 @@ class _StatusPill extends StatelessWidget {
       ChamadoStatus.propostaValor => AppColors.primary,
       ChamadoStatus.emAndamento => AppColors.statusEmAndamento,
       ChamadoStatus.remarcacaoSolicitada => AppColors.statusPendente,
+      ChamadoStatus.aguardandoConfirmacaoCliente => AppColors.statusPendente,
       ChamadoStatus.concluido => AppColors.statusConcluido,
       ChamadoStatus.recusado => AppColors.statusRecusado,
       ChamadoStatus.cancelado => AppColors.statusRecusado,

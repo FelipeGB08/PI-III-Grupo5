@@ -108,9 +108,7 @@ const ServicoController = {
                 agendadoPara,
             });
 
-            const fotoUrl = req.file
-                ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
-                : null;
+            const fotoUrl = req.file?.url || null;
 
             const novoServico = await ServicoModel.criar(
                 cidadaoId,

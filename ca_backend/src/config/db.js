@@ -1,15 +1,21 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
+const CONNECTION_TIMEOUT_MS = 5000;
+
 const pool = new Pool(
     process.env.DATABASE_URL
-        ? { connectionString: process.env.DATABASE_URL }
+        ? {
+            connectionString: process.env.DATABASE_URL,
+            connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
+        }
         : {
             user: process.env.DB_USER,
-            password: process.env.DB_PASSWORD || process.env.DB_PASS,
+            password: process.env.DB_PASSWORD,
             host: process.env.DB_HOST,
             port: Number(process.env.DB_PORT) || 5432,
             database: process.env.DB_NAME,
+            connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
         }
 );
 

@@ -36,10 +36,9 @@ const AvaliacaoModel = {
             [profissionalId]
         );
         const query = `
-            SELECT a.*, s.descricao AS servico_descricao, u.nome AS cidadao_nome
+            SELECT a.id, a.servico_id, a.nota_estrelas, a.comentario, a.criado_em
             FROM avaliacoes a
             INNER JOIN servicos_solicitados s ON s.id = a.servico_id
-            INNER JOIN usuarios u ON u.id = s.cidadao_id
             WHERE s.prof_id = $1
             ORDER BY a.criado_em DESC
             LIMIT $2 OFFSET $3;

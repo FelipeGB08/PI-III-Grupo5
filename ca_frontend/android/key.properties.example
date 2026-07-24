@@ -1,0 +1,6 @@
+# Copy this file to android/key.properties. The real file is ignored by Git.
+# Use an absolute path or a path relative to ca_frontend/android.
+storeFile=/caminho/seguro/conecta-amauc-release.jks
+storePassword=
+keyAlias=
+keyPassword=

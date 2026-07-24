@@ -1,0 +1,3 @@
+// Copie para GoogleAuth.xcconfig (arquivo ignorado pelo Git) e substitua pelo
+// REVERSED_CLIENT_ID do cliente OAuth iOS. Nao use o client secret aqui.
+GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.exemplo-local

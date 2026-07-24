@@ -13,11 +13,23 @@ const pageSize = z.coerce
     .max(100, 'pageSize deve ser menor ou igual a 100.')
     .default(20);
 
+const pageLegada = z.coerce
+    .number({ error: 'page deve ser um numero inteiro positivo.' })
+    .int('page deve ser um numero inteiro positivo.')
+    .min(1, 'page deve ser maior ou igual a 1.');
+
+const limitLegado = z.coerce
+    .number({ error: 'limit deve ser um numero inteiro positivo.' })
+    .int('limit deve ser um numero inteiro positivo.')
+    .min(1, 'limit deve ser maior ou igual a 1.')
+    .max(50, 'limit deve ser menor ou igual a 50.');
+
 const statusSolicitacao = z.enum([
     'pendente',
     'proposta_valor',
     'aceito',
     'recusado',
+    'aguardando_confirmacao_cliente',
     'concluido',
     'cancelado_cliente',
     'remarcacao_solicitada',
@@ -52,8 +64,40 @@ const favoritoListagemQuerySchema = z
     })
     .passthrough();
 
+const paginacaoComLimitQuerySchema = z
+    .object({
+        page: pageLegada.optional(),
+        pagina: pageLegada.optional(),
+        limit: limitLegado.optional(),
+        tamanho: limitLegado.optional(),
+    })
+    .passthrough();
+
+const notificacaoListagemQuerySchema = paginacaoComLimitQuerySchema.extend({
+    nao_lidas: z.union([z.boolean(), z.enum(['true', 'false'])]).optional(),
+});
+
+const chatMensagensQuerySchema = z
+    .object({
+        before_id: z.coerce
+            .number({ error: 'before_id deve ser um numero inteiro positivo.' })
+            .int('before_id deve ser um numero inteiro positivo.')
+            .min(1, 'before_id deve ser maior ou igual a 1.')
+            .optional(),
+        limit: z.coerce
+            .number({ error: 'limit deve ser um numero inteiro positivo.' })
+            .int('limit deve ser um numero inteiro positivo.')
+            .min(1, 'limit deve ser maior ou igual a 1.')
+            .max(100, 'limit deve ser menor ou igual a 100.')
+            .optional(),
+    })
+    .passthrough();
+
 module.exports = {
+    chatMensagensQuerySchema,
     favoritoListagemQuerySchema,
+    notificacaoListagemQuerySchema,
+    paginacaoComLimitQuerySchema,
     paginacaoQuerySchema,
     solicitacaoListagemQuerySchema,
 };

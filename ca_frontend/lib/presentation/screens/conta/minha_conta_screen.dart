@@ -28,8 +28,8 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
 
   bool _salvando = false;
   bool _carregandoPerfil = true;
-  bool _notificacoes = true;
-  bool _altoContraste = true;
+  bool _notificacoesFavoritos = true;
+  bool _salvandoPreferenciaFavoritos = false;
   bool _capturandoLocalizacao = false;
   bool _excluindoConta = false;
   XFile? _fotoLocal;
@@ -41,7 +41,10 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _carregarPerfil());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _carregarPerfil();
+      _carregarPreferenciaNovosHorariosFavoritos();
+    });
   }
 
   @override
@@ -73,6 +76,42 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
     _latitude = user.latitude;
     _longitude = user.longitude;
     _fotoUrlRemota = user.fotoUrl;
+  }
+
+  Future<void> _carregarPreferenciaNovosHorariosFavoritos() async {
+    try {
+      final ativada = await ref
+          .read(apiServiceProvider)
+          .buscarPreferenciaNovosHorariosFavoritos();
+      if (!mounted) return;
+      setState(() => _notificacoesFavoritos = ativada);
+    } catch (_) {
+      // A preferência é opcional em versões antigas do backend. Mantém o padrão ativado.
+    }
+  }
+
+  Future<void> _atualizarPreferenciaNovosHorariosFavoritos(bool ativada) async {
+    if (_salvandoPreferenciaFavoritos) return;
+
+    final anterior = _notificacoesFavoritos;
+    setState(() {
+      _notificacoesFavoritos = ativada;
+      _salvandoPreferenciaFavoritos = true;
+    });
+
+    try {
+      await ref
+          .read(apiServiceProvider)
+          .atualizarPreferenciaNovosHorariosFavoritos(ativada);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _notificacoesFavoritos = anterior);
+        _mostrarErro(
+            'Não foi possível atualizar a preferência de notificações.');
+      }
+    } finally {
+      if (mounted) setState(() => _salvandoPreferenciaFavoritos = false);
+    }
   }
 
   Future<void> _capturarLocalizacao() async {
@@ -266,7 +305,13 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
     );
 
     if (confirmar == true) {
-      await ref.read(authStateProvider.notifier).logout();
+      final saiu = await ref.read(authStateProvider.notifier).logout();
+      if (!saiu && mounted) {
+        _mostrarErro(
+          ref.read(authStateProvider).error ??
+              'A sessao local foi encerrada, mas nao foi possivel revoga-la no servidor.',
+        );
+      }
     }
   }
 
@@ -319,6 +364,7 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
     final user = ref.watch(authStateProvider).user;
     final theme = Theme.of(context);
     final themeMode = ref.watch(appThemeModeProvider);
+    final altoContraste = ref.watch(appHighContrastProvider);
     final isDark = theme.brightness == Brightness.dark;
     final cidade = user?.cidadeAmauc;
 
@@ -386,7 +432,7 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
               OutlinedButton.icon(
                 onPressed: _capturandoLocalizacao ? null : _capturarLocalizacao,
                 icon: _capturandoLocalizacao
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
@@ -416,20 +462,20 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
               FilledButton.icon(
                 onPressed: _salvando ? null : _salvar,
                 icon: _salvando
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: context.appOnBrand,
                         ),
                       )
                     : const Icon(Icons.save_rounded),
                 label: Text(_salvando ? 'Salvando...' : 'Salvar alteracoes'),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 15),
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: const Color(0xFF031016),
+                  backgroundColor: context.appBrand,
+                  foregroundColor: context.appOnBrand,
                 ),
               ),
             ],
@@ -465,11 +511,13 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
                     ButtonSegment(
                       value: ThemeMode.light,
                       icon: Icon(Icons.light_mode_rounded, size: 18),
+                      label: Text('Claro'),
                       tooltip: 'Usar tema claro',
                     ),
                     ButtonSegment(
                       value: ThemeMode.dark,
                       icon: Icon(Icons.dark_mode_rounded, size: 18),
+                      label: Text('Escuro'),
                       tooltip: 'Usar tema escuro',
                     ),
                   ],
@@ -487,15 +535,20 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
               ),
               _SettingsTile(
                 icon: Icons.notifications_none_rounded,
-                title: 'Notificacoes Push',
-                subtitle: 'Avisos de agendamentos e respostas',
+                title: 'Novos horários de favoritos',
+                subtitle:
+                    'Avise-me quando um profissional favorito abrir agenda',
                 trailing: Semantics(
-                  label: 'Notificacoes Push',
-                  value: _notificacoes ? 'Ativadas' : 'Desativadas',
-                  toggled: _notificacoes,
+                  label: 'Avisos de novos horários de favoritos',
+                  value: _notificacoesFavoritos ? 'Ativados' : 'Desativados',
+                  hint:
+                      'Não altera avisos de chamados, mensagens ou avaliações',
+                  toggled: _notificacoesFavoritos,
                   child: Switch(
-                    value: _notificacoes,
-                    onChanged: (value) => setState(() => _notificacoes = value),
+                    value: _notificacoesFavoritos,
+                    onChanged: _salvandoPreferenciaFavoritos
+                        ? null
+                        : _atualizarPreferenciaNovosHorariosFavoritos,
                   ),
                 ),
               ),
@@ -505,12 +558,17 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
                 subtitle: 'Melhora a leitura em ambientes externos',
                 trailing: Semantics(
                   label: 'Alto contraste',
-                  value: _altoContraste ? 'Ativado' : 'Desativado',
-                  toggled: _altoContraste,
+                  value: altoContraste ? 'Ativado' : 'Desativado',
+                  hint: 'Aumenta o contraste de cores em todo o aplicativo',
+                  toggled: altoContraste,
+                  onTap: () => ref
+                      .read(appHighContrastProvider.notifier)
+                      .setEnabled(!altoContraste),
                   child: Switch(
-                    value: _altoContraste,
-                    onChanged: (value) =>
-                        setState(() => _altoContraste = value),
+                    value: altoContraste,
+                    onChanged: (value) => ref
+                        .read(appHighContrastProvider.notifier)
+                        .setEnabled(value),
                   ),
                 ),
               ),
@@ -883,7 +941,7 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    final tile = InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(18),
       child: Padding(
@@ -894,10 +952,10 @@ class _SettingsTile extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.12),
+                color: context.appBrand.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: AppColors.primary, size: 19),
+              child: Icon(icon, color: context.appBrand, size: 19),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -930,6 +988,15 @@ class _SettingsTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+
+    if (onTap == null) return tile;
+    return Semantics(
+      button: true,
+      label: title,
+      hint: subtitle,
+      onTap: onTap,
+      child: tile,
     );
   }
 }

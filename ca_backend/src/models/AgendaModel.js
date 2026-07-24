@@ -90,6 +90,22 @@ const AgendaModel = {
         return montarAgenda(servicosResult.rows, horariosResult.rows, false);
     },
 
+    listarHorariosAtivos: async (profissionalId) => {
+        const result = await pool.query(
+            `SELECT dia_semana, horario
+             FROM profissional_agenda_horarios
+             WHERE profissional_id = $1
+               AND ativo = TRUE
+             ORDER BY dia_semana ASC, horario ASC`,
+            [profissionalId]
+        );
+
+        return result.rows.map((item) => ({
+            dia_semana: Number(item.dia_semana),
+            horario: String(item.horario).slice(0, 5),
+        }));
+    },
+
     salvarParaProfissional: async (profissionalId, { servicos, horarios }) => {
         const client = await pool.connect();
         try {

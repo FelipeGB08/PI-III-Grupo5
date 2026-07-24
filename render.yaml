@@ -20,10 +20,12 @@ services:
           name: conecta-amauc-db
           property: connectionString
       - key: JWT_SECRET
+        # O Render gera um valor aleatório forte; o boot recusa placeholders e segredos fracos.
         generateValue: true
       - key: FRONTEND_URL
         sync: false
       - key: ALLOWED_ORIGINS
+        # Obrigatória em produção: URLs http(s) separadas por vírgula, sem "*".
         sync: false
       - key: ENABLE_API_DOCS
         value: "false"
@@ -31,6 +33,26 @@ services:
         sync: false
       - key: SENTRY_ENVIRONMENT
         value: production
+      # Web Client ID usado como audience dos ID tokens Google.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      # Configuracoes publicas de login Apple; os valores reais ficam no Render.
+      - key: APPLE_IOS_CLIENT_ID
+        sync: false
+      - key: APPLE_SERVICES_ID
+        sync: false
+      - key: APPLE_ANDROID_REDIRECT_URI
+        sync: false
+      - key: APPLE_WEB_REDIRECT_URI
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_REDIRECT_URI
+        sync: false
+      - key: GITHUB_WEB_REDIRECT_URI
+        sync: false
 
 databases:
   - name: conecta-amauc-db

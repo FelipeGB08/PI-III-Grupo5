@@ -1,11 +1,6 @@
-const jwt = require('jsonwebtoken');
-const UserModel = require('../models/UserModel');
+const { validarAccessTokenAtivo } = require('../services/authTokenService');
 
 const verificarToken = async (req, res, next) => {
-    if (!process.env.JWT_SECRET) {
-        return res.status(500).json({ erro: 'JWT_SECRET nao configurado no servidor.' });
-    }
-
     const authHeader = req.headers.authorization;
     if (!authHeader) {
         return res.status(401).json({ erro: 'Acesso negado. Token nao fornecido.' });
@@ -17,22 +12,22 @@ const verificarToken = async (req, res, next) => {
     }
 
     try {
-        const usuarioDecodificado = jwt.verify(partes[1], process.env.JWT_SECRET);
-        const usuarioAtivo = await UserModel.buscarAtivoPorId(usuarioDecodificado.id);
-        if (!usuarioAtivo) {
-            return res.status(401).json({
-                erro: 'Conta removida ou inativa. Faca login com outra conta.',
-            });
-        }
+        const { usuario } = await validarAccessTokenAtivo(partes[1]);
         req.usuarioLogado = {
-            id: usuarioDecodificado.id,
-            perfil_tipo: usuarioAtivo.perfil_tipo,
-            tipo_usuario: usuarioAtivo.perfil_tipo,
+            id: usuario.id,
+            perfil_tipo: usuario.perfil_tipo,
+            tipo_usuario: usuario.perfil_tipo,
         };
         return next();
     } catch (erro) {
-        if (erro instanceof jwt.TokenExpiredError) {
+        if (erro.codigo === 'jwt_nao_configurado') {
+            return res.status(500).json({ erro: erro.message });
+        }
+        if (erro.codigo === 'token_expirado') {
             return res.status(401).json({ erro: 'Token expirado. Faca login novamente.' });
+        }
+        if (erro.codigo === 'sessao_encerrada' || erro.codigo === 'sessao_invalida') {
+            return res.status(401).json({ erro: erro.message });
         }
         return res.status(403).json({ erro: 'Token invalido.' });
     }

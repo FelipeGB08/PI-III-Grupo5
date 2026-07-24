@@ -9,6 +9,8 @@ abstract class ChamadoRepository {
     double? preco,
     DateTime? agendadoPara,
     String? enderecoAtendimento,
+    double? atendimentoLatitude,
+    double? atendimentoLongitude,
     String? fotoUrl,
   });
 
@@ -24,6 +26,8 @@ abstract class ChamadoRepository {
     required int chamadoId,
     required ChamadoStatus status,
   });
+
+  Future<Chamado> confirmarConclusao({required int chamadoId});
 
   Future<Chamado> uploadFotosConclusao({
     required int chamadoId,

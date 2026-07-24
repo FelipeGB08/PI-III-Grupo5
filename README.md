@@ -10,7 +10,7 @@ Plataforma regional para contratação de serviços autônomos na região da AMA
 - Node.js + Express
 - Socket.io para chat em tempo real
 - PostgreSQL com SQL puro via `pg`
-- Google Maps/Geolocator para localização e busca por raio
+- OpenStreetMap/OSRM + Geolocator para mapa, rotas e busca por raio
 
 ## Estrutura
 
@@ -67,7 +67,7 @@ docker compose logs -f backend
 docker compose down
 ```
 
-Os volumes nomeados `postgres_data` e `backend_uploads` mantêm o banco e as imagens enviadas entre reinicializações. `docker compose down -v` também apaga esses volumes e todos os dados. O Flutter continua fora do Docker e deve ser iniciado com `flutter run`, usando `API_BASE_URL` conforme a plataforma ou dispositivo físico.
+Os volumes nomeados `postgres_data`, `backend_uploads` e `backend_verification_documents` mantêm o banco, as imagens públicas e os documentos privados de verificação entre reinicializações. `docker compose down -v` também apaga esses volumes e todos os dados. O Flutter continua fora do Docker e deve ser iniciado com `flutter run`, usando `API_BASE_URL` conforme a plataforma ou dispositivo físico.
 
 ### 1. Backend
 
@@ -79,27 +79,49 @@ copy .env.example .env
 
 Edite `ca_backend/.env` com as credenciais locais do PostgreSQL e uma `JWT_SECRET` forte.
 
-Variáveis obrigatórias:
+Variáveis mínimas em desenvolvimento local:
 
 - `JWT_SECRET`
 - `DB_HOST`
-- `DB_PORT`
 - `DB_USER`
 - `DB_PASSWORD`
 - `DB_NAME`
 
+`DB_PORT` é opcional e assume `5432`. Em produção, configure também
+`ALLOWED_ORIGINS` e prefira `DATABASE_URL` no lugar das variáveis `DB_*`.
+
 Variáveis opcionais para recursos de produção:
 
 - `GOOGLE_CLIENT_ID`
-- `APPLE_CLIENT_ID`
+- `APPLE_IOS_CLIENT_ID`
+- `APPLE_SERVICES_ID`
+- `APPLE_ANDROID_REDIRECT_URI`
+- `APPLE_WEB_REDIRECT_URI`
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
+- `GITHUB_REDIRECT_URI`
+- `GITHUB_WEB_REDIRECT_URI`
 - `SMTP_HOST`
 - `SMTP_PORT`
 - `SMTP_USER`
 - `SMTP_PASS`
 - `MAIL_FROM`
 - `GOOGLE_APPLICATION_CREDENTIALS` ou `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` e `FIREBASE_PRIVATE_KEY`
+
+### Banco de dados e validação de produção
+
+O backend aceita duas formas alternativas de configurar PostgreSQL:
+
+- `DATABASE_URL`: recomendada para deploy e obrigatória no Render; deve usar `postgres://` ou `postgresql://` e conter host e nome do banco.
+- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD` e `DB_NAME`: alternativa para desenvolvimento local. `DB_PORT` é opcional e assume `5432`.
+
+Quando `DATABASE_URL` está preenchida, as variáveis `DB_*` são ignoradas. Em `NODE_ENV=production`, a API recusa iniciar se não houver uma configuração de banco válida, se `JWT_SECRET` estiver vazio, curto (menos de 32 caracteres), repetitivo ou com placeholder, ou se `ALLOWED_ORIGINS` não contiver URLs `http(s)` explícitas separadas por vírgula. O valor `*` não é aceito em produção.
+
+`API_DOCS_SERVER_URL` é opcional e define a URL base exibida pelo Swagger; o backend acrescenta `/api/v1`. `UPLOADS_DIR` também é opcional e altera o diretório local de imagens; vazio mantém `ca_backend/uploads`.
+
+### Healthcheck
+
+`GET /api/v1/status` é o healthcheck canônico e `GET /api/status` permanece como alias. Ambos executam uma consulta `SELECT 1` no PostgreSQL: retornam `200` com `banco: "disponivel"` somente quando a API e o banco estão acessíveis e retornam `503` com `{ "erro": "Banco de dados indisponivel." }` quando o pool não consegue consultar o banco. O `render.yaml` usa `/api/v1/status` como healthcheck do serviço.
 
 ### E-mail transacional (SMTP)
 
@@ -151,6 +173,8 @@ O script autentica no SMTP, solicita um magic link real e um reset de senha real
 
 ### Push notifications (Firebase / FCM)
 
+Clientes que favoritaram um profissional recebem um aviso quando ele abre novos horários na agenda. O aviso é limitado a uma vez por profissional a cada 6 horas para evitar spam e pode ser desligado individualmente em **Minha conta > Novos horários de favoritos**, sem afetar os avisos de chamados, mensagens ou avaliações. As rotas canônicas são `GET` e `PATCH /api/v1/notificacoes/preferencias`.
+
 O fluxo de notificações já está implementado. Para ativá-lo em um Android físico, configure o mesmo projeto Firebase (`conecta-amauc`) no aplicativo e no backend:
 
 1. No [Firebase Console](https://console.firebase.google.com/), crie ou abra o projeto `conecta-amauc` e adicione um app **Android** com o package name `com.amauc.conecta`.
@@ -170,7 +194,7 @@ O fluxo de notificações já está implementado. Para ativá-lo em um Android f
    ```
 
    ou preencha `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` e `FIREBASE_PRIVATE_KEY` no arquivo `ca_backend/.env` (use `\\n` na chave privada).
-5. Reinicie o backend e rode o app em um aparelho Android com Google Play Services. Ao entrar na conta, o token do aparelho é enviado automaticamente para `POST /api/dispositivos/token`; os próximos eventos do sistema entregam o push via FCM.
+5. Reinicie o backend e rode o app em um aparelho Android com Google Play Services. Ao entrar na conta, o token do aparelho é enviado automaticamente para `POST /api/v1/dispositivos/token`; os próximos eventos do sistema entregam o push via FCM.
 
 Não use a antiga `FCM_SERVER_KEY`: o backend usa credenciais de service account pelo Firebase Admin SDK.
 
@@ -233,9 +257,18 @@ Exemplo:
 API_BASE_URL=http://localhost:3000
 GOOGLE_CLIENT_ID=
 GOOGLE_SERVER_CLIENT_ID=
-APPLE_CLIENT_ID=
-APPLE_REDIRECT_URI=
 ```
+
+`API_BASE_URL` contem apenas a origem do backend, sem `/api`; o aplicativo
+monta os endpoints usando o prefixo canônico `/api/v1`. O alias `/api` existe
+somente para clientes antigos.
+
+Para login Google, o backend e `GOOGLE_SERVER_CLIENT_ID` do Android/iOS usam o
+mesmo Web Client ID como audience. No iOS, `GOOGLE_CLIENT_ID` e o Client ID
+nativo e o esquema `REVERSED_CLIENT_ID` do `GoogleService-Info.plist` precisa
+ser incluído localmente em `CFBundleURLSchemes`. Esses IDs são configuração
+pública; nunca forneça um client secret ao Flutter. Consulte
+[`docs/LOGIN_SOCIAL.md`](docs/LOGIN_SOCIAL.md) para a matriz por plataforma.
 
 Para dispositivo físico Android, use o IP da máquina onde o backend está rodando:
 
@@ -243,17 +276,31 @@ Para dispositivo físico Android, use o IP da máquina onde o backend está roda
 flutter run --dart-define=API_BASE_URL=http://SEU_IP:3000
 ```
 
-Para Google Maps no Android, configure:
+O mapa usa tiles do OpenStreetMap e rotas do serviço público OSRM por HTTPS,
+com atribuição visível no aplicativo. Não é necessária chave de Google Maps no
+Android, iOS ou Web. O dispositivo precisa apenas de internet e da permissão de
+localização concedida pelo usuário. Em produção Web, publique o app em HTTPS
+para que o navegador permita o acesso ao GPS.
 
-```text
-ca_frontend/android/local.properties
-```
+Os marcadores públicos dos prestadores usam o centro aproximado do município,
+sem expor endereço ou GPS pessoal. Quando o cliente escolhe usar o GPS no
+agendamento, as coordenadas exatas ficam associadas somente ao chamado
+protegido.
+
+### Android: rede local e assinatura de release
+
+Builds `debug` permitem HTTP somente para o desenvolvimento local, inclusive ao usar `flutter run --dart-define=API_BASE_URL=http://SEU_IP:3000` em um dispositivo físico. O manifest principal bloqueia explicitamente tráfego HTTP em texto puro, e somente o variant `debug` substitui essa política. Assim, builds `profile` e `release` exigem uma URL `https://` da API.
+
+O APK de release nunca usa a chave debug. Antes de executar um build de release, crie localmente `ca_frontend/android/key.properties` a partir de `ca_frontend/android/key.properties.example` e preencha os valores da chave de assinatura:
 
 ```properties
-MAPS_API_KEY=SUA_CHAVE_GOOGLE_MAPS
+storeFile=/caminho/seguro/conecta-amauc-release.jks
+storePassword=SENHA_DO_KEYSTORE
+keyAlias=ALIAS_DA_CHAVE
+keyPassword=SENHA_DA_CHAVE
 ```
 
-No Flutter Web existe fallback visual para o mapa. Para mapa real no navegador, configure a chave JavaScript do Google Maps no ambiente apropriado.
+O arquivo `key.properties` e arquivos `.jks`/`.keystore` são ignorados pelo Git e não devem ser versionados. Como alternativa para ambientes automatizados, use `KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` e `KEY_PASSWORD`.
 
 ## Contas de demonstração
 
@@ -281,10 +328,11 @@ Contas úteis:
 7. Solicitar agendamento usando um serviço da agenda configurada.
 8. Abrir chat do chamado para combinar detalhes.
 9. Voltar como prestador e aceitar o chamado.
-10. Concluir o serviço anexando foto de evidência.
-11. Voltar como cidadão e avaliar o serviço.
-12. Demonstrar cancelamento com política registrada.
-13. Entrar como admin e apresentar categorias/relatórios.
+10. Enviar a conclusão do serviço anexando foto de evidência.
+11. Voltar como cidadão, revisar a evidência e confirmar a conclusão.
+12. Avaliar o serviço somente depois da confirmação.
+13. Demonstrar cancelamento com política registrada.
+14. Entrar como admin e apresentar categorias/relatórios.
 
 ## Regras importantes do backend
 
@@ -294,7 +342,35 @@ Contas úteis:
 - Conflitos de horário para o mesmo prestador são bloqueados.
 - Rotas sensíveis usam JWT e validação de perfil.
 - Upload aceita apenas imagens e limita tamanho.
+- A conclusão informada pelo prestador fica em `aguardando_confirmacao_cliente`.
+- Somente o cidadão do chamado pode confirmar a conclusão; após 72 horas sem
+  resposta, a API confirma de forma automática na próxima consulta do chamado.
+- Avaliações continuam restritas ao status final `concluido`.
 - Login/cadastro/reset/magic link têm rate limit.
+
+### Busca avançada de prestadores
+
+`GET /api/v1/profissionais` continua público e paginado, agora com os filtros opcionais `preco_min`, `preco_max`, `nota_minima` e `disponivel_em=AAAA-MM-DD`. A faixa de preço considera serviços ativos cadastrados pelo profissional; a nota mínima usa a média de avaliações; e a disponibilidade exige pelo menos um horário ativo ainda sem solicitação em conflito naquela data. Os filtros podem ser combinados com cidade, categoria e localização. No aplicativo, eles ficam em **Explorar serviços > Filtros avançados**.
+
+### Verificacao manual de profissionais
+
+O prestador pode abrir **Curriculo > Verificacao do perfil** no aplicativo e enviar uma imagem JPEG, PNG ou WEBP de um documento de identificacao ou comprovante. O arquivo fica em armazenamento privado; ele nao e servido pela rota `/uploads` nem aparece nas respostas publicas de profissionais.
+
+Administradores revisam a fila em **Admin > Verificacoes pendentes**. Ao aprovar, a busca publica passa a retornar apenas `verificado: true`, exibindo o selo no card e no perfil publico. Ao rejeitar, e obrigatorio registrar um motivo, visivel somente ao prestador. As rotas canonicas sao `POST /api/v1/perfil/verificacao`, `GET /api/v1/admin/verificacoes` e os respectivos endpoints de aprovacao/rejeicao descritos no Swagger.
+
+Em Docker, o volume `backend_verification_documents` preserva esses arquivos privados. Fora do Docker, `VERIFICATION_DOCUMENTS_DIR` pode apontar para um diretorio persistente e nao exposto publicamente.
+
+### Denuncias e disputas de chamados
+
+Na tela de detalhes de cada chamado, cliente e prestador podem usar **Reportar problema** para abrir uma denuncia vinculada exclusivamente aquele atendimento. O motivo e a descricao seguem para a fila **Admin > Denuncias e disputas**, onde a administracao pode filtrar a fila, consultar o contexto do chamado e marcar o caso como em analise, resolvido ou arquivado. A resolucao de um caso notifica o denunciante no aplicativo. Quando SMTP esta configurado, os administradores ativos tambem recebem um alerta de nova denuncia por e-mail, sem expor a descricao fora do painel.
+
+As rotas canonicas sao `POST /api/v1/solicitacoes/:id/denuncia`, `GET /api/v1/admin/denuncias` e `PATCH /api/v1/admin/denuncias/:id`. Apenas os participantes do chamado podem cria-la; somente administradores podem consultar ou tratar a fila.
+
+### Gestao administrativa de usuarios e relatorios
+
+O painel **Admin** tambem permite buscar usuarios por nome ou e-mail, filtrar por perfil e ativar ou inativar contas. As contas anonimizadas pela exclusao definitiva permanecem inativas e nao podem ser reativadas. As rotas canonicas sao `GET /api/v1/admin/usuarios` (com `page`, `pageSize`, `perfil_tipo` e `busca`) e `PATCH /api/v1/admin/usuarios/:id/status` com o corpo `{ "ativo": true|false }`.
+
+Os indicadores administrativos incluem prestadores mais bem avaliados, volume de chamados por categoria, taxa de cancelamento por prestador, verificacoes pendentes e denuncias abertas. Para exportar os mesmos dados, um administrador pode usar **Gerar CSV** no painel ou `GET /api/v1/admin/relatorios/export?formato=csv`. Todas essas rotas exigem JWT de administrador e tambem aparecem no Swagger.
 
 ## Testes
 
@@ -338,6 +414,7 @@ O backend e um PostgreSQL gerenciado podem ser provisionados no Render pelo Blue
 3. Antes de confirmar, informe os valores solicitados pelo Blueprint:
    - `FRONTEND_URL`: URL pública do Flutter Web ou URL usada nos links de recuperação de senha, sem barra final.
    - `ALLOWED_ORIGINS`: origens Web autorizadas pelo CORS, com protocolo e separadas por vírgula, por exemplo `https://app.exemplo.com,https://admin.exemplo.com`.
+   - `GOOGLE_CLIENT_ID`: Web Client ID usado como audience dos tokens Google, se esse login for habilitado. Os demais campos OAuth opcionais podem ficar vazios até a configuração do respectivo provedor.
 4. Confirme a criação de `conecta-amauc-db` e `conecta-amauc-api`. O `DATABASE_URL` é ligado automaticamente ao banco e o `JWT_SECRET` é gerado pelo Render; nenhum desses valores deve ser copiado para o repositório.
 5. No plano gratuito, o Render executa `npm run db:migrate` no início do serviço e `npm run db:seed` somente após o primeiro deploy. Para um ambiente de produção com dados reais, remova `initialDeployHook: npm run db:seed` do `render.yaml` antes de criar o Blueprint. Em um serviço pago, a migration pode ser movida para `preDeployCommand`.
 6. Quando o serviço ficar disponível, copie sua URL pública e valide:
@@ -410,6 +487,8 @@ flutter build apk --release --dart-define=API_BASE_URL=https://conecta-amauc-api
 flutter build web --release --dart-define=API_BASE_URL=https://conecta-amauc-api.onrender.com
 ```
 
+Para o APK Android, configure também a assinatura local descrita em [Android: rede local e assinatura de release](#android-rede-local-e-assinatura-de-release). O comando falhará até que os dados de assinatura sejam disponibilizados por `android/key.properties` ou pelas variáveis `KEYSTORE_*`/`KEY_*`.
+
 Para testar a mesma API pública sem gerar um build:
 
 ```bash
@@ -431,4 +510,3 @@ Não coloque `JWT_SECRET`, `DATABASE_URL`, credenciais SMTP, Firebase ou OAuth e
 - Credenciais SMTP reais e domínio remetente verificado para entrega de magic link/reset.
 - Login social real com configuração oficial Google/Apple/GitHub.
 - Push notification real com chave Firebase/FCM.
-- Chave Google Maps para uso nativo em dispositivos e mapa real no Web.

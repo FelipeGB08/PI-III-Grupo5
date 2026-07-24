@@ -1,14 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 
+import '../../../core/auth/apple_sign_in_flow.dart';
+import '../../../core/auth/github_oauth.dart';
 import '../../../core/config/amauc_constants.dart';
+import '../../../core/config/api_config.dart';
 import '../../../core/config/app_env.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/auth/google_sign_in_config.dart';
+import '../../../core/auth/google_sign_in_web_button.dart';
+import '../../../core/network/api_error_formatter.dart';
+import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/validation/form_validators.dart';
+import '../../../data/datasources/remote/api_service.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import '../../providers/providers.dart';
@@ -36,11 +46,11 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
   DateTime? _lastLoginSubmit;
   bool _handledInitialLink = false;
   bool _googleInitialized = false;
-
-  String get _googleClientId => AppEnv.googleClientId;
-  String get _googleServerClientId => AppEnv.googleServerClientId;
-  String get _appleClientId => AppEnv.appleClientId;
-  String get _appleRedirectUri => AppEnv.appleRedirectUri;
+  bool _googleAuthenticationInProgress = false;
+  String? _googleInitializationError;
+  Future<void>? _googleInitialization;
+  StreamSubscription<GoogleSignInAuthenticationEvent>? _googleAuthSubscription;
+  bool _githubAuthenticationInProgress = false;
 
   final _regNome = TextEditingController();
   final _regEmail = TextEditingController();
@@ -61,10 +71,14 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
     _tabController = TabController(length: 2, vsync: this);
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _handleInitialAuthLink());
+    if (kIsWeb) {
+      unawaited(_initializeGoogleSignIn().catchError((_) {}));
+    }
   }
 
   @override
   void dispose() {
+    _googleAuthSubscription?.cancel();
     _tabController.dispose();
     _loginEmail.dispose();
     _loginSenha.dispose();
@@ -242,30 +256,42 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
     final providerKey = provider.toLowerCase();
 
     if (providerKey == 'github') {
-      final data = await showModalBottomSheet<_SocialLoginData>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (_) => _SocialLoginSheet(provider: provider),
-      );
-      if (data == null) return;
-      await _finishSocialLogin(provider, providerKey, data.token, data.cidade);
+      await _loginComGithub();
       return;
     }
 
-    final cidade = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _SocialCitySheet(provider: provider),
-    );
-    if (cidade == null) return;
-
     try {
-      final token = providerKey == 'google'
-          ? await _obterGoogleIdToken()
-          : await _obterAppleIdentityToken();
-      await _finishSocialLogin(provider, providerKey, token, cidade);
+      if (providerKey == 'google') {
+        await _initializeGoogleSignIn();
+        if (!mounted) return;
+        // Na Web, a autenticação é iniciada exclusivamente pelo botão oficial
+        // do Google e continuada por _handleGoogleAuthenticationEvent.
+        if (kIsWeb) return;
+      }
+
+      final cidade = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _SocialCitySheet(provider: provider),
+      );
+      if (cidade == null) return;
+
+      if (providerKey == 'google') {
+        final token = await _obterGoogleIdToken();
+        await _finishSocialLogin(provider, providerKey, token, cidade);
+      } else {
+        final apple = await _obterAppleCredential();
+        await _finishSocialLogin(
+          provider,
+          providerKey,
+          apple.token,
+          cidade,
+          platform: apple.platform,
+          state: apple.state,
+          nonce: apple.nonce,
+        );
+      }
     } catch (e) {
       if (mounted) {
         _showError(_formatSocialError(provider, e));
@@ -273,18 +299,79 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
     }
   }
 
+  String _githubPlatform() {
+    if (kIsWeb) return 'web';
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android => 'android',
+      TargetPlatform.iOS => 'ios',
+      _ => throw StateError(
+          'Login GitHub disponivel apenas em Android, iOS e Web.'),
+    };
+  }
+
+  Future<void> _loginComGithub() async {
+    final cidade = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _SocialCitySheet(provider: 'GitHub'),
+    );
+    if (cidade == null || !mounted) return;
+
+    setState(() => _githubAuthenticationInProgress = true);
+    try {
+      final state = criarGithubOAuthState();
+      final callbackUrl = await FlutterWebAuth2.authenticate(
+        url: ApiConfig.githubOAuthAuthorizeUri(
+          platform: _githubPlatform(),
+          cidadeAmauc: cidade,
+          state: state,
+        ).toString(),
+        callbackUrlScheme: githubOAuthCallbackScheme,
+      );
+      final callback = GithubOAuthCallback.parse(
+        callbackUrl: callbackUrl,
+        expectedState: state,
+        allowWebCallback: kIsWeb,
+        expectedWebOrigin: kIsWeb ? Uri.base.origin : null,
+      );
+      final ok = await ref.read(authStateProvider.notifier).concluirGithubOAuth(
+            ticket: callback.ticket,
+            state: callback.state,
+          );
+      if (ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Login com GitHub realizado com sucesso!')),
+        );
+      } else if (mounted) {
+        _showError(ref.read(authStateProvider).error);
+      }
+    } catch (erro) {
+      if (mounted) _showError(_formatSocialError('GitHub', erro));
+    } finally {
+      if (mounted) setState(() => _githubAuthenticationInProgress = false);
+    }
+  }
+
   Future<void> _finishSocialLogin(
     String providerLabel,
     String providerKey,
     String token,
-    String cidade,
-  ) async {
+    String cidade, {
+    String? platform,
+    String? state,
+    String? nonce,
+  }) async {
     if (!mounted) return;
 
     final ok = await ref.read(authStateProvider.notifier).socialLogin(
           provider: providerKey,
           token: token,
           cidadeAmauc: cidade,
+          platform: platform,
+          state: state,
+          nonce: nonce,
         );
 
     if (ok && mounted) {
@@ -298,19 +385,122 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
     }
   }
 
-  Future<String> _obterGoogleIdToken() async {
-    if (!_googleInitialized) {
+  GoogleSignInConfig get _googleConfig => GoogleSignInConfig.resolve(
+        googleClientId: AppEnv.googleClientId,
+        googleServerClientId: AppEnv.googleServerClientId,
+        isWeb: kIsWeb,
+        platform: defaultTargetPlatform,
+      );
+
+  Future<void> _initializeGoogleSignIn() {
+    if (_googleInitialized) return Future.value();
+    return _googleInitialization ??= _initializeGoogleSignInInternal();
+  }
+
+  Future<void> _initializeGoogleSignInInternal() async {
+    final config = _googleConfig;
+    if (!config.isValid) {
+      _googleInitializationError = config.error;
+      if (mounted) setState(() {});
+      throw StateError(config.error!);
+    }
+
+    try {
       await GoogleSignIn.instance.initialize(
-        clientId: _googleClientId.isEmpty ? null : _googleClientId,
-        serverClientId:
-            _googleServerClientId.isEmpty ? null : _googleServerClientId,
+        clientId: config.clientId,
+        serverClientId: config.serverClientId,
+      );
+      _googleAuthSubscription ??=
+          GoogleSignIn.instance.authenticationEvents.listen(
+        _handleGoogleAuthenticationEvent,
+        onError: _handleGoogleAuthenticationError,
       );
       _googleInitialized = true;
+      _googleInitializationError = null;
+      if (mounted) setState(() {});
+    } catch (error) {
+      _googleInitializationError = _formatSocialError('Google', error);
+      if (mounted) setState(() {});
+      rethrow;
     }
+  }
+
+  Future<void> _handleGoogleAuthenticationEvent(
+    GoogleSignInAuthenticationEvent event,
+  ) async {
+    if (event is! GoogleSignInAuthenticationEventSignIn ||
+        !mounted ||
+        _googleAuthenticationInProgress) {
+      return;
+    }
+
+    _googleAuthenticationInProgress = true;
+    setState(() {});
+    try {
+      final token = event.user.authentication.idToken;
+      if (token == null || token.isEmpty) {
+        throw StateError('Google nao retornou ID token.');
+      }
+
+      final cidade = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => const _SocialCitySheet(provider: 'Google'),
+      );
+      if (cidade != null) {
+        await _finishSocialLogin('Google', 'google', token, cidade);
+      }
+    } catch (error) {
+      if (mounted) _showError(_formatSocialError('Google', error));
+    } finally {
+      _googleAuthenticationInProgress = false;
+      if (mounted) setState(() {});
+    }
+  }
+
+  void _handleGoogleAuthenticationError(Object error, StackTrace _) {
+    if (mounted) _showError(_formatSocialError('Google', error));
+  }
+
+  Widget _buildGoogleWebButton({required bool loading}) {
+    if (_googleInitializationError != null) {
+      return SizedBox(
+        height: 44,
+        child: OutlinedButton.icon(
+          onPressed:
+              loading ? null : () => _showError(_googleInitializationError),
+          icon: const Icon(Icons.info_outline),
+          label: const Text('Google indisponivel nesta configuracao'),
+        ),
+      );
+    }
+    if (!_googleInitialized) {
+      return const SizedBox(
+        height: 44,
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+
+    return Semantics(
+      button: true,
+      label: 'Continuar com Google',
+      child: IgnorePointer(
+        ignoring: loading || _googleAuthenticationInProgress,
+        child: Opacity(
+          opacity: loading || _googleAuthenticationInProgress ? 0.5 : 1,
+          child: SizedBox(height: 44, child: buildGoogleWebSignInButton()),
+        ),
+      ),
+    );
+  }
+
+  Future<String> _obterGoogleIdToken() async {
+    await _initializeGoogleSignIn();
 
     if (!GoogleSignIn.instance.supportsAuthenticate()) {
       throw StateError(
-        'Google Sign-In nao esta disponivel nesta plataforma com botao customizado.',
+        'Use o botao oficial do Google para entrar nesta plataforma.',
       );
     }
 
@@ -322,43 +512,90 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
     return token;
   }
 
-  Future<String> _obterAppleIdentityToken() async {
+  String _applePlatform() {
+    if (kIsWeb) return 'web';
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android => 'android',
+      TargetPlatform.iOS => 'ios',
+      _ => throw StateError(
+          'Login Apple disponivel apenas em Android, iOS e Web.'),
+    };
+  }
+
+  Future<
+      ({
+        String token,
+        String platform,
+        String state,
+        String nonce,
+      })> _obterAppleCredential() async {
     final disponivel = await SignInWithApple.isAvailable();
     if (!disponivel) {
       throw StateError(
           'Login com Apple nao esta disponivel neste dispositivo.');
     }
 
-    final precisaFluxoWeb =
-        defaultTargetPlatform == TargetPlatform.android || kIsWeb;
-    final webOptions = precisaFluxoWeb ? _appleWebOptions() : null;
+    final platform = _applePlatform();
+    final config = await ref
+        .read(apiServiceProvider)
+        .obterConfiguracaoApple(platform: platform);
+    final webOptions = platform == 'ios'
+        ? null
+        : _appleWebOptions(config: config, platform: platform);
 
     final credential = await SignInWithApple.getAppleIDCredential(
       scopes: const [
         AppleIDAuthorizationScopes.email,
         AppleIDAuthorizationScopes.fullName,
       ],
+      nonce: config.nonce,
+      state: config.state,
       webAuthenticationOptions: webOptions,
+    );
+    validateAppleCredentialState(
+      expectedState: config.state,
+      returnedState: credential.state,
     );
 
     final token = credential.identityToken;
     if (token == null || token.isEmpty) {
       throw StateError('Apple nao retornou identity token.');
     }
-    return token;
+    return (
+      token: token,
+      platform: platform,
+      state: config.state,
+      nonce: config.nonce,
+    );
   }
 
-  WebAuthenticationOptions _appleWebOptions() {
-    if (_appleClientId.isEmpty || _appleRedirectUri.isEmpty) {
-      throw StateError(
-        'Configure APPLE_CLIENT_ID e APPLE_REDIRECT_URI com --dart-define.',
-      );
-    }
+  WebAuthenticationOptions _appleWebOptions({
+    required AppleSignInConfiguration config,
+    required String platform,
+  }) {
+    try {
+      final redirectUri = Uri.tryParse(config.redirectUri ?? '');
 
-    return WebAuthenticationOptions(
-      clientId: _appleClientId,
-      redirectUri: Uri.parse(_appleRedirectUri),
-    );
+      if (redirectUri == null ||
+          redirectUri.scheme != 'https' ||
+          redirectUri.hasFragment) {
+        throw StateError(
+            'O servidor retornou uma redirect URI Apple invalida.');
+      }
+
+      if (kIsWeb && redirectUri.origin != Uri.base.origin) {
+        throw StateError(
+          'A redirect URI Apple da Web deve usar o mesmo dominio do aplicativo.',
+        );
+      }
+
+      return WebAuthenticationOptions(
+        clientId: config.clientId,
+        redirectUri: redirectUri,
+      );
+    } catch (erro) {
+      throw StateError(formatApiError(erro));
+    }
   }
 
   String _formatSocialError(String provider, Object error) {
@@ -376,9 +613,10 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
   Widget build(BuildContext context) {
     final auth = ref.watch(authStateProvider);
     final theme = Theme.of(context);
+    final loading = auth.isLoading || _githubAuthenticationInProgress;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: context.appBackground,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -386,10 +624,11 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
+              color: context.appSurface,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+            child:
+                Icon(Icons.arrow_back, color: context.appTextPrimary, size: 20),
           ),
           onPressed: () => Navigator.of(context).pop(),
           tooltip: 'Voltar',
@@ -397,12 +636,12 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.handshake, color: Colors.blueAccent, size: 24),
+            Icon(Icons.handshake, color: context.appBrand, size: 24),
             const SizedBox(width: 8),
             Text(
               'AMAUC',
               style: theme.textTheme.titleMedium?.copyWith(
-                color: Colors.white,
+                color: context.appTextPrimary,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -422,19 +661,20 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
                   child: Container(
                     height: 50,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E293B),
+                      color: context.appPanel,
                       borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: context.appBorder),
                     ),
                     child: TabBar(
                       controller: _tabController,
                       indicator: BoxDecoration(
-                        color: const Color(0xFF3B82F6),
+                        color: context.appBrand,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       indicatorSize: TabBarIndicatorSize.tab,
                       dividerColor: Colors.transparent,
-                      labelColor: AppColors.actionForeground,
-                      unselectedLabelColor: Colors.white70,
+                      labelColor: context.appOnBrand,
+                      unselectedLabelColor: context.appTextSecondary,
                       labelStyle: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -451,8 +691,8 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
                   child: TabBarView(
                     controller: _tabController,
                     children: [
-                      _buildLoginForm(auth.isLoading),
-                      _buildRegisterForm(auth.isLoading),
+                      _buildLoginForm(loading),
+                      _buildRegisterForm(loading),
                     ],
                   ),
                 ),
@@ -476,14 +716,14 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
             Text(
               'Bem-vindo de volta',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: Colors.white,
+                    color: context.appTextPrimary,
                     fontWeight: FontWeight.bold,
                   ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Acesse sua conta para continuar conectando-se com os melhores serviços.',
-              style: TextStyle(color: Colors.grey, fontSize: 14),
+              style: TextStyle(color: context.appMuted, fontSize: 14),
             ),
             const SizedBox(height: 24),
             _buildLoginModeToggle(),
@@ -492,7 +732,7 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
               Text(
                 'Entrar sem senha — receber link de acesso por e-mail.',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.5),
+                  color: context.appMuted,
                   fontSize: 12,
                 ),
               ),
@@ -513,9 +753,10 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'Senha',
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                    style: TextStyle(
+                        color: context.appTextSecondary, fontSize: 12),
                   ),
                   TextButton(
                     onPressed: loading ? null : _forgotPassword,
@@ -524,10 +765,10 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    child: const Text(
+                    child: Text(
                       'Esqueci minha senha',
                       style: TextStyle(
-                        color: Color(0xFF3B82F6),
+                        color: context.appBrand,
                         fontSize: 12,
                       ),
                     ),
@@ -554,22 +795,22 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
             ElevatedButton(
               onPressed: loading ? null : _login,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3B82F6),
-                foregroundColor: AppColors.actionForeground,
+                backgroundColor: context.appBrand,
+                foregroundColor: context.appOnBrand,
                 disabledBackgroundColor:
-                    const Color(0xFF3B82F6).withValues(alpha: 0.5),
+                    context.appBrand.withValues(alpha: 0.5),
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
               child: loading
-                  ? const SizedBox(
+                  ? SizedBox(
                       height: 20,
                       width: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: AppColors.actionForeground,
+                        color: context.appOnBrand,
                       ),
                     )
                   : Row(
@@ -579,17 +820,17 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
                           _magicLinkMode
                               ? 'Enviar link por e-mail'
                               : 'Continuar',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: AppColors.actionForeground,
+                            color: context.appOnBrand,
                           ),
                         ),
                         if (!_magicLinkMode) ...[
                           const SizedBox(width: 8),
-                          const Icon(
+                          Icon(
                             Icons.arrow_forward,
-                            color: AppColors.actionForeground,
+                            color: context.appOnBrand,
                             size: 20,
                           ),
                         ],
@@ -599,25 +840,27 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
             const SizedBox(height: 32),
             Row(
               children: [
-                const Expanded(child: Divider(color: Colors.white24)),
+                Expanded(child: Divider(color: context.appBorder)),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
                     'OU CONTINUE COM',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.4),
+                      color: context.appMuted,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-                const Expanded(child: Divider(color: Colors.white24)),
+                Expanded(child: Divider(color: context.appBorder)),
               ],
             ),
             const SizedBox(height: 24),
             SocialLoginButtons(
               enabled: !loading,
-              onGoogleTap: () => _socialLogin('Google'),
+              onGoogleTap: kIsWeb ? null : () => _socialLogin('Google'),
+              googleButton:
+                  kIsWeb ? _buildGoogleWebButton(loading: loading) : null,
               onAppleTap: () => _socialLogin('Apple'),
               onGitHubTap: () => _socialLogin('GitHub'),
             ),
@@ -631,8 +874,9 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: context.appPanel,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: context.appBorder),
       ),
       child: Row(
         children: [
@@ -666,14 +910,14 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
           Text(
             'Crie sua conta',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: Colors.white,
+                  color: context.appTextPrimary,
                   fontWeight: FontWeight.bold,
                 ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Junte-se à maior plataforma de serviços da região.',
-            style: TextStyle(color: Colors.grey, fontSize: 14),
+            style: TextStyle(color: context.appMuted, fontSize: 14),
           ),
           const SizedBox(height: 24),
           RegisterWizard(
@@ -723,9 +967,9 @@ class _AuthBottomSheetFrame extends StatelessWidget {
           ),
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: const Color(0xFF0F172A),
+            color: context.appBackground,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(color: context.appBorder),
           ),
           child: SingleChildScrollView(child: child),
         ),
@@ -776,7 +1020,7 @@ class _MagicLinkVerifySheetState extends State<_MagicLinkVerifySheet> {
             Text(
               'Confirmar acesso',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
+                    color: context.appTextPrimary,
                     fontWeight: FontWeight.w900,
                   ),
             ),
@@ -785,7 +1029,7 @@ class _MagicLinkVerifySheetState extends State<_MagicLinkVerifySheet> {
               widget.devToken == null
                   ? 'Informe o token recebido por e-mail para entrar.'
                   : 'Ambiente local: o token de teste ja foi preenchido.',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
+              style: TextStyle(color: context.appMuted),
             ),
             const SizedBox(height: 18),
             AuthTextField(
@@ -805,19 +1049,20 @@ class _MagicLinkVerifySheetState extends State<_MagicLinkVerifySheet> {
             const SizedBox(height: 18),
             ElevatedButton.icon(
               onPressed: _submit,
-              icon: const Icon(
+              icon: Icon(
                 Icons.login_rounded,
-                color: AppColors.actionForeground,
+                color: context.appOnBrand,
               ),
-              label: const Text(
+              label: Text(
                 'Entrar',
                 style: TextStyle(
-                  color: AppColors.actionForeground,
+                  color: context.appOnBrand,
                   fontWeight: FontWeight.w900,
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3B82F6),
+                backgroundColor: context.appBrand,
+                foregroundColor: context.appOnBrand,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
@@ -940,7 +1185,7 @@ class _PasswordResetSheetState extends ConsumerState<_PasswordResetSheet> {
             Text(
               'Redefinir senha',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
+                    color: context.appTextPrimary,
                     fontWeight: FontWeight.w900,
                   ),
             ),
@@ -949,7 +1194,7 @@ class _PasswordResetSheetState extends ConsumerState<_PasswordResetSheet> {
               _tokenRequested
                   ? 'Informe o token recebido e escolha a nova senha.'
                   : 'Informe seu e-mail para receber o token de recuperacao.',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
+              style: TextStyle(color: context.appMuted),
             ),
             const SizedBox(height: 18),
             AuthTextField(
@@ -967,8 +1212,8 @@ class _PasswordResetSheetState extends ConsumerState<_PasswordResetSheet> {
               icon: const Icon(Icons.send_outlined),
               label: const Text('Enviar token'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.18)),
+                foregroundColor: context.appTextPrimary,
+                side: BorderSide(color: context.appBorder),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
@@ -1008,27 +1253,28 @@ class _PasswordResetSheetState extends ConsumerState<_PasswordResetSheet> {
             ElevatedButton.icon(
               onPressed: loading ? null : _confirm,
               icon: loading
-                  ? const SizedBox(
+                  ? SizedBox(
                       height: 18,
                       width: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: AppColors.actionForeground,
+                        color: context.appOnBrand,
                       ),
                     )
-                  : const Icon(
+                  : Icon(
                       Icons.check_rounded,
-                      color: AppColors.actionForeground,
+                      color: context.appOnBrand,
                     ),
-              label: const Text(
+              label: Text(
                 'Alterar senha',
                 style: TextStyle(
-                  color: AppColors.actionForeground,
+                  color: context.appOnBrand,
                   fontWeight: FontWeight.w900,
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3B82F6),
+                backgroundColor: context.appBrand,
+                foregroundColor: context.appOnBrand,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
@@ -1040,16 +1286,6 @@ class _PasswordResetSheetState extends ConsumerState<_PasswordResetSheet> {
       ),
     );
   }
-}
-
-class _SocialLoginData {
-  const _SocialLoginData({
-    required this.token,
-    required this.cidade,
-  });
-
-  final String token;
-  final String cidade;
 }
 
 class _SocialCitySheet extends StatefulWidget {
@@ -1082,34 +1318,34 @@ class _SocialCitySheetState extends State<_SocialCitySheet> {
             Text(
               'Continuar com ${widget.provider}',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
+                    color: context.appTextPrimary,
                     fontWeight: FontWeight.w900,
                   ),
             ),
             const SizedBox(height: 8),
             Text(
               'Selecione sua cidade AMAUC para completar o acesso.',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
+              style: TextStyle(color: context.appMuted),
             ),
             const SizedBox(height: 18),
             DropdownButtonFormField<String>(
               initialValue: _cidade,
-              dropdownColor: const Color(0xFF1E293B),
+              dropdownColor: context.appPanel,
               decoration: InputDecoration(
                 filled: true,
-                fillColor: const Color(0xFF1E293B),
+                fillColor: context.appPanel,
                 prefixIcon: const Icon(Icons.location_city_outlined),
                 hintText: 'Cidade AMAUC',
                 hintStyle: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.45),
+                  color: context.appMuted,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
+                  borderSide: BorderSide(color: context.appBorder),
                 ),
               ),
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: context.appTextPrimary,
                 fontWeight: FontWeight.w700,
               ),
               items: AmaucConstants.cidades
@@ -1127,19 +1363,20 @@ class _SocialCitySheetState extends State<_SocialCitySheet> {
             const SizedBox(height: 18),
             ElevatedButton.icon(
               onPressed: _submit,
-              icon: const Icon(
+              icon: Icon(
                 Icons.login_rounded,
-                color: AppColors.actionForeground,
+                color: context.appOnBrand,
               ),
               label: Text(
                 'Entrar com ${widget.provider}',
-                style: const TextStyle(
-                  color: AppColors.actionForeground,
+                style: TextStyle(
+                  color: context.appOnBrand,
                   fontWeight: FontWeight.w900,
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3B82F6),
+                backgroundColor: context.appBrand,
+                foregroundColor: context.appOnBrand,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
@@ -1147,155 +1384,6 @@ class _SocialCitySheetState extends State<_SocialCitySheet> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SocialLoginSheet extends StatefulWidget {
-  const _SocialLoginSheet({required this.provider});
-
-  final String provider;
-
-  @override
-  State<_SocialLoginSheet> createState() => _SocialLoginSheetState();
-}
-
-class _SocialLoginSheetState extends State<_SocialLoginSheet> {
-  final _formKey = GlobalKey<FormState>();
-  final _tokenController = TextEditingController();
-  String? _cidade;
-
-  @override
-  void dispose() {
-    _tokenController.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-    Navigator.pop(
-      context,
-      _SocialLoginData(
-        token: _tokenController.text.trim(),
-        cidade: _cidade!,
-      ),
-    );
-  }
-
-  String _tokenLabel(String provider) {
-    return provider.toLowerCase() == 'github'
-        ? 'GitHub access token'
-        : '$provider ID token';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 18,
-          right: 18,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 18,
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0F172A),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-          ),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Continuar com ${widget.provider}',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Cole o token real do provedor. Google/Apple usam ID token; GitHub usa access token.',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
-                ),
-                const SizedBox(height: 18),
-                AuthTextField(
-                  controller: _tokenController,
-                  label: _tokenLabel(widget.provider),
-                  hint: 'Cole o token aqui',
-                  icon: Icons.key_rounded,
-                  maxLines: 3,
-                  validator: (value) {
-                    if (value == null || value.trim().length < 20) {
-                      return 'Informe um token válido do provedor.';
-                    }
-                    return null;
-                  },
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 14),
-                DropdownButtonFormField<String>(
-                  initialValue: _cidade,
-                  dropdownColor: const Color(0xFF1E293B),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: const Color(0xFF1E293B),
-                    prefixIcon: const Icon(Icons.location_city_outlined),
-                    hintText: 'Cidade AMAUC',
-                    hintStyle:
-                        TextStyle(color: Colors.white.withValues(alpha: 0.45)),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                  style: const TextStyle(
-                    color: AppColors.actionForeground,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  items: AmaucConstants.cidades
-                      .map(
-                        (cidade) => DropdownMenuItem(
-                          value: cidade,
-                          child: Text(cidade),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (cidade) => setState(() => _cidade = cidade),
-                  validator: (value) =>
-                      value == null ? 'Selecione sua cidade AMAUC.' : null,
-                ),
-                const SizedBox(height: 18),
-                ElevatedButton.icon(
-                  onPressed: _submit,
-                  icon: const Icon(
-                    Icons.login_rounded,
-                    color: AppColors.actionForeground,
-                  ),
-                  label: Text(
-                    'Entrar com ${widget.provider}',
-                    style: const TextStyle(
-                      color: AppColors.actionForeground,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF3B82F6),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );
@@ -1331,7 +1419,7 @@ class _LoginModeChip extends StatelessWidget {
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
-              color: selected ? const Color(0xFF3B82F6) : Colors.transparent,
+              color: selected ? context.appBrand : Colors.transparent,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
@@ -1340,7 +1428,8 @@ class _LoginModeChip extends StatelessWidget {
                 Icon(
                   icon,
                   size: 16,
-                  color: selected ? AppColors.actionForeground : Colors.white70,
+                  color:
+                      selected ? context.appOnBrand : context.appTextSecondary,
                 ),
                 const SizedBox(width: 6),
                 Flexible(
@@ -1349,8 +1438,8 @@ class _LoginModeChip extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: selected
-                          ? AppColors.actionForeground
-                          : Colors.white70,
+                          ? context.appOnBrand
+                          : context.appTextSecondary,
                       fontSize: 12,
                       fontWeight:
                           selected ? FontWeight.bold : FontWeight.normal,

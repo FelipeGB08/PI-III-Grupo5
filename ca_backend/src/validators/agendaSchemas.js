@@ -9,6 +9,16 @@ function diaValido(valor) {
     return Number.isInteger(dia) && dia >= 1 && dia <= 7;
 }
 
+function precoDecimalValido(valor) {
+    if (typeof valor === 'number') {
+        return Number.isFinite(valor) && valor > 0;
+    }
+
+    if (typeof valor !== 'string') return false;
+    const texto = valor.trim();
+    return /^\d+(?:\.\d{1,2})?$/.test(texto) && Number(texto) > 0;
+}
+
 const servicoAgendaSchema = z
     .object({
         nome: z
@@ -30,12 +40,11 @@ const servicoAgendaSchema = z
             });
         }
 
-        const preco = Number(servico.preco);
-        if (!Number.isFinite(preco) || preco <= 0) {
+        if (!precoDecimalValido(servico.preco)) {
             ctx.addIssue({
                 code: 'custom',
                 path: ['preco'],
-                message: 'O preco de cada servico deve ser maior que zero.',
+                message: 'O preco de cada servico deve ser um decimal positivo valido.',
             });
         }
     });

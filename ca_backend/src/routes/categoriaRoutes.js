@@ -2,6 +2,8 @@ const express = require('express');
 const CategoriaController = require('../controllers/CategoriaController');
 const verificarToken = require('../middlewares/authMiddleware');
 const { requireRole } = require('../middlewares/roleMiddleware');
+const validate = require('../middlewares/validateMiddleware');
+const { idParamSchema } = require('../validators/commonSchemas');
 
 const router = express.Router();
 
@@ -97,7 +99,19 @@ const router = express.Router();
 router.get('/', CategoriaController.listar);
 
 router.post('/admin', verificarToken, requireRole('admin'), CategoriaController.criar);
-router.put('/admin/:id', verificarToken, requireRole('admin'), CategoriaController.atualizar);
-router.delete('/admin/:id', verificarToken, requireRole('admin'), CategoriaController.deletar);
+router.put(
+    '/admin/:id',
+    verificarToken,
+    requireRole('admin'),
+    validate(idParamSchema, 'params'),
+    CategoriaController.atualizar
+);
+router.delete(
+    '/admin/:id',
+    verificarToken,
+    requireRole('admin'),
+    validate(idParamSchema, 'params'),
+    CategoriaController.deletar
+);
 
 module.exports = router;

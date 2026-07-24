@@ -2,6 +2,9 @@ const crypto = require('crypto');
 const fs = require('fs/promises');
 const path = require('path');
 const UserModel = require('../models/UserModel');
+const {
+    desconectarSocketsDoUsuario,
+} = require('../services/chatSocketRegistry');
 
 const PASTA_UPLOADS = path.resolve(__dirname, '..', '..', 'uploads');
 
@@ -47,6 +50,10 @@ const ContaController = {
                 return res.status(404).json({ erro: 'Conta nao encontrada ou ja removida.' });
             }
 
+            desconectarSocketsDoUsuario(
+                usuarioId,
+                'Conta removida e sessoes revogadas.'
+            );
             await removerArquivosAnexados(resultado.arquivosParaRemover || []);
 
             return res.status(200).json({

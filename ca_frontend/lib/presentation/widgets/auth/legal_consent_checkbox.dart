@@ -1,7 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/adaptive_colors.dart';
 
 /// Checkbox obrigatório de consentimento legal (LGPD/GDPR).
 class LegalConsentCheckbox extends StatelessWidget {
@@ -20,10 +20,9 @@ class LegalConsentCheckbox extends StatelessWidget {
   final VoidCallback? onTermsTap;
   final VoidCallback? onPrivacyTap;
 
-  static const Color _errorColor = Color(0xFFEF4444);
-
   @override
   Widget build(BuildContext context) {
+    final errorColor = Theme.of(context).colorScheme.error;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -40,12 +39,10 @@ class LegalConsentCheckbox extends StatelessWidget {
                 child: Checkbox(
                   value: value,
                   onChanged: onChanged,
-                  activeColor: const Color(0xFF3B82F6),
-                  checkColor: AppColors.actionForeground,
+                  activeColor: context.appBrand,
+                  checkColor: context.appOnBrand,
                   side: BorderSide(
-                    color: errorText != null
-                        ? _errorColor
-                        : Colors.white.withValues(alpha: 0.3),
+                    color: errorText != null ? errorColor : context.appBorder,
                   ),
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
@@ -58,7 +55,7 @@ class LegalConsentCheckbox extends StatelessWidget {
                 child: RichText(
                   text: TextSpan(
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
+                      color: context.appTextSecondary,
                       fontSize: 13,
                       height: 1.4,
                     ),
@@ -66,8 +63,8 @@ class LegalConsentCheckbox extends StatelessWidget {
                       const TextSpan(text: 'Aceito os '),
                       TextSpan(
                         text: 'Termos de Uso',
-                        style: const TextStyle(
-                          color: Color(0xFF3B82F6),
+                        style: TextStyle(
+                          color: context.appBrand,
                           fontWeight: FontWeight.w600,
                           decoration: TextDecoration.underline,
                         ),
@@ -76,8 +73,8 @@ class LegalConsentCheckbox extends StatelessWidget {
                       const TextSpan(text: ' e a '),
                       TextSpan(
                         text: 'Política de Privacidade',
-                        style: const TextStyle(
-                          color: Color(0xFF3B82F6),
+                        style: TextStyle(
+                          color: context.appBrand,
                           fontWeight: FontWeight.w600,
                           decoration: TextDecoration.underline,
                         ),
@@ -98,8 +95,8 @@ class LegalConsentCheckbox extends StatelessWidget {
             padding: const EdgeInsets.only(left: 34),
             child: Text(
               errorText!,
-              style: const TextStyle(
-                color: _errorColor,
+              style: TextStyle(
+                color: errorColor,
                 fontSize: 12,
               ),
             ),

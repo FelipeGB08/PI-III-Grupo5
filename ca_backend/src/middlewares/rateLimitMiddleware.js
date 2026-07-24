@@ -35,7 +35,7 @@ function criarRateLimiter({
     const middleware = (req, res, next) => {
         const chave = keyGenerator
             ? keyGenerator(req)
-            : `${req.ip}:${req.method}:${req.originalUrl}`;
+            : chavePorIpRota(req);
         const resultado = consumir(chave);
 
         res.setHeader('RateLimit-Limit', String(max));
@@ -58,9 +58,33 @@ function criarRateLimiter({
     return middleware;
 }
 
+function normalizarCaminhoRateLimit(caminho) {
+    const texto = String(caminho || '').replace(/\/+/g, '/');
+    const comBarraInicial = texto.startsWith('/') ? texto : `/${texto}`;
+    return comBarraInicial.replace(/^\/api\/v1(?=\/|$)/i, '/api');
+}
+
+function chavePorIpRota(req) {
+    const baseUrl = normalizarCaminhoRateLimit(req.baseUrl || '');
+    const caminho = String(req.path || req.route?.path || '');
+    const rota = `${baseUrl}${caminho}` || '/';
+    return `${req.ip}:${req.method}:${rota}`;
+}
+
+function acaoPublicaDeAuth(req) {
+    const caminho = String(req.path || req.route?.path || '/auth').toLowerCase();
+    if (caminho === '/register' || caminho === '/registro') return 'registro';
+    return caminho.replace(/^\/+/, '') || 'auth';
+}
+
 function chavePorIpEmail(req) {
+    const acao = acaoPublicaDeAuth(req);
+    if (acao === 'refresh') {
+        return `${req.ip}:${acao}`;
+    }
+
     const email = String(req.body?.email || '').trim().toLowerCase();
-    return `${req.ip}:${req.method}:${req.originalUrl}:${email || 'sem-email'}`;
+    return `${req.ip}:${acao}:${email || 'sem-email'}`;
 }
 
 function chavePorUsuarioId(usuarioId, ip = 'desconhecido') {
@@ -114,4 +138,5 @@ module.exports = {
     uploadRateLimit,
     chavePorUsuario,
     chavePorUsuarioId,
+    chavePorIpRota,
 };

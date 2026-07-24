@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const crypto = require('crypto');
 const { coordenadasCidade } = require('../config/amaucCidades');
+const { criarMetadadosPaginacao, normalizarPaginacao } = require('../utils/pagination');
 
 function semAcento(valor) {
     return String(valor || '')
@@ -32,6 +33,82 @@ const UserModel = {
              WHERE id = $1 AND ativo = TRUE
              LIMIT 1`,
             [id]
+        );
+        return result.rows[0];
+    },
+
+    listarAdministradoresAtivos: async () => {
+        const result = await pool.query(
+            `
+            SELECT id, nome, email
+            FROM usuarios
+            WHERE perfil_tipo = 'admin'
+              AND ativo = TRUE
+              AND email IS NOT NULL
+            ORDER BY id ASC;
+            `
+        );
+        return result.rows;
+    },
+
+    listarParaAdmin: async ({
+        page = 1,
+        pageSize = 20,
+        perfilTipo,
+        busca,
+    } = {}) => {
+        const paginacao = normalizarPaginacao({ page, pageSize });
+        const filtros = [];
+        const valores = [];
+
+        if (perfilTipo) {
+            valores.push(perfilTipo);
+            filtros.push(`u.perfil_tipo = $${valores.length}`);
+        }
+
+        if (busca) {
+            valores.push(`%${busca}%`);
+            filtros.push(`(u.nome ILIKE $${valores.length} OR u.email ILIKE $${valores.length})`);
+        }
+
+        const clausulaWhere = filtros.length > 0
+            ? `WHERE ${filtros.join(' AND ')}`
+            : '';
+        const contagem = await pool.query(
+            `SELECT COUNT(*)::int AS total FROM usuarios u ${clausulaWhere}`,
+            valores
+        );
+
+        const valoresLista = [...valores, paginacao.limit, paginacao.offset];
+        const lista = await pool.query(
+            `SELECT u.id, u.nome, u.email, u.telefone, u.cidade_amauc,
+                    u.perfil_tipo, u.foto_url, u.ativo, u.excluido_em, u.criado_em
+             FROM usuarios u
+             ${clausulaWhere}
+             ORDER BY u.ativo DESC, u.criado_em DESC, u.id DESC
+             LIMIT $${valores.length + 1} OFFSET $${valores.length + 2}`,
+            valoresLista
+        );
+
+        return {
+            items: lista.rows,
+            ...criarMetadadosPaginacao({
+                total: contagem.rows[0]?.total,
+                page: paginacao.page,
+                pageSize: paginacao.pageSize,
+            }),
+        };
+    },
+
+    atualizarStatusPorAdmin: async ({ usuarioId, ativo }) => {
+        const result = await pool.query(
+            `UPDATE usuarios
+             SET ativo = $2
+             WHERE id = $1
+               AND excluido_em IS NULL
+             RETURNING id, nome, email, telefone, cidade_amauc,
+                       perfil_tipo, foto_url, ativo, excluido_em, criado_em`,
+            [usuarioId, ativo]
         );
         return result.rows[0];
     },

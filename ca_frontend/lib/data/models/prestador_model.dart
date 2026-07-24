@@ -19,6 +19,7 @@ class PrestadorModel extends Prestador {
     super.distanciaKm,
     super.latitude,
     super.longitude,
+    super.localizacaoAproximada,
     super.telefone,
     super.anosExperiencia,
     super.curriculoTexto,
@@ -55,6 +56,7 @@ class PrestadorModel extends Prestador {
       distanciaKm: _parseDoubleNullable(json['distancia_km']),
       latitude: _parseDoubleNullable(json['latitude'] ?? json['lat']),
       longitude: _parseDoubleNullable(json['longitude'] ?? json['lng']),
+      localizacaoAproximada: _parseBool(json['localizacao_aproximada']),
       telefone: json['telefone']?.toString() ??
           json['telefone_comercial']?.toString(),
       anosExperiencia: _parseIntNullable(json['anos_experiencia']),

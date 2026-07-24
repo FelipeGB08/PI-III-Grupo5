@@ -1,3 +1,14 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+const { io: criarClienteSocket } = require('socket.io-client');
+const {
+  criarContextoLimpeza,
+  limparResiduosAnterioresE2E,
+  limparResiduosE2E,
+  registrarUpload,
+  registrarUsuario: registrarUsuarioParaLimpeza,
+} = require('./e2eCleanup');
+
 const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000/api/v1';
 const API_ORIGIN = API_BASE_URL
   .replace(/\/$/, '')
@@ -10,6 +21,266 @@ const cidade = 'Concordia';
 const cidadaoEmail = `cidadao.e2e.${runId}@amauc.com`;
 const intrusoEmail = `intruso.e2e.${runId}@amauc.com`;
 const profissionalEmail = `profissional.e2e.${runId}@amauc.com`;
+const contextoLimpeza = criarContextoLimpeza({ apiBaseUrl: API_BASE_URL });
+const SOCKET_TIMEOUT_MS = Number(process.env.E2E_SOCKET_TIMEOUT_MS || 5000);
+const socketsE2E = new Set();
+
+function criarSocketE2E(accessToken) {
+  const socket = criarClienteSocket(API_ORIGIN, {
+    auth: { token: accessToken },
+    autoConnect: false,
+    forceNew: true,
+    reconnection: false,
+    timeout: SOCKET_TIMEOUT_MS,
+    transports: ['websocket'],
+  });
+  socketsE2E.add(socket);
+  return socket;
+}
+
+function fecharSocketE2E(socket) {
+  if (!socket) return;
+  socket.removeAllListeners();
+  socket.close();
+  socketsE2E.delete(socket);
+}
+
+function fecharTodosSocketsE2E() {
+  for (const socket of socketsE2E) {
+    fecharSocketE2E(socket);
+  }
+}
+
+async function conectarSocketAtivo(accessToken, descricao) {
+  const socket = criarSocketE2E(accessToken);
+
+  try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        limpar();
+        reject(new Error(`Socket ${descricao} nao conectou dentro do prazo.`));
+      }, SOCKET_TIMEOUT_MS);
+
+      const limpar = () => {
+        clearTimeout(timer);
+        socket.off('connect', conectado);
+        socket.off('connect_error', falhou);
+      };
+      const conectado = () => {
+        limpar();
+        resolve();
+      };
+      const falhou = (erro) => {
+        limpar();
+        reject(new Error(
+          `Socket ${descricao} recusou token ativo: ${erro?.message || 'erro desconhecido'}.`
+        ));
+      };
+
+      socket.once('connect', conectado);
+      socket.once('connect_error', falhou);
+      socket.connect();
+    });
+    return socket;
+  } catch (erro) {
+    fecharSocketE2E(socket);
+    throw erro;
+  }
+}
+
+function prepararEsperaRevogacaoSocket(socket, descricao) {
+  let concluir;
+  let falhar;
+  let finalizada = false;
+  let revogacao;
+  let motivoDesconexao;
+
+  const promise = new Promise((resolve, reject) => {
+    concluir = resolve;
+    falhar = reject;
+  });
+
+  const limpar = () => {
+    clearTimeout(timer);
+    socket.off('auth:revoked', aoRevogar);
+    socket.off('disconnect', aoDesconectar);
+  };
+  const finalizarSeCompleta = () => {
+    if (revogacao === undefined || motivoDesconexao === undefined) return;
+    finalizada = true;
+    limpar();
+    concluir({ revogacao, motivoDesconexao });
+  };
+  const aoRevogar = (payload) => {
+    revogacao = payload;
+    finalizarSeCompleta();
+  };
+  const aoDesconectar = (motivo) => {
+    motivoDesconexao = motivo;
+    finalizarSeCompleta();
+  };
+  const timer = setTimeout(() => {
+    if (finalizada) return;
+    finalizada = true;
+    limpar();
+    falhar(new Error(
+      `Servidor nao revogou/desconectou o socket ${descricao} dentro do prazo.`
+    ));
+  }, SOCKET_TIMEOUT_MS);
+
+  socket.once('auth:revoked', aoRevogar);
+  socket.once('disconnect', aoDesconectar);
+
+  return {
+    promise,
+    cancelar: () => {
+      if (finalizada) return;
+      finalizada = true;
+      limpar();
+      concluir({ cancelada: true });
+    },
+  };
+}
+
+async function enviarMensagemSocketAtivo(socket, servicoId, mensagem) {
+  const resposta = await new Promise((resolve, reject) => {
+    socket.timeout(SOCKET_TIMEOUT_MS).emit(
+      'chat:send',
+      { servico_id: servicoId, mensagem },
+      (erro, payload) => {
+        if (erro) {
+          reject(new Error(`Socket ativo nao confirmou mensagem: ${erro.message}.`));
+          return;
+        }
+        resolve(payload);
+      }
+    );
+  });
+
+  if (!resposta?.mensagem?.id || resposta.mensagem.mensagem !== mensagem) {
+    throw new Error('Socket ativo nao persistiu a mensagem de controle.');
+  }
+}
+
+async function confirmarEnvioRecusado(socket, servicoId, mensagem) {
+  if (socket.connected) {
+    throw new Error('Socket continuou conectado depois da revogacao.');
+  }
+
+  await new Promise((resolve, reject) => {
+    socket.timeout(Math.min(SOCKET_TIMEOUT_MS, 1500)).emit(
+      'chat:send',
+      { servico_id: servicoId, mensagem },
+      (erro, payload) => {
+        if (erro || Number(payload?.status) === 401) {
+          resolve();
+          return;
+        }
+        reject(new Error(
+          'Envio Socket.IO foi aceito ou respondeu sem erro de sessao depois da revogacao.'
+        ));
+      }
+    );
+  });
+}
+
+async function confirmarReconexaoRecusada(accessToken, descricao) {
+  const socket = criarSocketE2E(accessToken);
+  try {
+    const erroConexao = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        limpar();
+        reject(new Error(
+          `Reconexao do socket ${descricao} nao foi recusada dentro do prazo.`
+        ));
+      }, SOCKET_TIMEOUT_MS);
+      const limpar = () => {
+        clearTimeout(timer);
+        socket.off('connect', conectado);
+        socket.off('connect_error', recusado);
+      };
+      const conectado = () => {
+        limpar();
+        reject(new Error(
+          `Servidor aceitou reconexao do socket ${descricao} com sessao revogada.`
+        ));
+      };
+      const recusado = (erro) => {
+        limpar();
+        resolve(erro);
+      };
+
+      socket.once('connect', conectado);
+      socket.once('connect_error', recusado);
+      socket.connect();
+    });
+
+    if (!/sessao|conta|token|inativ/i.test(String(erroConexao?.message || ''))) {
+      throw new Error(
+        `Reconexao ${descricao} falhou sem erro claro de autenticacao: `
+        + `${erroConexao?.message || 'erro desconhecido'}.`
+      );
+    }
+  } finally {
+    fecharSocketE2E(socket);
+  }
+}
+
+async function confirmarMensagemAusente({ solicitacaoId, tokenLeitor, mensagem }) {
+  const historico = await request(
+    `/solicitacoes/${solicitacaoId}/mensagens?limit=100`,
+    { token: tokenLeitor }
+  );
+  if (historico.mensagens?.some((item) => item.mensagem === mensagem)) {
+    throw new Error('Mensagem enviada depois da revogacao foi persistida.');
+  }
+}
+
+async function validarRevogacaoSocket({
+  accessToken,
+  descricao,
+  executarRevogacao,
+  solicitacaoId,
+  tokenLeitor,
+}) {
+  const socket = await conectarSocketAtivo(accessToken, descricao);
+  const mensagemAtiva = `E2E socket ativo ${descricao} ${runId}`;
+  const mensagemRevogada = `E2E socket revogado ${descricao} ${runId}`;
+
+  try {
+    await enviarMensagemSocketAtivo(socket, solicitacaoId, mensagemAtiva);
+    const esperaRevogacao = prepararEsperaRevogacaoSocket(socket, descricao);
+
+    let resultado;
+    try {
+      resultado = await executarRevogacao();
+    } catch (erro) {
+      esperaRevogacao.cancelar();
+      throw erro;
+    }
+
+    const desconexao = await esperaRevogacao.promise;
+    if (
+      !desconexao.revogacao?.erro ||
+      desconexao.motivoDesconexao !== 'io server disconnect'
+    ) {
+      throw new Error(
+        `Socket ${descricao} foi encerrado sem notificacao de revogacao valida.`
+      );
+    }
+
+    await confirmarEnvioRecusado(socket, solicitacaoId, mensagemRevogada);
+    await confirmarReconexaoRecusada(accessToken, descricao);
+    await confirmarMensagemAusente({
+      solicitacaoId,
+      tokenLeitor,
+      mensagem: mensagemRevogada,
+    });
+    return resultado;
+  } finally {
+    fecharSocketE2E(socket);
+  }
+}
 
 function proximoDiaUtilComHorario(horario = '10:00') {
   const agora = new Date();
@@ -81,12 +352,74 @@ async function validarPrefixosApi() {
   }
 }
 
+async function validarEntradasInvalidas() {
+  const cadastroAdmin = {
+    nome: 'Administrador indevido',
+    senha,
+    telefone: '(49) 99999-0000',
+    cidade_amauc: cidade,
+    perfil_tipo: 'admin',
+  };
+  const tentativasCadastro = [
+    {
+      url: `${API_ORIGIN}/api/v1/auth/registro`,
+      email: `admin.auth.e2e.${runId}@amauc.com`,
+    },
+    {
+      url: `${API_ORIGIN}/api/usuarios/registro`,
+      email: `admin.usuarios.e2e.${runId}@amauc.com`,
+    },
+  ];
+
+  for (const tentativa of tentativasCadastro) {
+    const response = await fetch(tentativa.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...cadastroAdmin,
+        email: tentativa.email,
+      }),
+    });
+    if (response.status !== 400 && response.status !== 403) {
+      throw new Error(
+        `Cadastro publico de admin retornou ${response.status}, esperado 400/403.`
+      );
+    }
+  }
+
+  const jsonInvalido = await fetch(`${API_ORIGIN}/api/v1/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{"email":',
+  });
+  if (jsonInvalido.status !== 400) {
+    throw new Error(
+      `JSON malformado retornou ${jsonInvalido.status}, esperado 400.`
+    );
+  }
+  const corpoJsonInvalido = await jsonInvalido.json();
+  if (!corpoJsonInvalido?.erro) {
+    throw new Error('JSON malformado nao retornou o formato { erro }.');
+  }
+
+  await request('/profissionais/invalido', { expectedStatus: 400 });
+  await request('/agenda/profissionais/invalido', { expectedStatus: 400 });
+  await request('/avaliacoes/profissional/invalido', { expectedStatus: 400 });
+}
+
 async function uploadFotoConclusao({ solicitacaoId, token }) {
   const formData = new FormData();
+  const imagemPngValida = new Uint8Array([
+    137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82,
+    0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137,
+    0, 0, 0, 13, 73, 68, 65, 84, 8, 215, 99, 248, 207, 192, 240,
+    31, 0, 5, 0, 1, 255, 114, 156, 82, 103, 0, 0, 0, 0, 73, 69,
+    78, 68, 174, 66, 96, 130,
+  ]);
   formData.append(
     'fotos',
-    new Blob(['foto-e2e'], { type: 'image/jpeg' }),
-    'evidencia-e2e.jpg'
+    new Blob([imagemPngValida], { type: 'image/png' }),
+    'evidencia-e2e.png'
   );
 
   const response = await fetch(`${API_BASE_URL}/solicitacoes/${solicitacaoId}/fotos-conclusao`, {
@@ -104,7 +437,21 @@ async function uploadFotoConclusao({ solicitacaoId, token }) {
     throw new Error(`POST /solicitacoes/${solicitacaoId}/fotos-conclusao -> ${response.status}: ${text}`);
   }
 
+  registrarUpload(contextoLimpeza, data?.solicitacao?.fotos_conclusao);
   return data;
+}
+
+async function validarAcessoUpload({ url, token, expectedStatus }) {
+  const response = await fetch(`${API_ORIGIN}${url}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (response.status !== expectedStatus) {
+    const body = await response.text();
+    throw new Error(
+      `GET ${url} -> ${response.status}, esperado ${expectedStatus}: ${body}`
+    );
+  }
+  return response;
 }
 
 async function registrarUsuario({ nome, email, perfil_tipo }) {
@@ -126,6 +473,10 @@ async function registrarUsuario({ nome, email, perfil_tipo }) {
     }),
   });
 
+  if (!data.usuario?.id) {
+    throw new Error('Cadastro E2E nao retornou o identificador do usuario.');
+  }
+  registrarUsuarioParaLimpeza(contextoLimpeza, data.usuario, email);
   return data.usuario;
 }
 
@@ -175,9 +526,11 @@ async function esperarNotificacao({ token, tipo, timeoutMs = 3000 }) {
   throw new Error(`Notificacao ${tipo} nao encontrada.`);
 }
 
-async function main() {
+async function executarFluxoE2E() {
   console.log('[E2E] Validando prefixos v1 e legado...');
   await validarPrefixosApi();
+  console.log('[E2E] Validando cadastro administrativo e payloads invalidos...');
+  await validarEntradasInvalidas();
 
   console.log('[E2E] Criando usuários...');
 
@@ -208,7 +561,7 @@ async function main() {
   const profissionalToken = profissionalSession.accessToken;
 
   console.log('[E2E] Atualizando Curriculo Vivo com portfolio...');
-  await request('/perfil', {
+  const perfilAtualizadoResponse = await request('/perfil', {
     method: 'PATCH',
     token: profissionalToken,
     body: JSON.stringify({
@@ -228,12 +581,41 @@ async function main() {
     }),
   });
 
-  const perfilPublico = await request(`/profissionais/${profissional.id}`);
   if (
-    !perfilPublico.portfolio_fotos?.length ||
-    !perfilPublico.certificacoes?.length
+    !perfilAtualizadoResponse.perfil?.portfolio_fotos?.length ||
+    !perfilAtualizadoResponse.perfil?.certificacoes?.length
   ) {
-    throw new Error('Perfil publico nao retornou portfolio/certificacoes.');
+    throw new Error('Perfil profissional nao preservou portfolio/certificacoes.' );
+  }
+
+  const perfilPublico = await request(`/profissionais/${profissional.id}`);
+  const camposPublicosPermitidos = new Set([
+    'id',
+    'nome',
+    'foto_url',
+  'cidade_amauc',
+  'biografia',
+  'categorias',
+  'verificado',
+  'media_avaliacao',
+    'distancia_km',
+    'latitude',
+    'longitude',
+    'localizacao_aproximada',
+  ]);
+  const campoPublicoIndevido = Object.keys(perfilPublico).find(
+    (campo) => !camposPublicosPermitidos.has(campo)
+  );
+  if (campoPublicoIndevido) {
+    throw new Error(
+      `Perfil publico expos campo nao permitido: ${campoPublicoIndevido}.`
+    );
+  }
+
+  if (typeof perfilPublico.verificado !== 'boolean') {
+    throw new Error(
+      'Perfil publico nao retornou selo de verificacao em formato booleano.'
+    );
   }
 
   const dataAgendada = proximoDiaUtilComHorario('10:00');
@@ -275,6 +657,8 @@ async function main() {
       preco: 9999,
       descricao: 'Fluxo E2E: serviço agendado',
       endereco_atendimento: 'Rua das Flores, 123',
+      atendimento_latitude: -27.2342,
+      atendimento_longitude: -52.0277,
       agendado_para: agendadoPara,
     }),
   });
@@ -282,6 +666,12 @@ async function main() {
   const solicitacao = solicitacaoResponse.solicitacao;
   if (!solicitacao?.id) {
     throw new Error('Solicitação não foi criada.');
+  }
+  if (
+    Number(solicitacao.atendimento_latitude) !== -27.2342 ||
+    Number(solicitacao.atendimento_longitude) !== -52.0277
+  ) {
+    throw new Error('Solicitação não preservou a localização privada do atendimento.');
   }
 
   if (Number(solicitacao.preco) !== 50 || solicitacao.servico_nome !== 'Corte de cabelo') {
@@ -452,7 +842,7 @@ async function main() {
   await request(`/solicitacoes/${solicitacao.id}/status`, {
     method: 'PATCH',
     token: cidadaoToken,
-    expectedStatus: 404,
+    expectedStatus: 403,
     body: JSON.stringify({ status: 'aceito' }),
   });
 
@@ -470,6 +860,24 @@ async function main() {
   });
   if (!uploadConclusao.solicitacao?.fotos_conclusao?.length) {
     throw new Error('Upload de evidencia nao retornou fotos_conclusao.');
+  }
+  const urlEvidencia = uploadConclusao.solicitacao.fotos_conclusao[0];
+  await validarAcessoUpload({
+    url: urlEvidencia,
+    expectedStatus: 401,
+  });
+  await validarAcessoUpload({
+    url: urlEvidencia,
+    token: intrusoToken,
+    expectedStatus: 403,
+  });
+  const downloadEvidencia = await validarAcessoUpload({
+    url: urlEvidencia,
+    token: cidadaoToken,
+    expectedStatus: 200,
+  });
+  if (downloadEvidencia.headers.get('cache-control') !== 'private, no-store') {
+    throw new Error('Download privado da evidencia nao retornou Cache-Control seguro.');
   }
 
   console.log('[E2E] Prestador propoe remarcacao...');
@@ -499,12 +907,39 @@ async function main() {
     throw new Error('Cliente aceitou remarcacao, mas horario novo nao foi aplicado.');
   }
 
-  console.log('[E2E] Prestador conclui...');
-  await request(`/solicitacoes/${solicitacao.id}/status`, {
+  console.log('[E2E] Prestador envia conclusao para confirmacao do cliente...');
+  const conclusaoPendente = await request(`/solicitacoes/${solicitacao.id}/status`, {
     method: 'PATCH',
     token: profissionalToken,
     body: JSON.stringify({ status: 'concluido' }),
   });
+  if (conclusaoPendente.solicitacao?.status !== 'aguardando_confirmacao_cliente') {
+    throw new Error('Conclusao do prestador nao ficou aguardando confirmacao do cliente.');
+  }
+
+  console.log('[E2E] Validando bloqueio de avaliacao antes da confirmacao do cliente...');
+  await request('/avaliacoes', {
+    method: 'POST',
+    token: cidadaoToken,
+    expectedStatus: 403,
+    body: JSON.stringify({
+      servico_id: solicitacao.id,
+      nota_estrelas: 5,
+      comentario: 'Tentativa antes da confirmacao do cliente',
+    }),
+  });
+
+  console.log('[E2E] Cliente confirma a conclusao...');
+  const conclusaoConfirmada = await request(
+    `/solicitacoes/${solicitacao.id}/confirmar-conclusao`,
+    {
+      method: 'PATCH',
+      token: cidadaoToken,
+    }
+  );
+  if (conclusaoConfirmada.solicitacao?.status !== 'concluido') {
+    throw new Error('Confirmacao do cliente nao concluiu o chamado.');
+  }
 
   console.log('[E2E] Cliente avalia...');
   await request('/avaliacoes', {
@@ -521,6 +956,17 @@ async function main() {
     token: profissionalToken,
     tipo: 'avaliacao_recebida',
   });
+  const avaliacoesPublicas = await request(
+    `/avaliacoes/profissional/${profissional.id}?page=1&pageSize=20`
+  );
+  const avaliacaoPublica = avaliacoesPublicas.avaliacoes?.[0];
+  if (
+    !avaliacaoPublica ||
+    avaliacaoPublica.cidadao_nome !== undefined ||
+    avaliacaoPublica.servico_descricao !== undefined
+  ) {
+    throw new Error('Avaliacao publica ausente ou expondo dados do chamado/cidadao.');
+  }
 
   console.log('[E2E] Validando bloqueio de avaliacao duplicada...');
   await request('/avaliacoes', {
@@ -556,16 +1002,32 @@ async function main() {
     throw new Error('Financeiro nao registrou cancelamento com valor.');
   }
 
-  console.log('[E2E] Revogando refresh token no logout...');
-  await logout(cidadaoSession.refreshToken);
+  console.log('[E2E] Validando revogacao da sessao HTTP e Socket.IO no logout...');
+  await validarRevogacaoSocket({
+    accessToken: cidadaoToken,
+    descricao: 'logout',
+    executarRevogacao: () => logout(cidadaoSession.refreshToken),
+    solicitacaoId: solicitacao.id,
+    tokenLeitor: profissionalToken,
+  });
   await renovarSessao(cidadaoSession.refreshToken, 401);
+  await request('/usuarios/me', {
+    token: cidadaoToken,
+    expectedStatus: 401,
+  });
 
-  console.log('[E2E] Anonimizando a conta do cliente...');
+  console.log('[E2E] Validando revogacao HTTP e Socket.IO na anonimizacao...');
   const sessaoParaExcluir = await login(cidadaoEmail);
-  const exclusao = await request('/perfil/conta', {
-    method: 'DELETE',
-    token: sessaoParaExcluir.accessToken,
-    body: JSON.stringify({ confirmacao: 'EXCLUIR MINHA CONTA' }),
+  const exclusao = await validarRevogacaoSocket({
+    accessToken: sessaoParaExcluir.accessToken,
+    descricao: 'exclusao de conta',
+    executarRevogacao: () => request('/perfil/conta', {
+      method: 'DELETE',
+      token: sessaoParaExcluir.accessToken,
+      body: JSON.stringify({ confirmacao: 'EXCLUIR MINHA CONTA' }),
+    }),
+    solicitacaoId: solicitacao.id,
+    tokenLeitor: profissionalToken,
   });
 
   if (!Number.isInteger(exclusao.refresh_tokens_revogados) || exclusao.refresh_tokens_revogados < 1) {
@@ -573,6 +1035,10 @@ async function main() {
   }
 
   await renovarSessao(sessaoParaExcluir.refreshToken, 401);
+  await request('/usuarios/me', {
+    token: sessaoParaExcluir.accessToken,
+    expectedStatus: 401,
+  });
   await request('/auth/login', {
     method: 'POST',
     expectedStatus: 401,
@@ -591,10 +1057,41 @@ async function main() {
     throw new Error('Historico do prestador nao foi preservado com o cliente anonimizado.');
   }
 
-  console.log('[E2E] Teste finalizado com sucesso!');
+  console.log('[E2E] Fluxo validado com sucesso!');
 }
 
-main().catch((error) => {
-  console.error('[E2E] Falhou:', error.message);
-  process.exit(1);
-});
+async function main() {
+  const residuosAnteriores = await limparResiduosAnterioresE2E(
+    contextoLimpeza
+  );
+  if (
+    residuosAnteriores.usuariosRemovidos > 0 ||
+    residuosAnteriores.arquivosRemovidos > 0
+  ) {
+    console.log(
+      `[E2E] Setup removeu ${residuosAnteriores.usuariosRemovidos} usuario(s) `
+      + `e ${residuosAnteriores.arquivosRemovidos} arquivo(s) de execucoes anteriores.`
+    );
+  }
+
+  try {
+    await executarFluxoE2E();
+  } finally {
+    fecharTodosSocketsE2E();
+    const resultado = await limparResiduosE2E(contextoLimpeza);
+    console.log(
+      `[E2E] Limpeza concluida: ${resultado.usuariosRemovidos} usuario(s) e ${resultado.arquivosRemovidos} arquivo(s) removidos.`
+    );
+  }
+}
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error('[E2E] Falhou:', error.message);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  prepararEsperaRevogacaoSocket,
+};

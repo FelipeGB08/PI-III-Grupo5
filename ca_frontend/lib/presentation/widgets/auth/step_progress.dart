@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/adaptive_colors.dart';
+
 /// Barra de progresso visual para fluxos multi-etapas (wizard).
 class StepProgress extends StatelessWidget {
   const StepProgress({
@@ -12,9 +14,6 @@ class StepProgress extends StatelessWidget {
   final int currentStep;
   final int totalSteps;
   final List<String> labels;
-
-  static const Color _activeColor = Color(0xFF3B82F6);
-  static const Color _inactiveColor = Color(0xFF334155);
 
   @override
   Widget build(BuildContext context) {
@@ -41,8 +40,8 @@ class StepProgress extends StatelessWidget {
                         margin: const EdgeInsets.symmetric(horizontal: 4),
                         decoration: BoxDecoration(
                           color: index < currentStep
-                              ? _activeColor
-                              : _inactiveColor,
+                              ? context.appBrand
+                              : context.appBorder,
                           borderRadius: BorderRadius.circular(1),
                         ),
                       ),
@@ -65,7 +64,9 @@ class StepProgress extends StatelessWidget {
                         ? TextAlign.end
                         : TextAlign.center,
                 style: TextStyle(
-                  color: isActive ? Colors.white : Colors.white38,
+                  color: isActive
+                      ? context.appTextPrimary
+                      : context.appTextSecondary,
                   fontSize: 11,
                   fontWeight: index == currentStep
                       ? FontWeight.bold
@@ -99,15 +100,16 @@ class _StepDot extends StatelessWidget {
       height: 28,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color:
-            isActive ? StepProgress._activeColor : StepProgress._inactiveColor,
+        color: isActive ? context.appBrand : context.appPanel,
         border: isCurrent
-            ? Border.all(color: Colors.white.withValues(alpha: 0.5), width: 2)
-            : null,
+            ? Border.all(color: context.appTextPrimary, width: 2)
+            : !isActive
+                ? Border.all(color: context.appBorder)
+                : null,
         boxShadow: isCurrent
             ? [
                 BoxShadow(
-                  color: StepProgress._activeColor.withValues(alpha: 0.4),
+                  color: context.appBrand.withValues(alpha: 0.4),
                   blurRadius: 8,
                   spreadRadius: 1,
                 ),
@@ -118,7 +120,7 @@ class _StepDot extends StatelessWidget {
         child: Text(
           '$stepNumber',
           style: TextStyle(
-            color: isActive ? Colors.white : Colors.white54,
+            color: isActive ? context.appOnBrand : context.appMuted,
             fontSize: 12,
             fontWeight: FontWeight.bold,
           ),

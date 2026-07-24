@@ -28,6 +28,8 @@ void main() {
       tipo: UserTipo.cidadao,
       cidadeAmauc: 'Concordia',
       enderecoPrincipal: 'Rua Teste, 123',
+      latitude: -27.2342,
+      longitude: -52.0277,
     );
     final authRepository = FakeAuthRepository(user);
     final chamadoRepository = FakeChamadoRepository();
@@ -108,6 +110,8 @@ void main() {
     expect(chamadoRepository.createdChamado!.profissionalId, prestador.id);
     expect(
         chamadoRepository.createdChamado!.enderecoAtendimento, 'Rua Nova, 456');
+    expect(chamadoRepository.createdChamado!.atendimentoLatitude, isNull);
+    expect(chamadoRepository.createdChamado!.atendimentoLongitude, isNull);
     expect(find.text('Agendamento Confirmado!'), findsOneWidget);
     semantics.dispose();
   });

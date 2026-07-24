@@ -13,18 +13,13 @@ Future<void> main() async {
 
   final prefs = await SharedPreferences.getInstance();
   final storage = TokenStorage(prefs);
-  final initialAuth = buildInitialAuthState(storage);
+  await storage.initialize();
 
   runApp(
     ProviderScope(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
-        authStateProvider.overrideWith(
-          (ref) => AuthNotifier(
-            ref.watch(authRepositoryProvider),
-            initialState: initialAuth,
-          ),
-        ),
+        tokenStorageProvider.overrideWithValue(storage),
       ],
       child: const ConectaAmaucApp(),
     ),

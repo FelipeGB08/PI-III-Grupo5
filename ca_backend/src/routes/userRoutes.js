@@ -2,6 +2,10 @@ const express = require('express');
 const AuthController = require('../controllers/AuthController');
 const UserController = require('../controllers/UserController');
 const verificarToken = require('../middlewares/authMiddleware'); 
+const {
+    cadastroPublicoMiddlewares,
+    loginPublicoMiddlewares,
+} = require('../middlewares/publicRegistrationMiddleware');
 
 const router = express.Router();
 
@@ -44,6 +48,7 @@ const router = express.Router();
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/AuthSession' }
+ *       '400': { $ref: '#/components/responses/BadRequest' }
  *       '401': { $ref: '#/components/responses/Unauthorized' }
  *       '500': { $ref: '#/components/responses/InternalError' }
  * /api/usuarios/me:
@@ -101,8 +106,12 @@ const router = express.Router();
  *       '500': { $ref: '#/components/responses/InternalError' }
  */
 
-router.post('/registro', AuthController.registrarUsuario);
-router.post('/login', AuthController.loginUsuario);
+router.post(
+    '/registro',
+    ...cadastroPublicoMiddlewares,
+    AuthController.registrarUsuario
+);
+router.post('/login', ...loginPublicoMiddlewares, AuthController.loginUsuario);
 
 router.get('/me', verificarToken, UserController.buscarMeuPerfil);
 router.patch('/me', verificarToken, UserController.atualizarMeuPerfil);

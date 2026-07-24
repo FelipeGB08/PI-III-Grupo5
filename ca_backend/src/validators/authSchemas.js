@@ -1,4 +1,8 @@
 const { z } = require('zod');
+const {
+    PERFIS_AUTOCADASTRO,
+    normalizarPerfilTipo,
+} = require('../utils/userRegistrationHelpers');
 
 const emailSchema = z
     .string({ error: 'Informe um e-mail valido.' })
@@ -35,11 +39,11 @@ const cadastroSchema = z
             });
         }
 
-        const perfilBruto = dados.perfil_tipo || dados.tipo_usuario;
-        const perfil = String(perfilBruto || '').trim().toLowerCase();
-        const perfilNormalizado = perfil === 'cidadão' ? 'cidadao' : perfil;
+        const perfilNormalizado = normalizarPerfilTipo(
+            dados.perfil_tipo || dados.tipo_usuario
+        );
 
-        if (!['cidadao', 'profissional'].includes(perfilNormalizado)) {
+        if (!perfilNormalizado || !PERFIS_AUTOCADASTRO.has(perfilNormalizado)) {
             ctx.addIssue({
                 code: 'custom',
                 path: ['perfil_tipo'],
@@ -80,6 +84,51 @@ const loginSchema = z
     })
     .passthrough();
 
+const socialLoginSchema = z
+    .object({
+        provider: z
+            .string({ error: 'Informe o provedor social.' })
+            .trim()
+            .transform((valor) => valor.toLowerCase())
+            .refine(
+                (valor) => valor === 'google' || valor === 'apple',
+                'provider deve ser google ou apple.'
+            ),
+        token: z.string().trim().optional(),
+        id_token: z.string().trim().optional(),
+        access_token: z.string().trim().optional(),
+        cidade_amauc: z.string().trim().optional(),
+        cidade: z.string().trim().optional(),
+        platform: z
+            .string()
+            .trim()
+            .transform((valor) => valor.toLowerCase())
+            .pipe(z.enum(['ios', 'android', 'web']))
+            .optional(),
+        state: z.string().trim().max(2048, 'state do login social e invalido.').optional(),
+        nonce: z.string().trim().max(256, 'nonce do login social e invalido.').optional(),
+    })
+    .passthrough()
+    .superRefine((dados, ctx) => {
+        if (!dados.token && !dados.id_token && !dados.access_token) {
+            ctx.addIssue({
+                code: 'custom',
+                path: ['token'],
+                message: 'Token do provedor social e obrigatorio.',
+            });
+        }
+
+        if (dados.provider !== 'apple') return;
+        for (const campo of ['platform', 'state', 'nonce']) {
+            if (dados[campo]) continue;
+            ctx.addIssue({
+                code: 'custom',
+                path: [campo],
+                message: `${campo} e obrigatorio no login Apple.`,
+            });
+        }
+    });
+
 const refreshTokenSchema = z
     .object({
         refresh_token: z
@@ -93,4 +142,5 @@ module.exports = {
     cadastroSchema,
     loginSchema,
     refreshTokenSchema,
+    socialLoginSchema,
 };

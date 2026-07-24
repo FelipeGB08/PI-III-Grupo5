@@ -36,6 +36,10 @@ Use este checklist antes de apresentar ou gerar APK.
 - [ ] Se GPS não existir, mapa usa a cidade AMAUC como fallback.
 - [ ] Filtro por raio retorna prestadores próximos.
 - [ ] Mapa não quebra no Flutter Web.
+- [ ] Mapa exibe atribuição ao OpenStreetMap.
+- [ ] Marcadores públicos mostram somente localização aproximada por município.
+- [ ] GPS exato do atendimento fica disponível apenas no chamado autenticado.
+- [ ] Rota aproximada é calculada e falha de rede mantém a distância em linha reta.
 
 ## 4. Prestador
 
@@ -47,15 +51,29 @@ Use este checklist antes de apresentar ou gerar APK.
 - [ ] Badges aparecem quando os critérios são atingidos.
 - [ ] Prestador recebe chamado do cliente.
 
+- [ ] Prestador envia documento de verificacao em imagem e o status fica `pendente`.
+- [ ] Documento de verificacao nao abre por `/uploads` nem para usuario sem permissao.
+- [ ] Admin revisa documento privado, aprova ou rejeita com motivo.
+- [ ] Aprovacao exibe o selo publico de profissional verificado; rejeicao mostra o motivo ao prestador.
+
+- [ ] Cliente e prestador conseguem registrar uma denuncia somente em um chamado do qual participam.
+- [ ] Admin filtra denuncias, consulta o contexto do chamado e registra uma resolucao.
+- [ ] Ao resolver uma denuncia, o denunciante recebe notificacao no aplicativo.
+
 ## 5. Cliente
 
 - [ ] Cliente lista profissionais.
 - [ ] Cliente abre perfil público do prestador.
 - [ ] Cliente agenda serviço usando item da agenda.
 - [ ] Cliente abre chat do chamado.
+- [ ] Cliente e prestador trocam mensagens em tempo real com as duas telas abertas.
+- [ ] Mensagem enviada durante reconexão aparece uma única vez após o fallback HTTP.
+- [ ] Mensagem muda de enviada para lida quando a outra parte abre o chat.
+- [ ] Após renovar o access token, o chat reconecta sem reabrir a tela.
+- [ ] Falha simultânea do socket e da API preserva o texto e permite tentar novamente.
 - [ ] Cliente acompanha status do agendamento.
 - [ ] Cliente cancela chamado quando aplicável.
-- [ ] Cliente avalia após conclusão.
+- [ ] Cliente avalia somente após confirmar a conclusão.
 
 ## 6. Agendamento
 
@@ -65,7 +83,11 @@ Use este checklist antes de apresentar ou gerar APK.
 - [ ] Prestador aceita chamado.
 - [ ] Prestador propõe remarcação.
 - [ ] Cliente aceita remarcação.
-- [ ] Prestador conclui chamado.
+- [ ] Prestador envia conclusão com ao menos uma foto de evidência.
+- [ ] Chamado fica em `aguardando_confirmacao_cliente`.
+- [ ] Cliente revisa a evidência e confirma a conclusão.
+- [ ] Sem confirmação, consulta após 72h conclui o chamado automaticamente.
+- [ ] Avaliação antes da confirmação é bloqueada.
 - [ ] Avaliação duplicada é bloqueada.
 
 ## 7. Evidências e arquivos
@@ -77,6 +99,10 @@ Use este checklist antes de apresentar ou gerar APK.
 - [ ] Avatar/perfil não quebra quando a imagem falha.
 
 ## 8. Admin e segurança
+
+- [ ] Admin busca usuarios por nome/e-mail e perfil, pagina a lista e ativa/inativa uma conta que nao foi anonimizada por exclusao.
+- [ ] Usuario comum recebe 403 ao tentar consultar usuarios, alterar status de conta ou exportar relatorio administrativo.
+- [ ] Admin gera o CSV do relatorio e confere indicadores de avaliacoes, categorias, cancelamentos, verificacoes e denuncias.
 
 - [ ] Admin acessa relatórios.
 - [ ] Usuário comum não acessa rota admin.

@@ -25,11 +25,14 @@ class ApiConfig {
     }
   }
 
-  static const String apiPrefix = '/api';
+  static const String apiPrefix = '/api/v1';
 
   static const String authRegister = '$apiPrefix/auth/register';
   static const String authLogin = '$apiPrefix/auth/login';
   static const String authSocialLogin = '$apiPrefix/auth/social-login';
+  static const String authAppleConfig = '$apiPrefix/auth/apple/config';
+  static const String authGithubAuthorize = '$apiPrefix/auth/github/authorize';
+  static const String authGithubComplete = '$apiPrefix/auth/github/complete';
   static const String authRefresh = '$apiPrefix/auth/refresh';
   static const String authLogout = '$apiPrefix/auth/logout';
   static const String authMagicLink = '$apiPrefix/auth/magic-link';
@@ -44,11 +47,15 @@ class ApiConfig {
   static const String upload = '$apiPrefix/upload';
   static const String dispositivoToken = '$apiPrefix/dispositivos/token';
   static const String notificacoes = '$apiPrefix/notificacoes';
+  static const String notificacoesPreferencias = '$notificacoes/preferencias';
   static const String prestadores = '$apiPrefix/profissionais';
   static const String prestadoresBusca = '$apiPrefix/perfil/busca';
   static const String perfil = '$apiPrefix/perfil';
   static const String perfilMeu = '$apiPrefix/perfil/meu-perfil';
   static const String perfilConta = '$apiPrefix/perfil/conta';
+  static const String perfilVerificacao = '$apiPrefix/perfil/verificacao';
+  static const String perfilVerificacaoDocumento =
+      '$perfilVerificacao/documento';
   static const String agendaMe = '$apiPrefix/agenda/me';
   static const String servicos = '$apiPrefix/servicos';
   static const String chamados = '$apiPrefix/solicitacoes';
@@ -61,11 +68,18 @@ class ApiConfig {
   static const String categorias = '$apiPrefix/categorias';
   static const String adminCategorias = '$apiPrefix/admin/categorias';
   static const String adminRelatorios = '$apiPrefix/admin/relatorios';
+  static const String adminRelatoriosExport = '$adminRelatorios/export';
+  static const String adminVerificacoes = '$apiPrefix/admin/verificacoes';
+  static const String adminDenuncias = '$apiPrefix/admin/denuncias';
+  static const String adminUsuarios = '$apiPrefix/admin/usuarios';
   static const String status = '$apiPrefix/status';
 
   static String servicoStatus(int id) => '$servicos/$id/status';
   static String chamadoDetalhe(int id) => '$chamados/$id';
   static String chamadoStatus(int id) => '$chamados/$id/status';
+  static String denunciarChamado(int id) => '$chamados/$id/denuncia';
+  static String confirmarConclusao(int id) =>
+      '$chamados/$id/confirmar-conclusao';
   static String propostaValor(int id) => '$chamados/$id/proposta-valor';
   static String aceitarPropostaValor(int id) =>
       '$chamados/$id/proposta-valor/aceitar';
@@ -83,6 +97,29 @@ class ApiConfig {
       '$apiPrefix/agenda/profissionais/$id';
   static String avaliacoesProfissional(int id) =>
       '$avaliacoes/profissional/$id';
+  static String adminDocumentoVerificacao(int perfilId) =>
+      '$adminVerificacoes/$perfilId/documento';
+  static String aprovarVerificacao(int perfilId) =>
+      '$adminVerificacoes/$perfilId/aprovar';
+  static String rejeitarVerificacao(int perfilId) =>
+      '$adminVerificacoes/$perfilId/rejeitar';
+  static String denunciaAdmin(int denunciaId) => '$adminDenuncias/$denunciaId';
+  static String statusUsuarioAdmin(int usuarioId) =>
+      '$adminUsuarios/$usuarioId/status';
+
+  static Uri githubOAuthAuthorizeUri({
+    required String platform,
+    required String cidadeAmauc,
+    required String state,
+  }) {
+    return Uri.parse('$baseUrl$authGithubAuthorize').replace(
+      queryParameters: {
+        'platform': platform,
+        'cidade_amauc': cidadeAmauc,
+        'state': state,
+      },
+    );
+  }
 
   static Duration get connectTimeout => const Duration(seconds: 15);
   static Duration get receiveTimeout => const Duration(seconds: 20);

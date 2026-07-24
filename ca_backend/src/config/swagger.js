@@ -1,7 +1,9 @@
 const path = require('path');
 const swaggerJsdoc = require('swagger-jsdoc');
-
-const API_PREFIX_V1 = '/api/v1';
+const {
+    API_PREFIX_V1,
+    listarOperacoesDeclaradas,
+} = require('./apiRoutes');
 
 function normalizarServidorV1(url) {
     const semBarraFinal = String(url || '').replace(/\/$/, '');
@@ -28,7 +30,7 @@ const swaggerSpec = swaggerJsdoc({
         info: {
             title: 'Conecta AMAUC API',
             version: '1.0.0',
-            description: 'API REST v1 para conectar cidadãos e profissionais da região AMAUC.',
+            description: 'API REST v1 para conectar cidadãos e profissionais da região AMAUC. O prefixo canônico é /api/v1; /api é somente um alias legado temporário e não aparece nesta especificação.',
         },
         servers: [
             {
@@ -130,12 +132,54 @@ const swaggerSpec = swaggerJsdoc({
                 },
                 SocialLoginRequest: {
                     type: 'object',
-                    required: ['provider', 'token'],
+                    required: ['provider'],
+                    description: 'No fluxo Apple, platform, state e nonce emitidos por GET /auth/apple/config também são obrigatórios.',
                     properties: {
-                        provider: { type: 'string', enum: ['google', 'apple', 'github'] },
+                        provider: { type: 'string', enum: ['google', 'apple'] },
                         token: { type: 'string', example: 'token-do-provedor' },
+                        id_token: { type: 'string', description: 'Alias compatível de token.' },
+                        access_token: { type: 'string', description: 'Alias legado compatível de token.' },
                         cidade_amauc: { type: 'string', example: 'Concórdia' },
+                        platform: {
+                            type: 'string',
+                            enum: ['ios', 'android', 'web'],
+                            description: 'Obrigatório para Apple e determina o audience aceito.',
+                        },
+                        state: {
+                            type: 'string',
+                            description: 'Contexto curto assinado pelo backend, obrigatório para Apple.',
+                        },
+                        nonce: {
+                            type: 'string',
+                            description: 'Nonce emitido pelo backend e presente no identity token Apple.',
+                        },
                     },
+                    allOf: [
+                        {
+                            anyOf: [
+                                { required: ['token'] },
+                                { required: ['id_token'] },
+                                { required: ['access_token'] },
+                            ],
+                        },
+                        {
+                            oneOf: [
+                                {
+                                    title: 'Google',
+                                    properties: {
+                                        provider: { type: 'string', enum: ['google'] },
+                                    },
+                                },
+                                {
+                                    title: 'Apple',
+                                    required: ['platform', 'state', 'nonce'],
+                                    properties: {
+                                        provider: { type: 'string', enum: ['apple'] },
+                                    },
+                                },
+                            ],
+                        },
+                    ],
                 },
                 RefreshTokenRequest: {
                     type: 'object',
@@ -218,6 +262,14 @@ const swaggerSpec = swaggerJsdoc({
                         atende_emergencia: { type: 'boolean' },
                         possui_veiculo: { type: 'boolean' },
                         taxa_deslocamento: { type: 'number', nullable: true },
+                        status_verificacao: {
+                            type: 'string',
+                            enum: ['nao_enviado', 'pendente', 'aprovado', 'rejeitado'],
+                        },
+                        documento_disponivel: { type: 'boolean' },
+                        enviado_em: { type: 'string', format: 'date-time', nullable: true },
+                        revisado_em: { type: 'string', format: 'date-time', nullable: true },
+                        motivo_rejeicao: { type: 'string', nullable: true },
                     },
                 },
                 PerfilRequest: {
@@ -238,11 +290,41 @@ const swaggerSpec = swaggerJsdoc({
                         taxa_deslocamento: { type: 'number' },
                     },
                 },
-                Profissional: {
-                    allOf: [
-                        { $ref: '#/components/schemas/Usuario' },
-                        { $ref: '#/components/schemas/PerfilProfissional' },
-                    ],
+                ProfissionalPublico: {
+                    type: 'object',
+                    required: ['id', 'nome', 'cidade_amauc'],
+                    properties: {
+                        id: { type: 'integer', example: 20 },
+                        nome: { type: 'string', example: 'Maria da Silva' },
+                        foto_url: { type: 'string', nullable: true, example: '/uploads/avatar.jpg' },
+                        cidade_amauc: { type: 'string', example: 'ConcÃ³rdia' },
+                        biografia: { type: 'string', nullable: true },
+                        categorias: { type: 'array', items: { type: 'string' } },
+                        verificado: {
+                            type: 'boolean',
+                            description: 'Selo publico concedido somente apos aprovacao administrativa.',
+                        },
+                        media_avaliacao: { type: 'number', example: 4.8 },
+                        distancia_km: {
+                            type: 'number',
+                            nullable: true,
+                            description: 'Distancia em linha reta ate o centro aproximado do municipio do profissional.',
+                        },
+                        latitude: {
+                            type: 'number',
+                            nullable: true,
+                            description: 'Latitude aproximada do municipio; nunca representa o endereco pessoal exato.',
+                        },
+                        longitude: {
+                            type: 'number',
+                            nullable: true,
+                            description: 'Longitude aproximada do municipio; nunca representa o endereco pessoal exato.',
+                        },
+                        localizacao_aproximada: {
+                            type: 'boolean',
+                            description: 'Indica que as coordenadas representam o centro aproximado do municipio.',
+                        },
+                    },
                 },
                 Solicitacao: {
                     type: 'object', additionalProperties: true,
@@ -254,10 +336,47 @@ const swaggerSpec = swaggerJsdoc({
                         servico_nome: { type: 'string', example: 'Visita técnica' },
                         descricao: { type: 'string', example: 'Instalação de tomada' },
                         endereco_atendimento: { type: 'string', nullable: true, example: 'Rua das Flores, 123' },
+                        atendimento_latitude: {
+                            type: 'number',
+                            nullable: true,
+                            description: 'Coordenada privada, visivel apenas aos participantes do chamado.',
+                        },
+                        atendimento_longitude: {
+                            type: 'number',
+                            nullable: true,
+                            description: 'Coordenada privada, visivel apenas aos participantes do chamado.',
+                        },
                         agendado_para: { type: 'string', format: 'date-time' },
                         preco: { type: 'number', example: 120 },
-                        status: { type: 'string', example: 'pendente' },
+                        status: {
+                            type: 'string',
+                            enum: [
+                                'pendente',
+                                'proposta_valor',
+                                'aceito',
+                                'recusado',
+                                'aguardando_confirmacao_cliente',
+                                'concluido',
+                                'cancelado_cliente',
+                                'remarcacao_solicitada',
+                            ],
+                            example: 'pendente',
+                        },
                         fotos_conclusao: { type: 'array', items: { type: 'string' } },
+                        conclusao_solicitada_em: {
+                            type: 'string',
+                            format: 'date-time',
+                            nullable: true,
+                        },
+                        conclusao_confirmada_em: {
+                            type: 'string',
+                            format: 'date-time',
+                            nullable: true,
+                        },
+                        conclusao_confirmada_automaticamente: {
+                            type: 'boolean',
+                            example: false,
+                        },
                     },
                 },
                 SolicitacaoRequest: {
@@ -268,13 +387,19 @@ const swaggerSpec = swaggerJsdoc({
                         agenda_servico_id: { type: 'integer', example: 8 },
                         descricao: { type: 'string', example: 'Instalação de tomada' },
                         endereco_atendimento: { type: 'string', example: 'Rua das Flores, 123' },
+                        atendimento_latitude: { type: 'number', minimum: -90, maximum: 90 },
+                        atendimento_longitude: { type: 'number', minimum: -180, maximum: 180 },
                         agendado_para: { type: 'string', format: 'date-time', example: '2030-05-20T10:00:00' },
                     },
                 },
                 StatusRequest: {
                     type: 'object', required: ['status'],
                     properties: {
-                        status: { type: 'string', enum: ['aceito', 'recusado', 'concluido'] },
+                        status: {
+                            type: 'string',
+                            enum: ['aceito', 'recusado', 'concluido'],
+                            description: 'Ao receber concluido, a API grava aguardando_confirmacao_cliente ate a confirmacao do cidadao ou o prazo de 72 horas.',
+                        },
                     },
                 },
                 PropostaValorRequest: {
@@ -303,12 +428,31 @@ const swaggerSpec = swaggerJsdoc({
                         servico_id: { type: 'integer', example: 101 },
                         remetente_id: { type: 'integer', example: 12 },
                         mensagem: { type: 'string', example: 'Podemos confirmar os detalhes?' },
+                        lida_em: {
+                            type: 'string',
+                            format: 'date-time',
+                            nullable: true,
+                        },
                         criado_em: { type: 'string', format: 'date-time' },
                     },
                 },
                 ChatMensagemRequest: {
                     type: 'object', required: ['mensagem'],
-                    properties: { mensagem: { type: 'string', example: 'Podemos confirmar os detalhes?' } },
+                    properties: {
+                        mensagem: {
+                            type: 'string',
+                            minLength: 1,
+                            maxLength: 1000,
+                            example: 'Podemos confirmar os detalhes?',
+                        },
+                        client_id: {
+                            type: 'string',
+                            minLength: 16,
+                            maxLength: 64,
+                            description: 'Identificador idempotente gerado pelo cliente para evitar mensagens duplicadas em tentativas de reconexão.',
+                            example: '1721743200000000-a1b2c3d4e5f6',
+                        },
+                    },
                 },
                 Avaliacao: {
                     type: 'object', additionalProperties: true,
@@ -409,9 +553,24 @@ swaggerSpec.paths = Object.fromEntries(
 );
 
 const httpMethods = ['get', 'post', 'put', 'patch', 'delete'];
-for (const pathItem of Object.values(swaggerSpec.paths || {})) {
+const operacoesComRateLimit = new Set(
+    listarOperacoesDeclaradas()
+        .filter((operacao) => operacao.rateLimited)
+        .map((operacao) => `${operacao.method}:${operacao.path}`)
+);
+
+for (const [caminho, pathItem] of Object.entries(swaggerSpec.paths || {})) {
     for (const method of httpMethods) {
         const operation = pathItem[method];
+        if (!operation) continue;
+
+        if (operacoesComRateLimit.has(`${method}:${caminho}`)) {
+            operation.responses ||= {};
+            operation.responses['429'] ||= {
+                $ref: '#/components/responses/TooManyRequests',
+            };
+        }
+
         const usaBearer = operation?.security?.some((item) => item.bearerAuth);
         if (!usaBearer) continue;
 

@@ -12,8 +12,9 @@ conta.
 Conforme o uso do aplicativo, podem ser tratados os seguintes dados:
 
 - cadastro: nome, e-mail, telefone, cidade e tipo de perfil;
-- perfil e atendimento: endereço principal, localização aproximada ou exata,
-  agenda, serviços, orçamento e histórico de chamados;
+- perfil e atendimento: endereço principal, localização da conta, localização
+  exata escolhida para um atendimento, agenda, serviços, orçamento e histórico
+  de chamados;
 - conteúdo enviado: foto de perfil, imagens anexadas a solicitações ou à
   conclusão de serviços, currículo/portfólio profissional, mensagens de chat e
   avaliações;
@@ -25,8 +26,10 @@ Conforme o uso do aplicativo, podem ser tratados os seguintes dados:
 Os dados são usados para criar e proteger a conta, apresentar profissionais e
 serviços, viabilizar agendamentos e conversas, registrar o histórico dos
 chamados, enviar notificações e prestar suporte/segurança durante a operação e
-avaliação acadêmica do projeto. A localização é usada para mostrar profissionais
-e atendimentos na região informada.
+avaliação acadêmica do projeto. Nas buscas públicas, o mapa mostra apenas o
+centro aproximado do município do profissional. Endereço e GPS pessoal não são
+publicados. A coordenada exata escolhida pelo cliente é usada somente no
+chamado protegido para viabilizar o atendimento.
 
 ## Retenção
 

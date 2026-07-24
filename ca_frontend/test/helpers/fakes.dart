@@ -33,6 +33,16 @@ class FakeAuthRepository implements AuthRepository {
     required String provider,
     required String token,
     required String cidadeAmauc,
+    String? platform,
+    String? state,
+    String? nonce,
+  }) async =>
+      _result;
+
+  @override
+  Future<AuthResult> concluirGithubOAuth({
+    required String ticket,
+    required String state,
   }) async =>
       _result;
 
@@ -117,6 +127,10 @@ class FakePrestadorRepository implements PrestadorRepository {
 
   final List<Prestador> prestadores;
   String? lastCategoria;
+  double? lastPrecoMinimo;
+  double? lastPrecoMaximo;
+  double? lastNotaMinima;
+  DateTime? lastDisponivelEm;
   int listarCalls = 0;
 
   @override
@@ -126,9 +140,17 @@ class FakePrestadorRepository implements PrestadorRepository {
     double? lat,
     double? lng,
     double? raioKm,
+    double? precoMinimo,
+    double? precoMaximo,
+    double? notaMinima,
+    DateTime? disponivelEm,
   }) async {
     listarCalls++;
     lastCategoria = categoria;
+    lastPrecoMinimo = precoMinimo;
+    lastPrecoMaximo = precoMaximo;
+    lastNotaMinima = notaMinima;
+    lastDisponivelEm = disponivelEm;
     return prestadores;
   }
 
@@ -159,6 +181,8 @@ class FakeChamadoRepository implements ChamadoRepository {
     double? preco,
     DateTime? agendadoPara,
     String? enderecoAtendimento,
+    double? atendimentoLatitude,
+    double? atendimentoLongitude,
     String? fotoUrl,
   }) async {
     final chamado = Chamado(
@@ -171,6 +195,8 @@ class FakeChamadoRepository implements ChamadoRepository {
       servicoNome: servicoNome,
       agendadoPara: agendadoPara?.toIso8601String(),
       enderecoAtendimento: enderecoAtendimento,
+      atendimentoLatitude: atendimentoLatitude,
+      atendimentoLongitude: atendimentoLongitude,
       fotoUrl: fotoUrl,
     );
     createdChamado = chamado;
@@ -210,7 +236,20 @@ class FakeChamadoRepository implements ChamadoRepository {
     required ChamadoStatus status,
   }) async {
     lastStatus = status;
-    return _replace(_find(chamadoId).copyWith(status: status));
+    final statusRetornado = status == ChamadoStatus.concluido
+        ? ChamadoStatus.aguardandoConfirmacaoCliente
+        : status;
+    return _replace(_find(chamadoId).copyWith(status: statusRetornado));
+  }
+
+  @override
+  Future<Chamado> confirmarConclusao({required int chamadoId}) async {
+    return _replace(
+      _find(chamadoId).copyWith(
+        status: ChamadoStatus.concluido,
+        conclusaoConfirmadaEm: DateTime.now().toIso8601String(),
+      ),
+    );
   }
 
   @override

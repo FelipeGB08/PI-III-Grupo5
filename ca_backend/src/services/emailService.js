@@ -237,7 +237,24 @@ async function enviarResetSenha(email, token) {
     });
 }
 
+async function enviarAlertaDenunciaAdmin({ to, denunciaId, servicoId, motivo }) {
+    const link = baseUrlFrontend();
+    return enviarEmail({
+        to,
+        operacao: 'alerta-denuncia-admin',
+        subject: `Nova denuncia #${denunciaId} - Conecta AMAUC`,
+        text: `Ha uma nova denuncia (${motivo}) no chamado #${servicoId}. Acesse o painel administrativo para analisar: ${link}`,
+        html: htmlTemplate({
+            titulo: 'Nova denuncia recebida',
+            texto: `A denuncia #${denunciaId} do chamado #${servicoId} foi registrada com o motivo "${motivo}". Acesse o painel administrativo para analisar.`,
+            cta: 'Abrir painel administrativo',
+            link,
+        }),
+    });
+}
+
 module.exports = {
+    enviarAlertaDenunciaAdmin,
     smtpConfigurado,
     verificarSmtp,
     enviarMagicLink,

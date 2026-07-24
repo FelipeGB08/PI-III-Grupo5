@@ -1,4 +1,10 @@
 const NotificationModel = require('../models/NotificationModel');
+const NotificationPreferenceModel = require('../models/NotificationPreferenceModel');
+
+function usuarioEhCidadao(usuario) {
+    const perfil = usuario?.perfil_tipo || usuario?.tipo_usuario;
+    return perfil === 'cidadao';
+}
 
 const NotificationController = {
     listar: async (req, res) => {
@@ -55,6 +61,51 @@ const NotificationController = {
         } catch (erro) {
             console.error('Erro ao marcar notificacoes como lidas:', erro);
             return res.status(500).json({ erro: 'Erro interno ao atualizar notificacoes.' });
+        }
+    },
+
+    buscarPreferencias: async (req, res) => {
+        try {
+            if (!usuarioEhCidadao(req.usuarioLogado)) {
+                return res.status(403).json({
+                    erro: 'Esta preferencia esta disponivel somente para clientes.',
+                });
+            }
+
+            const preferencias = await NotificationPreferenceModel.buscarPreferencias(
+                req.usuarioLogado.id
+            );
+            if (!preferencias) {
+                return res.status(404).json({ erro: 'Usuario nao encontrado.' });
+            }
+
+            return res.status(200).json({ preferencias });
+        } catch (erro) {
+            console.error('Erro ao buscar preferencias de notificacao:', erro);
+            return res.status(500).json({ erro: 'Erro interno ao buscar preferencias.' });
+        }
+    },
+
+    atualizarPreferencias: async (req, res) => {
+        try {
+            if (!usuarioEhCidadao(req.usuarioLogado)) {
+                return res.status(403).json({
+                    erro: 'Esta preferencia esta disponivel somente para clientes.',
+                });
+            }
+
+            const preferencias = await NotificationPreferenceModel.atualizarNovosHorariosFavoritos({
+                usuarioId: req.usuarioLogado.id,
+                ativado: req.body.novos_horarios_favoritos,
+            });
+
+            return res.status(200).json({
+                mensagem: 'Preferencias de notificacao atualizadas.',
+                preferencias,
+            });
+        } catch (erro) {
+            console.error('Erro ao atualizar preferencias de notificacao:', erro);
+            return res.status(500).json({ erro: 'Erro interno ao atualizar preferencias.' });
         }
     },
 };

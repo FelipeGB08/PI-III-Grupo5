@@ -1,6 +1,26 @@
 const AvaliacaoModel = require('../models/AvaliacaoModel');
 const ServicoModel = require('../models/ServicoModel');
+const {
+    confirmarConclusoesExpiradas,
+} = require('../services/conclusaoService');
 const { notificarUsuarioSemBloquear } = require('../services/notificationService');
+
+const CAMPOS_AVALIACAO_PUBLICA = [
+    'id',
+    'servico_id',
+    'nota_estrelas',
+    'comentario',
+    'criado_em',
+];
+
+function montarAvaliacaoPublica(avaliacao = {}) {
+    return CAMPOS_AVALIACAO_PUBLICA.reduce((resultado, campo) => {
+        if (avaliacao[campo] !== undefined) {
+            resultado[campo] = avaliacao[campo];
+        }
+        return resultado;
+    }, {});
+}
 
 const AvaliacaoController = {
     criarAvaliacao: async (req, res) => {
@@ -17,6 +37,7 @@ const AvaliacaoController = {
                 return res.status(400).json({ erro: 'nota_estrelas deve ser entre 1 e 5.' });
             }
 
+            await confirmarConclusoesExpiradas({ servicoId });
             const servico = await ServicoModel.buscarPorId(servicoId);
             if (!servico) {
                 return res.status(404).json({ erro: 'Serviço não encontrado no sistema.' });
@@ -77,7 +98,8 @@ const AvaliacaoController = {
             });
             const mediaResult = await AvaliacaoModel.calcularMedia(id);
             const media = mediaResult ? parseFloat(mediaResult) : 0;
-            const { items: avaliacoes, ...paginacao } = resultado;
+            const { items, ...paginacao } = resultado;
+            const avaliacoes = items.map(montarAvaliacaoPublica);
 
             return res.status(200).json({
                 media,

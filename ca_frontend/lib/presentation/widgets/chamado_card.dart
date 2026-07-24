@@ -22,6 +22,7 @@ class ChamadoCard extends StatelessWidget {
     this.onRecusarPropostaValor,
     this.onAceitarRemarcacao,
     this.onRecusarRemarcacao,
+    this.onConfirmarConclusao,
   });
 
   final Chamado chamado;
@@ -38,12 +39,14 @@ class ChamadoCard extends StatelessWidget {
   final VoidCallback? onRecusarPropostaValor;
   final VoidCallback? onAceitarRemarcacao;
   final VoidCallback? onRecusarRemarcacao;
+  final VoidCallback? onConfirmarConclusao;
 
   Color get _statusColor => switch (chamado.status) {
         ChamadoStatus.pendente => AppColors.statusPendente,
         ChamadoStatus.propostaValor => AppColors.primary,
         ChamadoStatus.emAndamento => AppColors.statusEmAndamento,
         ChamadoStatus.remarcacaoSolicitada => AppColors.primary,
+        ChamadoStatus.aguardandoConfirmacaoCliente => AppColors.statusPendente,
         ChamadoStatus.concluido => AppColors.statusConcluido,
         ChamadoStatus.recusado => AppColors.statusRecusado,
         ChamadoStatus.cancelado => AppColors.muted,
@@ -145,6 +148,16 @@ class ChamadoCard extends StatelessWidget {
                   _NoticeBox(
                     text:
                         'Novo horario proposto: ${_formatDateTime(context, chamado.remarcacaoSolicitadaPara!)}',
+                  ),
+                ],
+                if (chamado.status ==
+                    ChamadoStatus.aguardandoConfirmacaoCliente) ...[
+                  const SizedBox(height: 12),
+                  _NoticeBox(
+                    icon: Icons.fact_check_outlined,
+                    text: isPrestador
+                        ? 'Aguardando o cliente revisar as evidencias e confirmar a conclusao.'
+                        : 'O prestador concluiu o atendimento. Revise as evidencias para confirmar.',
                   ),
                 ],
                 ..._actions(),
@@ -310,6 +323,24 @@ class ChamadoCard extends StatelessWidget {
     }
 
     if (!isPrestador &&
+        chamado.status == ChamadoStatus.aguardandoConfirmacaoCliente) {
+      return [
+        const SizedBox(height: 14),
+        _ActionButton(
+          label: 'Revisar e confirmar',
+          color: AppColors.statusConcluido,
+          icon: Icons.fact_check_outlined,
+          onTap: onConfirmarConclusao,
+        ),
+      ];
+    }
+
+    if (isPrestador &&
+        chamado.status == ChamadoStatus.aguardandoConfirmacaoCliente) {
+      return const [];
+    }
+
+    if (!isPrestador &&
         chamado.status == ChamadoStatus.concluido &&
         onAvaliar != null) {
       return [
@@ -377,9 +408,13 @@ class _MetaChip extends StatelessWidget {
 }
 
 class _NoticeBox extends StatelessWidget {
-  const _NoticeBox({required this.text});
+  const _NoticeBox({
+    required this.text,
+    this.icon = Icons.event_repeat_rounded,
+  });
 
   final String text;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
@@ -392,7 +427,7 @@ class _NoticeBox extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.event_repeat_rounded, color: AppColors.primary),
+          Icon(icon, color: AppColors.primary),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

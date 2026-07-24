@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../../core/config/amauc_constants.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/validation/form_validators.dart';
 import '../../../domain/entities/user.dart';
 import 'auth_text_field.dart';
@@ -258,7 +258,7 @@ class _RegisterWizardState extends State<RegisterWizard> {
         Text(
           'Passo 1: Credenciais rápidas',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Colors.white,
+                color: context.appTextPrimary,
                 fontWeight: FontWeight.bold,
               ),
         ),
@@ -266,7 +266,7 @@ class _RegisterWizardState extends State<RegisterWizard> {
         Text(
           'Escolha seu perfil e defina e-mail e senha de acesso.',
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.5),
+            color: context.appMuted,
             fontSize: 13,
           ),
         ),
@@ -338,7 +338,7 @@ class _RegisterWizardState extends State<RegisterWizard> {
         Text(
           'Passo 2: Dados de perfil',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Colors.white,
+                color: context.appTextPrimary,
                 fontWeight: FontWeight.bold,
               ),
         ),
@@ -346,7 +346,7 @@ class _RegisterWizardState extends State<RegisterWizard> {
         Text(
           'Complete suas informações e confirme o consentimento legal.',
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.5),
+            color: context.appMuted,
             fontSize: 13,
           ),
         ),
@@ -360,10 +360,10 @@ class _RegisterWizardState extends State<RegisterWizard> {
           validator: FormValidators.name,
         ),
         const SizedBox(height: 20),
-        const Text(
+        Text(
           'Cidade AMAUC',
           style: TextStyle(
-            color: Colors.white,
+            color: context.appTextPrimary,
             fontWeight: FontWeight.bold,
             fontSize: 13,
           ),
@@ -371,20 +371,21 @@ class _RegisterWizardState extends State<RegisterWizard> {
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           initialValue: _cidadeSelecionada,
-          dropdownColor: const Color(0xFF1E293B),
+          dropdownColor: context.appPanel,
           decoration: InputDecoration(
+            labelText: 'Cidade AMAUC',
             filled: true,
-            fillColor: const Color(0xFF1E293B),
+            fillColor: context.appPanel,
             prefixIcon: const Icon(Icons.location_city_outlined),
             hintText: 'Selecione sua cidade',
-            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.45)),
+            hintStyle: TextStyle(color: context.appMuted),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide.none,
+              borderSide: BorderSide(color: context.appBorder),
             ),
           ),
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: context.appTextPrimary,
             fontWeight: FontWeight.w700,
           ),
           items: AmaucConstants.cidades
@@ -441,10 +442,10 @@ class _RegisterWizardState extends State<RegisterWizard> {
         ),
         if (widget.tipoSelecionado.isPrestador) ...[
           const SizedBox(height: 20),
-          const Text(
+          Text(
             'Categorias de serviço',
             style: TextStyle(
-              color: Colors.white,
+              color: context.appTextPrimary,
               fontWeight: FontWeight.bold,
               fontSize: 13,
             ),
@@ -459,19 +460,20 @@ class _RegisterWizardState extends State<RegisterWizard> {
                 avatar: Icon(
                   cat.icon,
                   size: 16,
-                  color: selected ? AppColors.actionForeground : cat.cor,
+                  color: selected ? context.appOnBrand : cat.cor,
                 ),
                 label: Text(
                   cat.nome,
                   style: TextStyle(
-                    color:
-                        selected ? AppColors.actionForeground : Colors.white70,
+                    color: selected
+                        ? context.appOnBrand
+                        : context.appTextSecondary,
                     fontSize: 12,
                   ),
                 ),
                 selected: selected,
-                selectedColor: const Color(0xFF3B82F6),
-                backgroundColor: const Color(0xFF1E293B),
+                selectedColor: context.appBrand,
+                backgroundColor: context.appPanel,
                 onSelected: (_) {
                   setState(() {
                     if (selected) {
@@ -491,7 +493,10 @@ class _RegisterWizardState extends State<RegisterWizard> {
             const SizedBox(height: 8),
             Text(
               _chipsError!,
-              style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+                fontSize: 12,
+              ),
             ),
           ],
           const SizedBox(height: 16),
@@ -561,7 +566,10 @@ class _RegisterWizardState extends State<RegisterWizard> {
           const SizedBox(height: 6),
           Text(
             _captchaError!,
-            style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.error,
+              fontSize: 12,
+            ),
           ),
         ],
       ],
@@ -578,8 +586,8 @@ class _RegisterWizardState extends State<RegisterWizard> {
             child: OutlinedButton(
               onPressed: widget.loading ? null : _previousStep,
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white70,
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                foregroundColor: context.appTextPrimary,
+                side: BorderSide(color: context.appBorder),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -598,30 +606,29 @@ class _RegisterWizardState extends State<RegisterWizard> {
                     ? _submit
                     : _nextStep,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF3B82F6),
-              foregroundColor: AppColors.actionForeground,
-              disabledBackgroundColor:
-                  const Color(0xFF3B82F6).withValues(alpha: 0.5),
+              backgroundColor: context.appBrand,
+              foregroundColor: context.appOnBrand,
+              disabledBackgroundColor: context.appBrand.withValues(alpha: 0.5),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
             child: widget.loading
-                ? const SizedBox(
+                ? SizedBox(
                     height: 20,
                     width: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: AppColors.actionForeground,
+                      color: context.appOnBrand,
                     ),
                   )
                 : Text(
                     isLastStep ? 'Criar Conta' : 'Continuar',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.actionForeground,
+                      color: context.appOnBrand,
                     ),
                   ),
           ),
@@ -661,11 +668,11 @@ class _RoleCard extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: selected
-                  ? const Color(0xFF3B82F6).withValues(alpha: 0.2)
-                  : const Color(0xFF1E293B),
+                  ? context.appBrand.withValues(alpha: 0.16)
+                  : context.appPanel,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: selected ? const Color(0xFF3B82F6) : Colors.transparent,
+                color: selected ? context.appBrand : context.appBorder,
                 width: 2,
               ),
             ),
@@ -674,7 +681,7 @@ class _RoleCard extends StatelessWidget {
                 Icon(
                   icon,
                   size: 32,
-                  color: selected ? const Color(0xFF3B82F6) : Colors.white54,
+                  color: selected ? context.appBrand : context.appMuted,
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -683,13 +690,13 @@ class _RoleCard extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
-                    color: selected ? Colors.white : Colors.white70,
+                    color: context.appTextPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  style: TextStyle(fontSize: 11, color: context.appMuted),
                 ),
               ],
             ),

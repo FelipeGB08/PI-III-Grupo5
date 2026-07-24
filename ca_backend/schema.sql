@@ -1,9 +1,12 @@
 -- Schema oficial do Conecta AMAUC (PostgreSQL)
 -- Execute: npm run db:migrate
 
-DROP TABLE IF EXISTS avaliacoes CASCADE;
-DROP TABLE IF EXISTS chat_mensagens CASCADE;
-DROP TABLE IF EXISTS notificacoes CASCADE;
+  DROP TABLE IF EXISTS avaliacoes CASCADE;
+  DROP TABLE IF EXISTS denuncias CASCADE;
+  DROP TABLE IF EXISTS chat_mensagens CASCADE;
+  DROP TABLE IF EXISTS notificacoes_disponibilidade_favoritos CASCADE;
+  DROP TABLE IF EXISTS preferencias_notificacao CASCADE;
+  DROP TABLE IF EXISTS notificacoes CASCADE;
 DROP TABLE IF EXISTS dispositivo_tokens CASCADE;
 DROP TABLE IF EXISTS profissional_agenda_horarios CASCADE;
 DROP TABLE IF EXISTS profissional_agenda_servicos CASCADE;
@@ -11,6 +14,7 @@ DROP TABLE IF EXISTS servicos_solicitados CASCADE;
 DROP TABLE IF EXISTS profissional_categorias CASCADE;
 DROP TABLE IF EXISTS perfis_profissionais CASCADE;
 DROP TABLE IF EXISTS categorias CASCADE;
+DROP TABLE IF EXISTS oauth_login_tickets CASCADE;
 DROP TABLE IF EXISTS refresh_tokens CASCADE;
 DROP TABLE IF EXISTS usuarios CASCADE;
 
@@ -52,6 +56,20 @@ CREATE INDEX idx_refresh_tokens_validade
     ON refresh_tokens (token_hash, expira_em)
     WHERE revogado_em IS NULL;
 
+CREATE TABLE oauth_login_tickets (
+    id BIGSERIAL PRIMARY KEY,
+    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    state_hash CHAR(64) NOT NULL,
+    criado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    expira_em TIMESTAMP NOT NULL,
+    consumido_em TIMESTAMP NULL
+);
+
+CREATE INDEX idx_oauth_login_tickets_validade
+    ON oauth_login_tickets (token_hash, state_hash, expira_em)
+    WHERE consumido_em IS NULL;
+
 CREATE TABLE perfis_profissionais (
     id SERIAL PRIMARY KEY,
     usuario_id INTEGER NOT NULL UNIQUE REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -62,6 +80,20 @@ CREATE TABLE perfis_profissionais (
     certificacoes TEXT[] NOT NULL DEFAULT '{}',
     anos_experiencia INTEGER DEFAULT 0,
     verificado BOOLEAN DEFAULT FALSE,
+    status_verificacao VARCHAR(20) NOT NULL DEFAULT 'nao_enviado'
+        CHECK (
+            status_verificacao IN (
+                'nao_enviado',
+                'pendente',
+                'aprovado',
+                'rejeitado'
+            )
+        ),
+    documento_url VARCHAR(500),
+    enviado_em TIMESTAMP,
+    revisado_em TIMESTAMP,
+    revisado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+    motivo_rejeicao TEXT,
     atende_rural BOOLEAN NOT NULL DEFAULT FALSE,
     atende_emergencia BOOLEAN NOT NULL DEFAULT FALSE,
     possui_veiculo BOOLEAN NOT NULL DEFAULT FALSE,
@@ -108,6 +140,16 @@ CREATE TABLE servicos_solicitados (
     servico_nome VARCHAR(120),
     descricao TEXT NOT NULL,
     endereco_atendimento TEXT,
+    atendimento_latitude NUMERIC(10, 7)
+        CHECK (
+            atendimento_latitude IS NULL
+            OR atendimento_latitude BETWEEN -90 AND 90
+        ),
+    atendimento_longitude NUMERIC(10, 7)
+        CHECK (
+            atendimento_longitude IS NULL
+            OR atendimento_longitude BETWEEN -180 AND 180
+        ),
     agendado_para TIMESTAMP,
     duracao_minutos INTEGER,
     foto_url VARCHAR(500),
@@ -119,6 +161,7 @@ CREATE TABLE servicos_solicitados (
                 'proposta_valor',
                 'aceito',
                 'recusado',
+                'aguardando_confirmacao_cliente',
                 'concluido',
                 'cancelado_cliente',
                 'remarcacao_solicitada'
@@ -134,8 +177,36 @@ CREATE TABLE servicos_solicitados (
     reembolso_status VARCHAR(40),
     motivo_remarcacao TEXT,
     remarcacao_solicitada_para TIMESTAMP,
+    conclusao_solicitada_em TIMESTAMP,
+    conclusao_confirmada_em TIMESTAMP,
+    conclusao_confirmada_automaticamente BOOLEAN NOT NULL DEFAULT FALSE,
     criado_em TIMESTAMP DEFAULT NOW(),
     atualizado_em TIMESTAMP
+);
+
+CREATE INDEX idx_profissional_agenda_horarios_ativos
+    ON profissional_agenda_horarios (profissional_id, dia_semana, horario)
+    WHERE ativo = TRUE;
+
+CREATE TABLE denuncias (
+    id BIGSERIAL PRIMARY KEY,
+    servico_solicitado_id INTEGER NOT NULL
+        REFERENCES servicos_solicitados(id) ON DELETE RESTRICT,
+    denunciante_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+    motivo VARCHAR(40) NOT NULL
+        CHECK (motivo IN (
+            'servico_nao_realizado',
+            'cobranca_indevida',
+            'comportamento_inadequado',
+            'outro'
+        )),
+    descricao TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'aberta'
+        CHECK (status IN ('aberta', 'em_analise', 'resolvida', 'arquivada')),
+    criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    resolvido_em TIMESTAMP,
+    resolucao_admin TEXT,
+    resolvido_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
 CREATE TABLE avaliacoes (
@@ -150,6 +221,7 @@ CREATE TABLE chat_mensagens (
     id SERIAL PRIMARY KEY,
     servico_id INTEGER NOT NULL REFERENCES servicos_solicitados(id) ON DELETE CASCADE,
     remetente_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    client_id VARCHAR(64),
     mensagem TEXT NOT NULL,
     lida_em TIMESTAMP,
     criado_em TIMESTAMP DEFAULT NOW(),
@@ -161,6 +233,9 @@ CREATE INDEX idx_chat_mensagens_servico_criado
 
 CREATE INDEX idx_chat_mensagens_remetente
     ON chat_mensagens (remetente_id);
+
+CREATE UNIQUE INDEX idx_chat_mensagens_remetente_client_id
+    ON chat_mensagens (remetente_id, client_id);
 
 CREATE TABLE dispositivo_tokens (
     id SERIAL PRIMARY KEY,
@@ -210,8 +285,49 @@ CREATE TABLE favoritos_profissionais (
 CREATE INDEX idx_favoritos_usuario
     ON favoritos_profissionais (usuario_id, criado_em DESC);
 
-CREATE INDEX idx_favoritos_profissional
-    ON favoritos_profissionais (profissional_id);
+  CREATE INDEX idx_favoritos_profissional
+      ON favoritos_profissionais (profissional_id);
+
+  CREATE TABLE preferencias_notificacao (
+      usuario_id INTEGER PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
+      novos_horarios_favoritos BOOLEAN NOT NULL DEFAULT TRUE,
+      atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE notificacoes_disponibilidade_favoritos (
+      cliente_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      profissional_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      notificado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (cliente_id, profissional_id),
+      CHECK (cliente_id <> profissional_id)
+  );
+
+  CREATE INDEX idx_notificacoes_disponibilidade_profissional
+      ON notificacoes_disponibilidade_favoritos (profissional_id, notificado_em DESC);
+
+CREATE INDEX idx_servicos_solicitados_foto_url
+    ON servicos_solicitados (foto_url)
+    WHERE foto_url IS NOT NULL;
+
+CREATE INDEX idx_servicos_solicitados_fotos_conclusao
+    ON servicos_solicitados USING GIN (fotos_conclusao);
+
+CREATE INDEX idx_servicos_aguardando_confirmacao
+    ON servicos_solicitados (conclusao_solicitada_em)
+    WHERE status = 'aguardando_confirmacao_cliente';
+
+CREATE INDEX idx_perfis_profissionais_verificacao_pendente
+    ON perfis_profissionais (enviado_em ASC)
+    WHERE status_verificacao = 'pendente';
+
+CREATE INDEX idx_denuncias_status_criado_em
+    ON denuncias (status, criado_em DESC);
+
+CREATE INDEX idx_denuncias_servico
+    ON denuncias (servico_solicitado_id, criado_em DESC);
+
+CREATE INDEX idx_denuncias_denunciante
+    ON denuncias (denunciante_id, criado_em DESC);
 
 CREATE OR REPLACE FUNCTION validar_papeis_servico()
 RETURNS TRIGGER AS $$

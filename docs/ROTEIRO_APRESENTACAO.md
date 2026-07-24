@@ -169,11 +169,11 @@ Finalize com:
 
 ## Plano B para apresentação
 
-Se o mapa real falhar no Web:
+Se o serviço de mapa ou rota estiver indisponível:
 
-- use o fallback visual;
-- explique que o app nativo usa chave Google Maps configurada no Android;
-- demonstre o filtro por raio funcionando pelos cards/listagem.
+- explique que o mapa usa OpenStreetMap e a rota usa OSRM, sem chave externa;
+- demonstre que a busca por raio continua funcionando pelos cards/listagem;
+- mostre a distância em linha reta usada como fallback da rota.
 
 Se GPS falhar no emulador:
 

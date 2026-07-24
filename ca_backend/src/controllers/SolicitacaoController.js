@@ -1,6 +1,9 @@
 const ServicoModel = require('../models/ServicoModel');
 const UserModel = require('../models/UserModel');
 const { validarAgendamento } = require('../services/agendamentoValidator');
+const {
+    confirmarConclusoesExpiradas,
+} = require('../services/conclusaoService');
 const { notificarUsuarioSemBloquear } = require('../services/notificationService');
 
 const normalizarTexto = (valor) => {
@@ -65,10 +68,10 @@ function notificarStatusCliente(solicitacao) {
             titulo: 'Chamado recusado',
             corpo: 'O prestador recusou sua solicitacao.',
         },
-        concluido: {
-            tipo: 'chamado_concluido',
-            titulo: 'Chamado concluido',
-            corpo: 'Seu atendimento foi marcado como concluido. Avalie o servico.',
+        aguardando_confirmacao_cliente: {
+            tipo: 'confirmacao_conclusao_pendente',
+            titulo: 'Confirme a conclusao do servico',
+            corpo: 'O prestador encerrou o atendimento e enviou evidencias. Confirme a conclusao no aplicativo.',
         },
     };
 
@@ -99,6 +102,7 @@ const SolicitacaoController = {
                 return res.status(400).json({ erro: 'ID da solicitacao invalido.' });
             }
 
+            await confirmarConclusoesExpiradas({ servicoId: id });
             const solicitacao = await ServicoModel.buscarDetalhadoPorId(id, usuarioId);
             if (!solicitacao) {
                 return res.status(404).json({ erro: 'Solicitacao nao encontrada.' });
@@ -123,6 +127,28 @@ const SolicitacaoController = {
             const enderecoAtendimento = normalizarTexto(
                 req.body.endereco_atendimento || req.body.enderecoAtendimento
             );
+            const latitudeAtendimentoInformada =
+                req.body.atendimento_latitude ??
+                req.body.latitude_atendimento ??
+                req.body.atendimentoLatitude;
+            const longitudeAtendimentoInformada =
+                req.body.atendimento_longitude ??
+                req.body.longitude_atendimento ??
+                req.body.atendimentoLongitude;
+            const latitudeAtendimento = (
+                latitudeAtendimentoInformada === undefined ||
+                latitudeAtendimentoInformada === null ||
+                String(latitudeAtendimentoInformada).trim() === ''
+            )
+                ? null
+                : Number(latitudeAtendimentoInformada);
+            const longitudeAtendimento = (
+                longitudeAtendimentoInformada === undefined ||
+                longitudeAtendimentoInformada === null ||
+                String(longitudeAtendimentoInformada).trim() === ''
+            )
+                ? null
+                : Number(longitudeAtendimentoInformada);
             const fotoUrl = normalizarTexto(req.body.foto_url || req.body.fotoUrl) || null;
             const agendaServicoId = req.body.agenda_servico_id
                 ? Number(req.body.agenda_servico_id)
@@ -163,6 +189,13 @@ const SolicitacaoController = {
                     agenda_servico_id: dadosAgenda.agenda_servico_id,
                     servico_nome: dadosAgenda.servico_nome,
                     endereco_atendimento: enderecoAtendimento || null,
+                    ...(latitudeAtendimento !== null &&
+                    longitudeAtendimento !== null
+                        ? {
+                            atendimento_latitude: latitudeAtendimento,
+                            atendimento_longitude: longitudeAtendimento,
+                        }
+                        : {}),
                     agendado_para: dadosAgenda.agendado_para,
                     preco: dadosAgenda.preco,
                     duracao_minutos: dadosAgenda.duracao_minutos,
@@ -198,6 +231,7 @@ const SolicitacaoController = {
                 return res.status(401).json({ erro: 'Usuario nao autenticado.' });
             }
 
+            await confirmarConclusoesExpiradas();
             const resultado = await ServicoModel.buscarPorCidadao(
                 cidadaoId,
                 status,
@@ -227,6 +261,7 @@ const SolicitacaoController = {
                 return res.status(401).json({ erro: 'Usuario nao autenticado.' });
             }
 
+            await confirmarConclusoesExpiradas();
             const resultado = await ServicoModel.buscarPorProfissional(
                 profId,
                 status,
@@ -261,6 +296,7 @@ const SolicitacaoController = {
                 return res.status(403).json({ erro: 'Perfil sem acesso ao financeiro.' });
             }
 
+            await confirmarConclusoesExpiradas();
             const financeiro = await ServicoModel.buscarFinanceiroUsuario({
                 usuarioId,
                 perfilTipo,
@@ -300,13 +336,16 @@ const SolicitacaoController = {
                 });
             }
 
-            const solicitacaoAtualizada = await ServicoModel.atualizarStatus(
-                id,
-                profId,
-                status
-            );
+            const solicitacaoAtualizada = status === 'concluido'
+                ? await ServicoModel.marcarConclusaoPeloPrestador(id, profId)
+                : await ServicoModel.atualizarStatus(id, profId, status);
 
             if (!solicitacaoAtualizada) {
+                if (status === 'concluido') {
+                    return res.status(409).json({
+                        erro: 'A conclusao exige um chamado aceito e ao menos uma foto de evidencia.',
+                    });
+                }
                 return res.status(404).json({
                     erro: 'Solicitacao nao encontrada ou status invalido.',
                 });
@@ -315,7 +354,9 @@ const SolicitacaoController = {
             notificarStatusCliente(solicitacaoAtualizada);
 
             return res.status(200).json({
-                mensagem: 'Status atualizado com sucesso.',
+                mensagem: status === 'concluido'
+                    ? 'Conclusao enviada para confirmacao do cliente.'
+                    : 'Status atualizado com sucesso.',
                 solicitacao: solicitacaoAtualizada,
                 servico: solicitacaoAtualizada,
             });
@@ -323,6 +364,69 @@ const SolicitacaoController = {
             console.error('Erro ao atualizar status da solicitacao:', erro);
             return res.status(500).json({
                 erro: 'Erro interno ao atualizar status da solicitacao.',
+            });
+        }
+    },
+
+    confirmarConclusao: async (req, res) => {
+        try {
+            const id = Number(req.params.id);
+            const cidadaoId = obterIdUsuarioLogado(req);
+
+            if (!cidadaoId) {
+                return res.status(401).json({ erro: 'Usuario nao autenticado.' });
+            }
+
+            if (!id) {
+                return res.status(400).json({ erro: 'ID da solicitacao invalido.' });
+            }
+
+            const confirmadasAutomaticamente = await confirmarConclusoesExpiradas({
+                servicoId: id,
+            });
+            const confirmadaAutomaticamente = confirmadasAutomaticamente.find(
+                (item) => Number(item.cidadao_id) === Number(cidadaoId)
+            );
+            if (confirmadaAutomaticamente) {
+                return res.status(200).json({
+                    mensagem: 'Conclusao confirmada automaticamente apos o prazo de 72 horas.',
+                    solicitacao: confirmadaAutomaticamente,
+                    servico: confirmadaAutomaticamente,
+                });
+            }
+
+            const solicitacao = await ServicoModel.confirmarConclusaoPeloCliente(
+                id,
+                cidadaoId
+            );
+
+            if (!solicitacao) {
+                return res.status(409).json({
+                    erro: 'Solicitacao nao encontrada, ja concluida ou sem confirmacao pendente.',
+                });
+            }
+
+            notificarUsuarioSemBloquear({
+                usuarioId: solicitacao.prof_id,
+                tipo: 'conclusao_confirmada_cliente',
+                titulo: 'Conclusao confirmada',
+                corpo: 'O cliente confirmou a conclusao do atendimento.',
+                payload: {
+                    solicitacao_id: solicitacao.id,
+                    status: solicitacao.status,
+                    destino: 'agendamento',
+                },
+            });
+
+            return res.status(200).json({
+                mensagem: 'Conclusao confirmada com sucesso.',
+                solicitacao,
+                servico: solicitacao,
+            });
+        } catch (erro) {
+            console.error('Erro ao confirmar conclusao da solicitacao:', erro);
+            return res.status(500).json({
+                erro: 'Erro interno ao confirmar conclusao da solicitacao.',
             });
         }
     },
@@ -468,7 +572,7 @@ const SolicitacaoController = {
                 return res.status(400).json({ erro: 'Envie ao menos uma foto do servico concluido.' });
             }
 
-            const fotos = arquivos.map((arquivo) => `/uploads/${arquivo.filename}`);
+            const fotos = arquivos.map((arquivo) => arquivo.url);
             const solicitacao = await ServicoModel.adicionarFotosConclusao(id, profId, fotos);
 
             if (!solicitacao) {

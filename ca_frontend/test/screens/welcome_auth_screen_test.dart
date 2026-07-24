@@ -1,4 +1,5 @@
 import 'package:ca_frontend/domain/entities/user.dart';
+import 'package:ca_frontend/core/theme/app_theme.dart';
 import 'package:ca_frontend/presentation/providers/providers.dart';
 import 'package:ca_frontend/presentation/screens/auth/welcome_auth_screen.dart';
 import 'package:flutter/material.dart';
@@ -63,5 +64,64 @@ void main() {
     expect(authRepository.loginSenha, 'senha123');
     expect(find.text('Login realizado com sucesso!'), findsOneWidget);
     semantics.dispose();
+  });
+
+  testWidgets('login e cadastro aplicam a paleta global de alto contraste',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final user = User(
+      id: 1,
+      nome: 'Ana Cliente',
+      email: 'ana@teste.com',
+      tipo: UserTipo.cidadao,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          authStateProvider.overrideWith(
+            (ref) => AuthNotifier(
+              FakeAuthRepository(user),
+              initialState: const AuthState(),
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light(highContrast: true),
+          home: const WelcomeAuthScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+    expect(scaffold.backgroundColor, Colors.white);
+    final loginField = tester.widget<TextField>(
+      find.byType(TextField).first,
+    );
+    expect(loginField.decoration?.fillColor, Colors.white);
+    expect(
+      (loginField.decoration?.enabledBorder as OutlineInputBorder)
+          .borderSide
+          .color,
+      Colors.black,
+    );
+
+    await tester.tap(find.text('Criar conta'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Passo 1:'), findsOneWidget);
+    final registerField = tester.widget<TextField>(
+      find.byType(TextField).first,
+    );
+    expect(registerField.decoration?.fillColor, Colors.white);
+    expect(
+      (registerField.decoration?.enabledBorder as OutlineInputBorder)
+          .borderSide
+          .color,
+      Colors.black,
+    );
   });
 }

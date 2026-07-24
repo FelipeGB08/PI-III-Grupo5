@@ -42,7 +42,7 @@ class _PrestadoresMapScreenState extends ConsumerState<PrestadoresMapScreen> {
 
   Future<void> _carregarLocalizacaoCliente() async {
     final user = ref.read(authStateProvider).user;
-    final cidade = user?.cidadeAmauc ?? 'ConcÃ³rdia';
+    final cidade = user?.cidadeAmauc ?? 'Concórdia';
     final fallback = AmaucConstants.coordenadasCidade(cidade);
     final lat = user?.latitude ?? fallback.lat;
     final lng = user?.longitude ?? fallback.lng;
@@ -65,7 +65,7 @@ class _PrestadoresMapScreenState extends ConsumerState<PrestadoresMapScreen> {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        _showSnack('Ative a localizaÃ§Ã£o do dispositivo para usar o mapa.');
+        _showSnack('Ative a localização do dispositivo para usar o mapa.');
         return;
       }
 
@@ -75,8 +75,7 @@ class _PrestadoresMapScreenState extends ConsumerState<PrestadoresMapScreen> {
       }
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
-        _showSnack(
-            'Permita a localizaÃ§Ã£o para buscar prestadores prÃ³ximos.');
+        _showSnack('Permita a localização para buscar prestadores próximos.');
         return;
       }
 
@@ -88,9 +87,9 @@ class _PrestadoresMapScreenState extends ConsumerState<PrestadoresMapScreen> {
       lat = pos.latitude;
       lng = pos.longitude;
       setState(() => _centro = LatLng(lat!, lng!));
-      _showSnack('Mapa atualizado com sua localizaÃ§Ã£o atual.');
+      _showSnack('Mapa atualizado com sua localização atual.');
     } catch (_) {
-      _showSnack('NÃ£o foi possÃ­vel capturar sua localizaÃ§Ã£o agora.');
+      _showSnack('Não foi possível capturar sua localização agora.');
     } finally {
       if (mounted) setState(() => _capturandoGps = false);
     }
@@ -205,7 +204,7 @@ class _PrestadoresMapScreenState extends ConsumerState<PrestadoresMapScreen> {
         title: const Text('Mapa de Prestadores'),
         actions: [
           IconButton(
-            tooltip: 'Usar minha localizaÃ§Ã£o',
+            tooltip: 'Usar minha localização',
             onPressed: _capturandoGps ? null : _carregarComGps,
             icon: _capturandoGps
                 ? const SizedBox.square(
@@ -234,6 +233,11 @@ class _PrestadoresMapScreenState extends ConsumerState<PrestadoresMapScreen> {
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'br.edu.ifc.conecta_amauc',
                 maxZoom: 19,
+              ),
+              SimpleAttributionWidget(
+                source: const Text('OpenStreetMap contributors'),
+                alignment: Alignment.topRight,
+                backgroundColor: context.appCard.withValues(alpha: 0.88),
               ),
               CircleLayer(
                 circles: [
@@ -385,6 +389,15 @@ class _RadiusPanel extends ConsumerWidget {
             child: Text(
               'Centro: ${centro.latitude.toStringAsFixed(5)}, ${centro.longitude.toStringAsFixed(5)}',
               style: TextStyle(color: context.appMuted, fontSize: 11),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Os prestadores aparecem no centro aproximado do municipio; '
+              'o endereco pessoal nao e publicado.',
+              style: TextStyle(fontSize: 11),
             ),
           ),
         ],
@@ -644,6 +657,16 @@ class _RoutePanel extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
+                if (prestador.localizacaoAproximada) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Destino aproximado pelo municipio',
+                    style: TextStyle(
+                      color: context.appMuted,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -694,7 +717,7 @@ class _EmptyMapResults extends StatelessWidget {
         border: Border.all(color: context.appBorder),
       ),
       child: Text(
-        'Nenhum prestador com localizaÃ§Ã£o encontrada neste raio.',
+        'Nenhum prestador com localização encontrada neste raio.',
         textAlign: TextAlign.center,
         style: TextStyle(color: context.appMuted),
       ),

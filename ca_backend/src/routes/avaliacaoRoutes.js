@@ -1,8 +1,11 @@
 const express = require('express');
 const AvaliacaoController = require('../controllers/AvaliacaoController');
 const verificarToken = require('../middlewares/authMiddleware');
+const { requireRole } = require('../middlewares/roleMiddleware');
 const validate = require('../middlewares/validateMiddleware');
+const { criarAvaliacaoSchema } = require('../validators/avaliacaoSchemas');
 const { paginacaoQuerySchema } = require('../validators/paginationSchemas');
+const { idParamSchema } = require('../validators/commonSchemas');
 
 const router = express.Router();
 
@@ -56,12 +59,20 @@ const router = express.Router();
  *                 avaliacoes: { type: array, items: { $ref: '#/components/schemas/Avaliacao' } }
  *                 total: { type: integer, example: 42 }
  *                 hasMore: { type: boolean, example: true }
+ *       '400': { $ref: '#/components/responses/BadRequest' }
  *       '500': { $ref: '#/components/responses/InternalError' }
  */
 
-router.post('/', verificarToken, AvaliacaoController.criarAvaliacao);
+router.post(
+    '/',
+    verificarToken,
+    requireRole('cidadao'),
+    validate(criarAvaliacaoSchema),
+    AvaliacaoController.criarAvaliacao
+);
 router.get(
     '/profissional/:id',
+    validate(idParamSchema, 'params'),
     validate(paginacaoQuerySchema, 'query'),
     AvaliacaoController.listarDoProfissional
 );

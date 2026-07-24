@@ -1,14 +1,15 @@
 const { cidadePermitida } = require('../config/amaucCidades');
 
+const PERFIS_AUTOCADASTRO = new Set(['cidadao', 'profissional']);
+
 function normalizarPerfilTipo(valor) {
     if (!valor) return null;
-    const mapa = {
-        cidadao: 'cidadao',
-        cidadão: 'cidadao',
-        profissional: 'profissional',
-        admin: 'admin',
-    };
-    return mapa[String(valor).toLowerCase()] || null;
+    const perfil = String(valor)
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+    return PERFIS_AUTOCADASTRO.has(perfil) ? perfil : null;
 }
 
 function normalizarListaCidades(cidades) {
@@ -31,6 +32,7 @@ function normalizarListaCidades(cidades) {
 }
 
 module.exports = {
+    PERFIS_AUTOCADASTRO,
     normalizarListaCidades,
     normalizarPerfilTipo,
 };

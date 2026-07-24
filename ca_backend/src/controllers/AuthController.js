@@ -9,10 +9,14 @@ const {
     revogarRefreshToken,
 } = require('../services/authTokenService');
 const {
+    desconectarSocketsDaSessao,
+} = require('../services/chatSocketRegistry');
+const {
     criarRespostaLogin,
     montarRespostaUsuario,
 } = require('../services/authResponseService');
 const {
+    PERFIS_AUTOCADASTRO,
     normalizarListaCidades,
     normalizarPerfilTipo,
 } = require('../utils/userRegistrationHelpers');
@@ -56,6 +60,14 @@ const AuthController = {
             const categoriaProfissional = Array.isArray(categorias)
                 ? categorias[0]
                 : (categoria || categorias);
+
+            // Defesa em profundidade: nenhuma chamada direta ao controller pode
+            // criar um usuario administrativo.
+            if (!perfilInformado || !PERFIS_AUTOCADASTRO.has(perfilInformado)) {
+                return res.status(400).json({
+                    erro: 'perfil_tipo deve ser "cidadao" ou "profissional".',
+                });
+            }
 
             const cidadeValidada = cidadePermitida(cidadeInformada);
             if (!cidadeValidada) {
@@ -172,7 +184,7 @@ const AuthController = {
                 });
             }
 
-            const accessToken = criarAccessToken(usuario);
+            const accessToken = criarAccessToken(usuario, usuario.sessao_id);
             return res.status(200).json({
                 mensagem: 'Sessao renovada com sucesso!',
                 token: accessToken,
@@ -192,7 +204,13 @@ const AuthController = {
 
     logout: async (req, res) => {
         try {
-            await revogarRefreshToken(req.body.refresh_token);
+            const sessaoRevogada = await revogarRefreshToken(req.body.refresh_token);
+            if (sessaoRevogada) {
+                desconectarSocketsDaSessao(
+                    sessaoRevogada.id,
+                    'Sessao encerrada por logout.'
+                );
+            }
             return res.status(200).json({ mensagem: 'Logout realizado com sucesso!' });
         } catch (erro) {
             logger.error('Falha ao realizar logout.', {

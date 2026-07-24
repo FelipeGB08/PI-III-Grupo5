@@ -102,6 +102,142 @@ const PerfilModel = {
         return resultado.rows[0];
     },
 
+    buscarVerificacaoPorUsuarioId: async (usuarioId) => {
+        const resultado = await pool.query(
+            `
+            SELECT
+                id AS perfil_id,
+                usuario_id,
+                status_verificacao,
+                documento_url,
+                enviado_em,
+                revisado_em,
+                revisado_por,
+                motivo_rejeicao
+            FROM perfis_profissionais
+            WHERE usuario_id = $1;
+            `,
+            [usuarioId]
+        );
+        return resultado.rows[0];
+    },
+
+    buscarVerificacaoPorPerfilId: async (perfilId) => {
+        const resultado = await pool.query(
+            `
+            SELECT
+                pp.id AS perfil_id,
+                pp.usuario_id,
+                pp.status_verificacao,
+                pp.documento_url,
+                pp.enviado_em,
+                pp.revisado_em,
+                pp.revisado_por,
+                pp.motivo_rejeicao,
+                u.nome,
+                u.cidade_amauc
+            FROM perfis_profissionais pp
+            JOIN usuarios u ON u.id = pp.usuario_id
+            WHERE pp.id = $1;
+            `,
+            [perfilId]
+        );
+        return resultado.rows[0];
+    },
+
+    enviarDocumentoVerificacao: async (usuarioId, documentoUrl) => {
+        const resultado = await pool.query(
+            `
+            UPDATE perfis_profissionais
+            SET status_verificacao = 'pendente',
+                documento_url = $2,
+                enviado_em = CURRENT_TIMESTAMP,
+                revisado_em = NULL,
+                revisado_por = NULL,
+                motivo_rejeicao = NULL,
+                verificado = FALSE
+            WHERE usuario_id = $1
+            RETURNING
+                id AS perfil_id,
+                usuario_id,
+                status_verificacao,
+                documento_url,
+                enviado_em,
+                revisado_em,
+                revisado_por,
+                motivo_rejeicao;
+            `,
+            [usuarioId, documentoUrl]
+        );
+        return resultado.rows[0];
+    },
+
+    listarVerificacoesPendentes: async () => {
+        const resultado = await pool.query(`
+            SELECT
+                pp.id AS perfil_id,
+                pp.usuario_id,
+                pp.status_verificacao,
+                pp.enviado_em,
+                u.nome,
+                u.cidade_amauc
+            FROM perfis_profissionais pp
+            JOIN usuarios u ON u.id = pp.usuario_id
+            WHERE pp.status_verificacao = 'pendente'
+            ORDER BY pp.enviado_em ASC, pp.id ASC;
+        `);
+        return resultado.rows;
+    },
+
+    aprovarVerificacao: async (perfilId, adminId) => {
+        const resultado = await pool.query(
+            `
+            UPDATE perfis_profissionais
+            SET status_verificacao = 'aprovado',
+                verificado = TRUE,
+                revisado_em = CURRENT_TIMESTAMP,
+                revisado_por = $2,
+                motivo_rejeicao = NULL
+            WHERE id = $1
+              AND status_verificacao = 'pendente'
+            RETURNING
+                id AS perfil_id,
+                usuario_id,
+                status_verificacao,
+                enviado_em,
+                revisado_em,
+                revisado_por;
+            `,
+            [perfilId, adminId]
+        );
+        return resultado.rows[0];
+    },
+
+    rejeitarVerificacao: async (perfilId, adminId, motivoRejeicao) => {
+        const resultado = await pool.query(
+            `
+            UPDATE perfis_profissionais
+            SET status_verificacao = 'rejeitado',
+                verificado = FALSE,
+                revisado_em = CURRENT_TIMESTAMP,
+                revisado_por = $2,
+                motivo_rejeicao = $3
+            WHERE id = $1
+              AND status_verificacao = 'pendente'
+            RETURNING
+                id AS perfil_id,
+                usuario_id,
+                status_verificacao,
+                enviado_em,
+                revisado_em,
+                revisado_por,
+                motivo_rejeicao;
+            `,
+            [perfilId, adminId, motivoRejeicao]
+        );
+        return resultado.rows[0];
+    },
+
     listarTodos: async (filtros, { limit = 20, offset = 0 } = {}) => {
         let fromWhere = `
             FROM perfis_profissionais pp
@@ -144,8 +280,6 @@ const PerfilModel = {
             SELECT
                 u.id,
                 u.nome,
-                u.email,
-                u.telefone,
                 u.foto_url,
                 u.cidade_amauc,
                 pp.biografia,
@@ -154,7 +288,7 @@ const PerfilModel = {
                 pp.portfolio_fotos,
                 pp.certificacoes,
                 pp.anos_experiencia,
-                pp.verificado,
+                (pp.status_verificacao = 'aprovado') AS verificado,
                 pp.atende_rural,
                 pp.atende_emergencia,
                 pp.possui_veiculo,
@@ -166,7 +300,7 @@ const PerfilModel = {
                 ) AS categorias
             ${fromWhere}
             GROUP BY u.id, pp.id
-            ORDER BY pp.verificado DESC, u.nome ASC
+            ORDER BY (pp.status_verificacao = 'aprovado') DESC, u.nome ASC
             LIMIT $${contador} OFFSET $${contador + 1};
         `;
 

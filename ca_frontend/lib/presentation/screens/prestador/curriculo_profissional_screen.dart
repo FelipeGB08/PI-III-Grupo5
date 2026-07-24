@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/amauc_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../providers/providers.dart';
+import 'verificacao_profissional_screen.dart';
 
 class CurriculoProfissionalScreen extends ConsumerStatefulWidget {
   const CurriculoProfissionalScreen({super.key});
@@ -152,6 +153,18 @@ class _CurriculoProfissionalScreenState
           Text(
             'Mantenha sua apresentacao profissional pronta para os clientes.',
             style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const VerificacaoProfissionalScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.verified_user_outlined),
+            label: const Text('Verificacao do perfil'),
           ),
           const SizedBox(height: 24),
           if (state.isLoading)

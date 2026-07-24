@@ -90,8 +90,12 @@ class _ChamadosScreenState extends ConsumerState<ChamadosScreen>
                       isLoadingMore: state.isLoadingMore,
                     ),
                     _ChamadosList(
-                      chamados:
-                          _filter(state.chamados, ChamadoStatus.emAndamento),
+                      chamados: state.chamados
+                          .where((c) =>
+                              c.status == ChamadoStatus.emAndamento ||
+                              c.status ==
+                                  ChamadoStatus.aguardandoConfirmacaoCliente)
+                          .toList(),
                       isPrestador: isPrestador,
                       showConcluir: true,
                       hasMore: state.hasMore,
@@ -115,9 +119,6 @@ class _ChamadosScreenState extends ConsumerState<ChamadosScreen>
       ],
     );
   }
-
-  List<Chamado> _filter(List<Chamado> list, ChamadoStatus status) =>
-      list.where((c) => c.status == status).toList();
 }
 
 class _ChamadosList extends ConsumerWidget {
@@ -175,8 +176,12 @@ class _ChamadosList extends ConsumerWidget {
             isPrestador: isPrestador,
             onAceitar: () => ref.read(chamadosProvider.notifier).aceitar(c.id),
             onRecusar: () => ref.read(chamadosProvider.notifier).recusar(c.id),
-            onConcluir: showConcluir
-                ? () => ref.read(chamadosProvider.notifier).concluir(c.id)
+            onConcluir: showConcluir && c.status == ChamadoStatus.emAndamento
+                ? () => _abrirDetalhes(context, ref, c)
+                : null,
+            onConfirmarConclusao: !isPrestador &&
+                    c.status == ChamadoStatus.aguardandoConfirmacaoCliente
+                ? () => _abrirDetalhes(context, ref, c)
                 : null,
             onCancelar: !isPrestador && c.status == ChamadoStatus.pendente
                 ? () => _cancelarSolicitacao(context, ref, c)
@@ -212,16 +217,25 @@ class _ChamadosList extends ConsumerWidget {
             onAvaliar: showAvaliar && c.status == ChamadoStatus.concluido
                 ? () => AvaliacaoBottomSheet.show(context, c)
                 : null,
-            onDetalhes: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => AgendamentoDetalhesScreen(chamado: c),
-              ),
-            ),
+            onDetalhes: () => _abrirDetalhes(context, ref, c),
           );
         },
       ),
     );
+  }
+
+  Future<void> _abrirDetalhes(
+    BuildContext context,
+    WidgetRef ref,
+    Chamado chamado,
+  ) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AgendamentoDetalhesScreen(chamado: chamado),
+      ),
+    );
+    await ref.read(chamadosProvider.notifier).carregar();
   }
 
   Future<void> _proporValor(

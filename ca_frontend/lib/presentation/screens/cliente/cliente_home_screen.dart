@@ -41,38 +41,27 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 110),
         children: [
-          Row(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Ola, ${_firstName(user?.nome)}',
-                      style:
-                          Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                color: context.appTextPrimary,
-                                fontWeight: FontWeight.w900,
-                              ),
+              Text(
+                'Ola, ${_firstName(user?.nome)}',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: context.appTextPrimary,
+                      fontWeight: FontWeight.w900,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      user?.cidadeAmauc ?? 'Regiao AMAUC',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
               ),
-              IconButton.filledTonal(
-                onPressed: () {},
-                icon: const Icon(Icons.notifications_none_rounded),
+              const SizedBox(height: 4),
+              Text(
+                user?.cidadeAmauc ?? 'Regiao AMAUC',
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
             ],
           ),
           const SizedBox(height: 18),
           _HeroPanel(totalFavoritos: favoritos.length),
           const SizedBox(height: 22),
-          _SectionHeader(title: 'Categorias', action: 'Ver todas'),
+          const _SectionHeader(title: 'Categorias'),
           const SizedBox(height: 12),
           GridView.builder(
             shrinkWrap: true,
@@ -98,7 +87,7 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
             },
           ),
           const SizedBox(height: 24),
-          const _SectionHeader(title: 'Perto de mim', action: 'Atualizar'),
+          const _SectionHeader(title: 'Perto de mim'),
           const SizedBox(height: 12),
           if (state.isLoading)
             const _LoadingPanel()
@@ -121,7 +110,7 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
               ),
             ),
           const SizedBox(height: 24),
-          _PromoPanel(onTap: () {}),
+          const _PromoPanel(),
         ],
       ),
     );
@@ -203,33 +192,18 @@ class _HeroPanel extends StatelessWidget {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title, required this.action});
+  const _SectionHeader({required this.title});
 
   final String title;
-  final String action;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: context.appTextPrimary,
-                  fontWeight: FontWeight.w900,
-                ),
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: context.appTextPrimary,
+            fontWeight: FontWeight.w900,
           ),
-        ),
-        Text(
-          action,
-          style: const TextStyle(
-            color: AppColors.primary,
-            fontWeight: FontWeight.w800,
-            fontSize: 12,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -249,32 +223,41 @@ class _CategoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return Semantics(
+      button: true,
+      label: 'Buscar profissionais na categoria $label',
+      hint: 'Exibe profissionais desta categoria',
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: context.appCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: context.appBorder),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: context.appTextPrimary,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-              ),
+      child: InkWell(
+        excludeFromSemantics: true,
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: ExcludeSemantics(
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: context.appCard,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: context.appBorder),
             ),
-          ],
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: color, size: 24),
+                const SizedBox(height: 8),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: context.appTextPrimary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -289,68 +272,79 @@ class _NearbyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return Semantics(
+      button: true,
+      label:
+          '${prestador.nome}, ${prestador.categoria ?? prestador.cidade}, avaliacao ${prestador.mediaAvaliacao.toStringAsFixed(1)}',
+      hint: 'Abrir perfil do profissional',
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        width: 172,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: context.appCard,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: context.appBorder),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: InkWell(
+        excludeFromSemantics: true,
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: ExcludeSemantics(
+          child: Container(
+            width: 172,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: context.appCard,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: context.appBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ProfileAvatar(
-                  name: prestador.nome,
-                  imageUrl: prestador.fotoUrl,
-                  radius: 20,
-                  isOnline: prestador.disponivel,
+                Row(
+                  children: [
+                    ProfileAvatar(
+                      name: prestador.nome,
+                      imageUrl: prestador.fotoUrl,
+                      radius: 20,
+                      isOnline: prestador.disponivel,
+                    ),
+                    const Spacer(),
+                    const Icon(Icons.star_rounded,
+                        color: Colors.amber, size: 16),
+                    Text(
+                      prestador.mediaAvaliacao.toStringAsFixed(1),
+                      style: TextStyle(
+                        color: context.appTextPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  prestador.nome,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  prestador.categoria ?? prestador.cidade,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 12,
+                      ),
                 ),
                 const Spacer(),
-                const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
                 Text(
-                  prestador.mediaAvaliacao.toStringAsFixed(1),
+                  prestador.disponivel ? 'Disponivel' : 'Ocupado',
                   style: TextStyle(
-                    color: context.appTextPrimary,
+                    color: prestador.disponivel
+                        ? AppColors.accent
+                        : AppColors.statusPendente,
+                    fontWeight: FontWeight.w900,
                     fontSize: 12,
-                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              prestador.nome,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelLarge,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              prestador.categoria ?? prestador.cidade,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontSize: 12,
-                  ),
-            ),
-            const Spacer(),
-            Text(
-              prestador.disponivel ? 'Disponivel' : 'Ocupado',
-              style: TextStyle(
-                color: prestador.disponivel
-                    ? AppColors.accent
-                    : AppColors.statusPendente,
-                fontWeight: FontWeight.w900,
-                fontSize: 12,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -387,15 +381,12 @@ class _EmptyPanel extends StatelessWidget {
 }
 
 class _PromoPanel extends StatelessWidget {
-  const _PromoPanel({required this.onTap});
-
-  final VoidCallback onTap;
+  const _PromoPanel();
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
+    return Semantics(
+      label: 'Dica: salve profissionais favoritos para agendar mais rapido.',
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(

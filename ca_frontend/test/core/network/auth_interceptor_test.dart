@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -109,5 +110,55 @@ void main() {
     );
     expect(limpouSessao, isTrue);
     expect(notificou, isTrue);
+  });
+
+  test('compartilha um único refresh entre requisicoes 401 concorrentes',
+      () async {
+    var accessToken = 'access-expirado';
+    var chamadasRefresh = 0;
+    final liberarRefresh = Completer<void>();
+
+    final dio = Dio(BaseOptions(baseUrl: 'http://teste.local'));
+    dio.httpClientAdapter = _StubAdapter((options) async {
+      if (options.headers['Authorization'] == 'Bearer access-renovado') {
+        return _jsonResponse(200, {'path': options.path});
+      }
+      return _jsonResponse(401, {'erro': 'Token expirado.'});
+    });
+
+    final refreshDio = Dio(BaseOptions(baseUrl: 'http://teste.local'));
+    refreshDio.httpClientAdapter = _StubAdapter((_) async {
+      chamadasRefresh++;
+      await liberarRefresh.future;
+      return _jsonResponse(200, {'access_token': 'access-renovado'});
+    });
+
+    dio.interceptors.add(
+      AuthInterceptor(
+        dio: dio,
+        refreshDio: refreshDio,
+        tokenProvider: () => accessToken,
+        refreshTokenProvider: () => 'refresh-opaco',
+        tokenSaver: (token) async => accessToken = token,
+        sessionClearer: () async {},
+      ),
+    );
+
+    final respostas = Future.wait([
+      dio.get<Map<String, dynamic>>('/api/protegido/um'),
+      dio.get<Map<String, dynamic>>('/api/protegido/dois'),
+    ]);
+
+    // Deixa as duas respostas 401 alcançarem o interceptor antes de liberar
+    // a resposta do refresh em comum.
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(chamadasRefresh, 1);
+
+    liberarRefresh.complete();
+    final resultado = await respostas;
+
+    expect(resultado, hasLength(2));
+    expect(chamadasRefresh, 1);
+    expect(accessToken, 'access-renovado');
   });
 }

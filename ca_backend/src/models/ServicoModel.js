@@ -14,13 +14,18 @@ const ServicoModel = {
                 servico_nome,
                 descricao,
                 endereco_atendimento,
+                atendimento_latitude,
+                atendimento_longitude,
                 agendado_para,
                 duracao_minutos,
                 foto_url,
                 status,
                 preco
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pendente', $10)
+            VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+                'pendente', $12
+            )
             RETURNING *;
         `;
         const resultado = await pool.query(query, [
@@ -30,6 +35,8 @@ const ServicoModel = {
             dadosAgenda.servico_nome || null,
             descricao,
             dadosAgenda.endereco_atendimento || null,
+            dadosAgenda.atendimento_latitude ?? null,
+            dadosAgenda.atendimento_longitude ?? null,
             dadosAgenda.agendado_para || null,
             dadosAgenda.duracao_minutos || null,
             fotoUrl || null,
@@ -212,12 +219,12 @@ const ServicoModel = {
             SELECT
                 COUNT(*)::int AS total_orcamentos,
                 COUNT(*) FILTER (WHERE status IN ('pendente', 'proposta_valor'))::int AS pendentes,
-                COUNT(*) FILTER (WHERE status IN ('aceito', 'remarcacao_solicitada'))::int AS em_aberto,
+                COUNT(*) FILTER (WHERE status IN ('aceito', 'remarcacao_solicitada', 'aguardando_confirmacao_cliente'))::int AS em_aberto,
                 COUNT(*) FILTER (WHERE status = 'concluido')::int AS concluidos,
                 COUNT(*) FILTER (WHERE status = 'recusado')::int AS recusados,
                 COUNT(*) FILTER (WHERE status = 'cancelado_cliente')::int AS cancelados,
                 COALESCE(SUM(preco) FILTER (WHERE status = 'concluido'), 0)::numeric AS total_concluido,
-                COALESCE(SUM(COALESCE(preco_proposto, preco)) FILTER (WHERE status IN ('pendente', 'proposta_valor', 'aceito', 'remarcacao_solicitada')), 0)::numeric AS total_em_aberto,
+                COALESCE(SUM(COALESCE(preco_proposto, preco)) FILTER (WHERE status IN ('pendente', 'proposta_valor', 'aceito', 'remarcacao_solicitada', 'aguardando_confirmacao_cliente')), 0)::numeric AS total_em_aberto,
                 COALESCE(SUM(preco) FILTER (WHERE status = 'cancelado_cliente'), 0)::numeric AS total_cancelado,
                 COALESCE(SUM(preco) FILTER (WHERE status = 'recusado'), 0)::numeric AS total_recusado,
                 COALESCE(SUM(preco), 0)::numeric AS volume_total
@@ -264,7 +271,6 @@ const ServicoModel = {
             'pendente',
             'aceito',
             'recusado',
-            'concluido',
             'cancelado_cliente',
             'remarcacao_solicitada',
         ];
@@ -281,6 +287,44 @@ const ServicoModel = {
             RETURNING *;
         `;
         const resultado = await pool.query(query, [status, id, profId]);
+        return resultado.rows[0];
+    },
+
+    marcarConclusaoPeloPrestador: async (id, profId) => {
+        const resultado = await pool.query(
+            `
+            UPDATE servicos_solicitados
+            SET status = 'aguardando_confirmacao_cliente',
+                conclusao_solicitada_em = CURRENT_TIMESTAMP,
+                conclusao_confirmada_em = NULL,
+                conclusao_confirmada_automaticamente = FALSE,
+                atualizado_em = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND prof_id = $2
+              AND status = 'aceito'
+              AND cardinality(COALESCE(fotos_conclusao, '{}')) > 0
+            RETURNING *;
+            `,
+            [id, profId]
+        );
+        return resultado.rows[0];
+    },
+
+    confirmarConclusaoPeloCliente: async (id, cidadaoId) => {
+        const resultado = await pool.query(
+            `
+            UPDATE servicos_solicitados
+            SET status = 'concluido',
+                conclusao_confirmada_em = CURRENT_TIMESTAMP,
+                conclusao_confirmada_automaticamente = FALSE,
+                atualizado_em = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND cidadao_id = $2
+              AND status = 'aguardando_confirmacao_cliente'
+            RETURNING *;
+            `,
+            [id, cidadaoId]
+        );
         return resultado.rows[0];
     },
 
@@ -341,7 +385,7 @@ const ServicoModel = {
                 atualizado_em = CURRENT_TIMESTAMP
             WHERE id = $1
               AND prof_id = $2
-              AND status IN ('aceito', 'concluido')
+              AND status = 'aceito'
             RETURNING *;
         `;
 

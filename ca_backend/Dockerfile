@@ -9,7 +9,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY . .
 
-RUN mkdir -p /app/uploads && chown -R node:node /app
+RUN mkdir -p /app/uploads /app/private_uploads/verificacoes && chown -R node:node /app
 
 USER node
 

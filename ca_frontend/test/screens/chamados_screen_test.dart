@@ -10,7 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../helpers/fakes.dart';
 
 void main() {
-  testWidgets('prestador aceita e conclui um chamado usando repositorio falso',
+  testWidgets('prestador aceita e abre detalhes para enviar evidencias',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -73,8 +73,13 @@ void main() {
     await tester.tap(find.text('Marcar como concluido'));
     await tester.pumpAndSettle();
 
-    expect(chamadoRepository.lastStatus, ChamadoStatus.concluido);
-    expect(chamadoRepository.chamados.single.status, ChamadoStatus.concluido);
+    expect(find.text('Detalhes do Agendamento'), findsOneWidget);
+    expect(find.text('Concluir Servico'), findsOneWidget);
+    expect(chamadoRepository.lastStatus, ChamadoStatus.emAndamento);
+    expect(
+      chamadoRepository.chamados.single.status,
+      ChamadoStatus.emAndamento,
+    );
   });
 
   testWidgets('carrega a proxima pagina de chamados sob demanda',

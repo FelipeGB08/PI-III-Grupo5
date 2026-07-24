@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/adaptive_colors.dart';
+
 /// Verificacao anti-bot local para o MVP.
 ///
 /// A API atual valida rate limit no backend. Este componente evita envio
@@ -90,23 +92,21 @@ class _CaptchaPlaceholderState extends State<CaptchaPlaceholder> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: context.appPanel,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _isVerified
-              ? const Color(0xFF22C55E).withValues(alpha: 0.5)
-              : Colors.white.withValues(alpha: 0.08),
+          color: _isVerified ? context.appAccent : context.appBorder,
         ),
       ),
       child: Row(
         children: [
           if (_isLoading)
-            const SizedBox(
+            SizedBox(
               width: 22,
               height: 22,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: Color(0xFF3B82F6),
+                color: context.appBrand,
               ),
             )
           else
@@ -114,7 +114,7 @@ class _CaptchaPlaceholderState extends State<CaptchaPlaceholder> {
               _isVerified
                   ? Icons.verified_user_outlined
                   : Icons.shield_outlined,
-              color: _isVerified ? const Color(0xFF22C55E) : Colors.white54,
+              color: _isVerified ? context.appAccent : context.appMuted,
               size: 22,
             ),
           const SizedBox(width: 12),
@@ -127,7 +127,7 @@ class _CaptchaPlaceholderState extends State<CaptchaPlaceholder> {
                       ? 'Verificação anti-bot concluída'
                       : 'Verificação anti-bot',
                   style: TextStyle(
-                    color: _isVerified ? Colors.white : Colors.white70,
+                    color: context.appTextPrimary,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
@@ -136,7 +136,7 @@ class _CaptchaPlaceholderState extends State<CaptchaPlaceholder> {
                 Text(
                   widget.providerLabel,
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.4),
+                    color: context.appMuted,
                     fontSize: 11,
                   ),
                 ),
@@ -147,7 +147,7 @@ class _CaptchaPlaceholderState extends State<CaptchaPlaceholder> {
             TextButton(
               onPressed: _simulateVerification,
               style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFF3B82F6),
+                foregroundColor: context.appBrand,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
               ),
               child: const Text('Verificar', style: TextStyle(fontSize: 12)),

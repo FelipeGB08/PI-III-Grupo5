@@ -7,6 +7,10 @@ abstract class PrestadorRepository {
     double? lat,
     double? lng,
     double? raioKm,
+    double? precoMinimo,
+    double? precoMaximo,
+    double? notaMinima,
+    DateTime? disponivelEm,
   });
 
   Future<Prestador?> buscarPorId(int id);

@@ -39,12 +39,40 @@ class AuthRepositoryImpl implements AuthRepository {
     required String provider,
     required String token,
     required String cidadeAmauc,
+    String? platform,
+    String? state,
+    String? nonce,
   }) async {
     try {
       final response = await _api.socialLogin(
         provider: provider,
         token: token,
         cidadeAmauc: cidadeAmauc,
+        platform: platform,
+        state: state,
+        nonce: nonce,
+      );
+      final result = AuthResult(
+        token: response.token,
+        user: response.user,
+        refreshToken: response.refreshToken,
+      );
+      await saveSession(result);
+      return result;
+    } on DioException catch (e) {
+      throw DioClient.unwrapError(e);
+    }
+  }
+
+  @override
+  Future<AuthResult> concluirGithubOAuth({
+    required String ticket,
+    required String state,
+  }) async {
+    try {
+      final response = await _api.concluirGithubOAuth(
+        ticket: ticket,
+        state: state,
       );
       final result = AuthResult(
         token: response.token,
@@ -140,23 +168,37 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<void> deleteAccount({required String confirmation}) async {
     try {
       await _api.excluirConta(confirmacao: confirmation);
-      await _storage.clear();
     } on DioException catch (e) {
       throw DioClient.unwrapError(e);
+    }
+
+    try {
+      await _storage.clear();
+    } catch (e) {
+      throw AccountDeletedWithLocalCleanupFailure(e);
     }
   }
 
   @override
   Future<void> logout() async {
     final refreshToken = _storage.getRefreshToken();
+    Object? failure;
     try {
       if (refreshToken != null && refreshToken.isNotEmpty) {
         await _api.logout(refreshToken: refreshToken);
       }
-    } on DioException {
-      // O logout local deve ocorrer mesmo sem conexao com a API.
-    } finally {
+    } catch (e) {
+      failure = e is DioException ? DioClient.unwrapError(e) : e;
+    }
+
+    try {
       await _storage.clear();
+    } catch (e) {
+      failure ??= e;
+    }
+
+    if (failure != null) {
+      throw failure;
     }
   }
 

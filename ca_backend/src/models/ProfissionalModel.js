@@ -4,11 +4,22 @@ const {
     distanciaKm,
 } = require('../config/amaucCidades');
 
+function enriquecerLocalizacaoAproximada(row, origem = null) {
+    if (!row) return row;
+
+    const coords = coordenadasCidade(row.cidade_amauc);
+    return {
+        ...row,
+        latitude: coords?.lat ?? null,
+        longitude: coords?.lng ?? null,
+        distancia_km: distanciaKm(origem, coords),
+        localizacao_aproximada: Boolean(coords),
+    };
+}
+
 const CAMPOS_PROFISSIONAL = `
     u.id,
     u.nome,
-    u.email,
-    u.telefone,
     u.foto_url,
     u.cidade_amauc,
     pp.biografia,
@@ -17,7 +28,7 @@ const CAMPOS_PROFISSIONAL = `
     pp.portfolio_fotos,
     pp.certificacoes,
     pp.anos_experiencia,
-    pp.verificado,
+    (pp.status_verificacao = 'aprovado') AS verificado,
     pp.atende_rural,
     pp.atende_emergencia,
     pp.possui_veiculo,
@@ -43,6 +54,10 @@ const ProfissionalModel = {
             lat = null,
             lng = null,
             raioKm = null,
+            precoMin = null,
+            precoMax = null,
+            notaMinima = null,
+            disponivelEm = null,
         } = {}
     ) => {
         let fromWhere = `
@@ -75,31 +90,82 @@ const ProfissionalModel = {
             indice++;
         }
 
-        if (atendeRural === 'true') {
+        if (atendeRural === true || atendeRural === 'true') {
             fromWhere += ' AND pp.atende_rural = TRUE';
+        }
+
+        if (precoMin !== null || precoMax !== null) {
+            const filtrosPreco = [
+                'pas.profissional_id = u.id',
+                'pas.ativo = TRUE',
+            ];
+
+            if (precoMin !== null) {
+                filtrosPreco.push(`pas.preco >= $${indice}`);
+                valores.push(precoMin);
+                indice++;
+            }
+            if (precoMax !== null) {
+                filtrosPreco.push(`pas.preco <= $${indice}`);
+                valores.push(precoMax);
+                indice++;
+            }
+
+            fromWhere += ` AND EXISTS (
+                SELECT 1
+                FROM profissional_agenda_servicos pas
+                WHERE ${filtrosPreco.join(' AND ')}
+            )`;
+        }
+
+        if (disponivelEm) {
+            const parametroData = `$${indice}`;
+            valores.push(disponivelEm);
+            indice++;
+            fromWhere += ` AND EXISTS (
+                SELECT 1
+                FROM profissional_agenda_horarios pah
+                WHERE pah.profissional_id = u.id
+                  AND pah.ativo = TRUE
+                  AND pah.dia_semana = EXTRACT(ISODOW FROM ${parametroData}::date)::int
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM servicos_solicitados s_agendado
+                      WHERE s_agendado.prof_id = u.id
+                        AND s_agendado.status IN (
+                            'pendente',
+                            'proposta_valor',
+                            'aceito',
+                            'remarcacao_solicitada'
+                        )
+                        AND (
+                            s_agendado.agendado_para = (${parametroData}::date + pah.horario)
+                            OR s_agendado.remarcacao_solicitada_para = (${parametroData}::date + pah.horario)
+                        )
+                  )
+            )`;
+        }
+
+        const having = [];
+        if (notaMinima !== null) {
+            having.push(`COALESCE(AVG(a.nota_estrelas), 0) >= $${indice}`);
+            valores.push(notaMinima);
+            indice++;
         }
 
         const query = `
             SELECT ${CAMPOS_PROFISSIONAL}
             ${fromWhere}
             GROUP BY u.id, pp.id
-            ORDER BY pp.verificado DESC, pp.atende_rural DESC, u.nome ASC;
+            ${having.length ? `HAVING ${having.join(' AND ')}` : ''}
+            ORDER BY (pp.status_verificacao = 'aprovado') DESC, pp.atende_rural DESC, u.nome ASC;
         `;
 
         const resultado = await pool.query(query, valores);
         const origem = lat && lng ? { lat: Number(lat), lng: Number(lng) } : null;
         const raio = raioKm ? Number(raioKm) : null;
         const enriquecidos = resultado.rows
-            .map((row) => {
-                const coords = coordenadasCidade(row.cidade_amauc);
-                const distancia = distanciaKm(origem, coords);
-                return {
-                    ...row,
-                    latitude: coords?.lat ?? null,
-                    longitude: coords?.lng ?? null,
-                    distancia_km: distancia,
-                };
-            })
+            .map((row) => enriquecerLocalizacaoAproximada(row, origem))
             .filter((row) => !origem || !raio || (
                 row.distancia_km !== null && row.distancia_km <= raio
             ))
@@ -129,7 +195,7 @@ const ProfissionalModel = {
             GROUP BY u.id, pp.id;
         `;
         const resultado = await pool.query(query, [id]);
-        return resultado.rows[0];
+        return enriquecerLocalizacaoAproximada(resultado.rows[0]);
     },
 };
 

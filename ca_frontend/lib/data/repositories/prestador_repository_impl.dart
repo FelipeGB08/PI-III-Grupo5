@@ -17,6 +17,10 @@ class PrestadorRepositoryImpl implements PrestadorRepository {
     double? lat,
     double? lng,
     double? raioKm,
+    double? precoMinimo,
+    double? precoMaximo,
+    double? notaMinima,
+    DateTime? disponivelEm,
   }) async {
     final categoriaFiltro =
         AmaucConstants.categoriaNomePorId(categoria) ?? categoria;
@@ -27,6 +31,10 @@ class PrestadorRepositoryImpl implements PrestadorRepository {
       lat: lat,
       lng: lng,
       raioKm: raioKm,
+      precoMinimo: precoMinimo,
+      precoMaximo: precoMaximo,
+      notaMinima: notaMinima,
+      disponivelEm: disponivelEm,
     );
   }
 

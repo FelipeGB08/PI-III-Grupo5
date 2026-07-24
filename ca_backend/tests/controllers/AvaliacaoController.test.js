@@ -18,13 +18,24 @@ jest.mock('../../src/services/notificationService', () => ({
     notificarUsuarioSemBloquear: jest.fn(),
 }));
 
+jest.mock('../../src/services/conclusaoService', () => ({
+    confirmarConclusoesExpiradas: jest.fn(),
+}));
+
 const AvaliacaoModel = require('../../src/models/AvaliacaoModel');
 const ServicoModel = require('../../src/models/ServicoModel');
 const { notificarUsuarioSemBloquear } = require('../../src/services/notificationService');
+const {
+    confirmarConclusoesExpiradas,
+} = require('../../src/services/conclusaoService');
 const AvaliacaoController = require('../../src/controllers/AvaliacaoController');
 const { criarRespostaMock } = require('../helpers/httpMocks');
 
 describe('AvaliacaoController', () => {
+    beforeEach(() => {
+        confirmarConclusoesExpiradas.mockResolvedValue([]);
+    });
+
     test('bloqueia avaliacao duplicada do mesmo chamado', async () => {
         ServicoModel.buscarPorId.mockResolvedValue({
             id: 44,
@@ -76,10 +87,46 @@ describe('AvaliacaoController', () => {
         expect(res.status).toHaveBeenCalledWith(201);
     });
 
+    test('bloqueia avaliacao enquanto aguarda confirmacao do cliente', async () => {
+        ServicoModel.buscarPorId.mockResolvedValue({
+            id: 44,
+            cidadao_id: 12,
+            prof_id: 9,
+            status: 'aguardando_confirmacao_cliente',
+        });
+        const res = criarRespostaMock();
+
+        await AvaliacaoController.criarAvaliacao(
+            {
+                usuarioLogado: { id: 12 },
+                body: { servico_id: 44, nota_estrelas: 5 },
+            },
+            res
+        );
+
+        expect(confirmarConclusoesExpiradas).toHaveBeenCalledWith({
+            servicoId: 44,
+        });
+        expect(AvaliacaoModel.criar).not.toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            erro: expect.stringContaining('status "concluido"'),
+        }));
+    });
+
     test('lista pagina de avaliacoes do profissional com total', async () => {
-        const avaliacoes = [{ id: 77, nota_estrelas: 5 }];
+        const avaliacoesDoModel = [{
+            id: 77,
+            servico_id: 44,
+            nota_estrelas: 5,
+            comentario: 'Excelente',
+            cidadao_nome: 'Nome privado',
+            servico_descricao: 'Endereco e detalhes privados do chamado',
+            email: 'privado@exemplo.com',
+            telefone: '(49) 99999-9999',
+        }];
         AvaliacaoModel.buscarPorProfissional.mockResolvedValue({
-            items: avaliacoes,
+            items: avaliacoesDoModel,
             total: 21,
             page: 2,
             pageSize: 10,
@@ -104,11 +151,20 @@ describe('AvaliacaoController', () => {
         expect(res.json).toHaveBeenCalledWith(
             expect.objectContaining({
                 media: 4.8,
-                avaliacoes,
+                avaliacoes: [{
+                    id: 77,
+                    servico_id: 44,
+                    nota_estrelas: 5,
+                    comentario: 'Excelente',
+                }],
                 total: 21,
                 hasMore: true,
                 paginacao: expect.objectContaining({ totalPages: 3 }),
             })
+        );
+        const resposta = res.json.mock.calls[0][0];
+        expect(JSON.stringify(resposta)).not.toMatch(
+            /cidadao_nome|servico_descricao|email|telefone/
         );
     });
 });

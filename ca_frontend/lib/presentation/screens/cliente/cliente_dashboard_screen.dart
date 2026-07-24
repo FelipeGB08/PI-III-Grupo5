@@ -114,6 +114,12 @@ class _ClienteDashboardScreenState
               ),
             ),
           ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+              child: _AdvancedFiltersBar(state: state),
+            ),
+          ),
           SliverToBoxAdapter(child: _CategoryStrip(state: state)),
           if (state.erro != null)
             SliverToBoxAdapter(
@@ -372,6 +378,278 @@ class _SearchField extends StatelessWidget {
                 onPressed: onClear,
               )
             : const Icon(Icons.tune_rounded),
+      ),
+    );
+  }
+}
+
+class _AdvancedFiltersBar extends ConsumerWidget {
+  const _AdvancedFiltersBar({required this.state});
+
+  final PrestadoresState state;
+
+  bool get _hasFilters =>
+      state.precoMinimo != null ||
+      state.precoMaximo != null ||
+      state.notaMinima != null ||
+      state.disponivelEm != null;
+
+  String _formatarData(DateTime data) {
+    return '${data.day.toString().padLeft(2, '0')}/${data.month.toString().padLeft(2, '0')}/${data.year}';
+  }
+
+  String _formatarPreco(double valor) => 'R\$ ${valor.toStringAsFixed(0)}';
+
+  String _faixaPreco() {
+    if (state.precoMinimo == null) {
+      return 'Ate ${_formatarPreco(state.precoMaximo!)}';
+    }
+    if (state.precoMaximo == null) {
+      return 'A partir de ${_formatarPreco(state.precoMinimo!)}';
+    }
+    return '${_formatarPreco(state.precoMinimo!)} a ${_formatarPreco(state.precoMaximo!)}';
+  }
+
+  Future<void> _abrirFiltros(BuildContext context, WidgetRef ref) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _AdvancedFiltersSheet(state: state),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        OutlinedButton.icon(
+          onPressed: () => _abrirFiltros(context, ref),
+          icon: const Icon(Icons.tune_rounded),
+          label: Text(
+              _hasFilters ? 'Filtros avancados ativos' : 'Filtros avancados'),
+        ),
+        if (_hasFilters) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              if (state.precoMinimo != null || state.precoMaximo != null)
+                Chip(label: Text(_faixaPreco())),
+              if (state.notaMinima != null)
+                Chip(
+                    label:
+                        Text('Nota ${state.notaMinima!.toStringAsFixed(1)}+')),
+              if (state.disponivelEm != null)
+                Chip(
+                    label:
+                        Text('Livre em ${_formatarData(state.disponivelEm!)}')),
+              ActionChip(
+                avatar: const Icon(Icons.close_rounded, size: 16),
+                label: const Text('Limpar'),
+                onPressed: () => ref
+                    .read(prestadoresProvider.notifier)
+                    .setFiltrosAvancados(limpar: true),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _AdvancedFiltersSheet extends ConsumerStatefulWidget {
+  const _AdvancedFiltersSheet({required this.state});
+
+  final PrestadoresState state;
+
+  @override
+  ConsumerState<_AdvancedFiltersSheet> createState() =>
+      _AdvancedFiltersSheetState();
+}
+
+class _AdvancedFiltersSheetState extends ConsumerState<_AdvancedFiltersSheet> {
+  late final TextEditingController _precoMinimoController;
+  late final TextEditingController _precoMaximoController;
+  double? _notaMinima;
+  DateTime? _disponivelEm;
+  String? _erro;
+
+  @override
+  void initState() {
+    super.initState();
+    _precoMinimoController = TextEditingController(
+      text: widget.state.precoMinimo?.toStringAsFixed(0) ?? '',
+    );
+    _precoMaximoController = TextEditingController(
+      text: widget.state.precoMaximo?.toStringAsFixed(0) ?? '',
+    );
+    _notaMinima = widget.state.notaMinima;
+    _disponivelEm = widget.state.disponivelEm;
+  }
+
+  @override
+  void dispose() {
+    _precoMinimoController.dispose();
+    _precoMaximoController.dispose();
+    super.dispose();
+  }
+
+  double? _lerPreco(String valor) {
+    final texto = valor.trim().replaceAll(',', '.');
+    if (texto.isEmpty) return null;
+    return double.tryParse(texto);
+  }
+
+  Future<void> _selecionarData() async {
+    final hoje = DateTime.now();
+    final escolhida = await showDatePicker(
+      context: context,
+      initialDate: _disponivelEm == null || _disponivelEm!.isBefore(hoje)
+          ? hoje
+          : _disponivelEm!,
+      firstDate: DateTime(hoje.year, hoje.month, hoje.day),
+      lastDate: DateTime(hoje.year + 2),
+      helpText: 'Data desejada para o atendimento',
+    );
+    if (escolhida != null && mounted) {
+      setState(() => _disponivelEm = escolhida);
+    }
+  }
+
+  void _aplicar() {
+    final precoMinimo = _lerPreco(_precoMinimoController.text);
+    final precoMaximo = _lerPreco(_precoMaximoController.text);
+    if ((_precoMinimoController.text.trim().isNotEmpty &&
+            precoMinimo == null) ||
+        (_precoMaximoController.text.trim().isNotEmpty &&
+            precoMaximo == null) ||
+        (precoMinimo != null && precoMinimo < 0) ||
+        (precoMaximo != null && precoMaximo < 0)) {
+      setState(() => _erro = 'Informe valores de preco validos.');
+      return;
+    }
+    if (precoMinimo != null &&
+        precoMaximo != null &&
+        precoMinimo > precoMaximo) {
+      setState(() => _erro = 'O preco minimo nao pode ser maior que o maximo.');
+      return;
+    }
+
+    ref.read(prestadoresProvider.notifier).setFiltrosAvancados(
+          precoMinimo: precoMinimo,
+          precoMaximo: precoMaximo,
+          notaMinima: _notaMinima,
+          disponivelEm: _disponivelEm,
+        );
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(24, 20, 24, 24 + bottomInset),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Filtros avancados',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _precoMinimoController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Preco minimo',
+                        prefixText: 'R\$ ',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _precoMaximoController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Preco maximo',
+                        prefixText: 'R\$ ',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              DropdownButtonFormField<double?>(
+                initialValue: _notaMinima,
+                decoration: const InputDecoration(labelText: 'Nota minima'),
+                items: const [
+                  DropdownMenuItem<double?>(
+                      value: null, child: Text('Qualquer nota')),
+                  DropdownMenuItem(value: 3, child: Text('3,0 ou mais')),
+                  DropdownMenuItem(value: 4, child: Text('4,0 ou mais')),
+                  DropdownMenuItem(value: 4.5, child: Text('4,5 ou mais')),
+                ],
+                onChanged: (valor) => setState(() => _notaMinima = valor),
+              ),
+              const SizedBox(height: 14),
+              OutlinedButton.icon(
+                onPressed: _selecionarData,
+                icon: const Icon(Icons.event_available_outlined),
+                label: Text(
+                  _disponivelEm == null
+                      ? 'Filtrar por disponibilidade em uma data'
+                      : 'Disponivel em ${_disponivelEm!.day.toString().padLeft(2, '0')}/${_disponivelEm!.month.toString().padLeft(2, '0')}/${_disponivelEm!.year}',
+                ),
+              ),
+              if (_disponivelEm != null)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => setState(() => _disponivelEm = null),
+                    child: const Text('Remover data'),
+                  ),
+                ),
+              if (_erro != null) ...[
+                const SizedBox(height: 8),
+                Text(_erro!,
+                    style: const TextStyle(color: AppColors.statusRecusado)),
+              ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      ref
+                          .read(prestadoresProvider.notifier)
+                          .setFiltrosAvancados(limpar: true);
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Limpar filtros'),
+                  ),
+                  const Spacer(),
+                  FilledButton(
+                    onPressed: _aplicar,
+                    child: const Text('Aplicar filtros'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

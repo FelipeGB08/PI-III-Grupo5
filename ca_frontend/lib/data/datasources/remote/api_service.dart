@@ -19,6 +19,48 @@ import '../../models/notificacao_model.dart';
 import '../../models/prestador_model.dart';
 import '../../models/user_model.dart';
 
+class AppleSignInConfiguration {
+  const AppleSignInConfiguration({
+    required this.clientId,
+    required this.state,
+    required this.nonce,
+    this.redirectUri,
+  });
+
+  final String clientId;
+  final String state;
+  final String nonce;
+  final String? redirectUri;
+
+  factory AppleSignInConfiguration.fromJson(
+    Map<String, dynamic> json, {
+    required String platform,
+  }) {
+    final clientId = json['client_id']?.toString().trim() ?? '';
+    final state = json['state']?.toString().trim() ?? '';
+    final nonce = json['nonce']?.toString().trim() ?? '';
+    final redirectUri = json['redirect_uri']?.toString().trim() ?? '';
+    final precisaRedirect = platform == 'android' || platform == 'web';
+    if (clientId.isEmpty ||
+        !_isShortOpaqueValue(state) ||
+        !_isShortOpaqueValue(nonce) ||
+        (precisaRedirect && redirectUri.isEmpty)) {
+      throw StateError('Configuracao Apple incompleta recebida do servidor.');
+    }
+    return AppleSignInConfiguration(
+      clientId: clientId,
+      state: state,
+      nonce: nonce,
+      redirectUri: redirectUri.isEmpty ? null : redirectUri,
+    );
+  }
+
+  static bool _isShortOpaqueValue(String value) =>
+      value.length >= 16 &&
+      value.length <= 128 &&
+      RegExp(r'^[A-Za-z0-9._~-]+$').hasMatch(value);
+}
+
 /// [ApiService]
 /// Responsável pela comunicação direta com o backend.
 /// Todas as requisições utilizam o cliente Dio configurado.
@@ -29,6 +71,20 @@ class ApiService {
   ApiService(this._dio);
 
   final Dio _dio;
+
+  /// Baixa evidencias privadas pelo mesmo Dio autenticado das chamadas da API.
+  /// O interceptor de [DioClient] aplica Bearer e renova o access token em 401.
+  Future<Uint8List> baixarImagemProtegida(String url) async {
+    final response = await _dio.get<List<int>>(
+      ApiConfig.resolveAssetUrl(url),
+      options: Options(responseType: ResponseType.bytes),
+    );
+    final bytes = response.data;
+    if (bytes == null || bytes.isEmpty) {
+      throw StateError('A imagem protegida retornou vazia.');
+    }
+    return Uint8List.fromList(bytes);
+  }
 
   // ─── AUTH ───────────────────────────────────────────────────────────────
 
@@ -49,6 +105,9 @@ class ApiService {
     required String provider,
     required String token,
     required String cidadeAmauc,
+    String? platform,
+    String? state,
+    String? nonce,
   }) async {
     final response = await _dio.post(
       ApiConfig.authSocialLogin,
@@ -56,9 +115,40 @@ class ApiService {
         'provider': provider,
         'token': token,
         'cidade_amauc': cidadeAmauc,
+        if (platform != null) 'platform': platform,
+        if (state != null) 'state': state,
+        if (nonce != null) 'nonce': nonce,
       },
     );
     return AuthResponseModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<AuthResponseModel> concluirGithubOAuth({
+    required String ticket,
+    required String state,
+  }) async {
+    final response = await _dio.post(
+      ApiConfig.authGithubComplete,
+      data: {'ticket': ticket, 'state': state},
+    );
+    return AuthResponseModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// Busca a configuracao de Sign in with Apple definida pelo backend.
+  ///
+  /// Android e Web nunca recebem redirect URI escolhido pelo cliente: o
+  /// servidor devolve somente a URL previamente registrada para a plataforma.
+  Future<AppleSignInConfiguration> obterConfiguracaoApple({
+    required String platform,
+  }) async {
+    final response = await _dio.get(
+      ApiConfig.authAppleConfig,
+      queryParameters: {'platform': platform},
+    );
+    return AppleSignInConfiguration.fromJson(
+      response.data as Map<String, dynamic>,
+      platform: platform,
+    );
   }
 
   Future<AuthResponseModel> refreshSession({
@@ -193,6 +283,45 @@ class ApiService {
     return response.data as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> buscarVerificacaoProfissional() async {
+    final response = await _dio.get(ApiConfig.perfilVerificacao);
+    final data = response.data as Map<String, dynamic>;
+    return (data['verificacao'] as Map<String, dynamic>?) ?? data;
+  }
+
+  Future<Map<String, dynamic>> enviarDocumentoVerificacao(
+      String filePath) async {
+    final filename = filePath.split(RegExp(r'[/\\]')).last;
+    final formData = FormData.fromMap({
+      'documento': await MultipartFile.fromFile(
+        filePath,
+        filename: filename,
+        contentType: _mediaTypeFor(filename),
+      ),
+    });
+    final response =
+        await _dio.post(ApiConfig.perfilVerificacao, data: formData);
+    final data = response.data as Map<String, dynamic>;
+    return (data['verificacao'] as Map<String, dynamic>?) ?? data;
+  }
+
+  Future<Map<String, dynamic>> enviarDocumentoVerificacaoBytes({
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    final formData = FormData.fromMap({
+      'documento': MultipartFile.fromBytes(
+        bytes,
+        filename: filename,
+        contentType: _mediaTypeFor(filename),
+      ),
+    });
+    final response =
+        await _dio.post(ApiConfig.perfilVerificacao, data: formData);
+    final data = response.data as Map<String, dynamic>;
+    return (data['verificacao'] as Map<String, dynamic>?) ?? data;
+  }
+
   Future<Map<String, dynamic>> salvarCurriculoProfissional({
     required String biografia,
     required int anosExperiencia,
@@ -230,6 +359,19 @@ class ApiService {
       final payload = response.data as Map<String, dynamic>;
       return (payload['perfil'] as Map<String, dynamic>?) ?? payload;
     }
+  }
+
+  Future<Map<String, dynamic>> criarDenuncia({
+    required int chamadoId,
+    required String motivo,
+    required String descricao,
+  }) async {
+    final response = await _dio.post(
+      ApiConfig.denunciarChamado(chamadoId),
+      data: {'motivo': motivo, 'descricao': descricao},
+    );
+    final data = response.data as Map<String, dynamic>;
+    return (data['denuncia'] as Map<String, dynamic>?) ?? data;
   }
 
   Future<UserModel> buscarMeuPerfil() async {
@@ -347,6 +489,21 @@ class ApiService {
     await _dio.patch(ApiConfig.notificacoesLidas());
   }
 
+  Future<bool> buscarPreferenciaNovosHorariosFavoritos() async {
+    final response = await _dio.get(ApiConfig.notificacoesPreferencias);
+    final dados = response.data as Map<String, dynamic>;
+    final preferencias =
+        (dados['preferencias'] as Map<String, dynamic>?) ?? dados;
+    return preferencias['novos_horarios_favoritos'] != false;
+  }
+
+  Future<void> atualizarPreferenciaNovosHorariosFavoritos(bool ativada) async {
+    await _dio.patch(
+      ApiConfig.notificacoesPreferencias,
+      data: {'novos_horarios_favoritos': ativada},
+    );
+  }
+
   Future<FinanceiroDataModel> buscarFinanceiro({String? status}) async {
     final response = await _dio.get(
       ApiConfig.financeiro,
@@ -417,6 +574,10 @@ class ApiService {
     double? lat,
     double? lng,
     double? raioKm,
+    double? precoMinimo,
+    double? precoMaximo,
+    double? notaMinima,
+    DateTime? disponivelEm,
     int page = 1,
     int limit = 20,
   }) async {
@@ -428,6 +589,11 @@ class ApiService {
         if (lat != null) 'lat': lat,
         if (lng != null) 'lng': lng,
         if (raioKm != null) 'raio_km': raioKm,
+        if (precoMinimo != null) 'preco_min': precoMinimo,
+        if (precoMaximo != null) 'preco_max': precoMaximo,
+        if (notaMinima != null) 'nota_minima': notaMinima,
+        if (disponivelEm != null)
+          'disponivel_em': _formatarDataFiltro(disponivelEm),
         'page': page,
         'limit': limit,
       },
@@ -435,6 +601,11 @@ class ApiService {
     return (response.data as List<dynamic>)
         .map((e) => PrestadorModel.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  String _formatarDataFiltro(DateTime data) {
+    final local = DateTime(data.year, data.month, data.day);
+    return '${local.year.toString().padLeft(4, '0')}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
   }
 
   /// Busca um prestador único pelo ID.
@@ -454,6 +625,8 @@ class ApiService {
     double? preco,
     DateTime? agendadoPara,
     String? enderecoAtendimento,
+    double? atendimentoLatitude,
+    double? atendimentoLongitude,
     String? fotoUrl,
   }) async {
     final response = await _dio.post(
@@ -471,6 +644,8 @@ class ApiService {
         preco: preco,
         agendadoPara: agendadoPara,
         enderecoAtendimento: enderecoAtendimento,
+        atendimentoLatitude: atendimentoLatitude,
+        atendimentoLongitude: atendimentoLongitude,
         fotoUrl: fotoUrl,
       ),
     );
@@ -502,10 +677,14 @@ class ApiService {
   Future<ChatMessageModel> enviarMensagemChat({
     required int chamadoId,
     required String mensagem,
+    String? clientId,
   }) async {
     final response = await _dio.post(
       '${ApiConfig.chamados}/$chamadoId/mensagens',
-      data: {'mensagem': mensagem},
+      data: {
+        'mensagem': mensagem,
+        if (clientId != null) 'client_id': clientId,
+      },
     );
     final data = response.data as Map<String, dynamic>;
     return ChatMessageModel.fromJson(data['mensagem'] as Map<String, dynamic>);
@@ -608,6 +787,18 @@ class ApiService {
         status: status,
         profissionalId: 0,
       ).toStatusJson(status),
+    );
+    final data = response.data as Map<String, dynamic>;
+    return ChamadoModel.fromJson(
+      (data['solicitacao'] as Map<String, dynamic>?) ?? data,
+    );
+  }
+
+  Future<ChamadoModel> confirmarConclusao({
+    required int chamadoId,
+  }) async {
+    final response = await _dio.patch(
+      ApiConfig.confirmarConclusao(chamadoId),
     );
     final data = response.data as Map<String, dynamic>;
     return ChamadoModel.fromJson(
@@ -842,6 +1033,119 @@ class ApiService {
   Future<Map<String, dynamic>> buscarRelatorioAdmin() async {
     final response = await _dio.get(ApiConfig.adminRelatorios);
     return response.data as Map<String, dynamic>;
+  }
+
+  Future<String> exportarRelatorioAdminCsv() async {
+    final response = await _dio.get<String>(
+      ApiConfig.adminRelatoriosExport,
+      queryParameters: const {'formato': 'csv'},
+      options: Options(responseType: ResponseType.plain),
+    );
+    return response.data ?? '';
+  }
+
+  Future<Map<String, dynamic>> listarUsuariosAdmin({
+    int page = 1,
+    int pageSize = 20,
+    String? perfilTipo,
+    String? busca,
+  }) async {
+    final response = await _dio.get(
+      ApiConfig.adminUsuarios,
+      queryParameters: {
+        'page': page,
+        'pageSize': pageSize,
+        if (perfilTipo != null && perfilTipo.isNotEmpty)
+          'perfil_tipo': perfilTipo,
+        if (busca != null && busca.trim().isNotEmpty) 'busca': busca.trim(),
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> atualizarStatusUsuarioAdmin(
+    int usuarioId,
+    bool ativo,
+  ) async {
+    final response = await _dio.patch(
+      ApiConfig.statusUsuarioAdmin(usuarioId),
+      data: {'ativo': ativo},
+    );
+    final data = Map<String, dynamic>.from(response.data as Map);
+    final usuario = data['usuario'];
+    return usuario is Map ? Map<String, dynamic>.from(usuario) : data;
+  }
+
+  Future<List<Map<String, dynamic>>> listarVerificacoesPendentes() async {
+    final response = await _dio.get(ApiConfig.adminVerificacoes);
+    final data = response.data as Map<String, dynamic>;
+    return ((data['verificacoes'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> aprovarVerificacao(int perfilId) async {
+    final response = await _dio.patch(ApiConfig.aprovarVerificacao(perfilId));
+    final data = response.data as Map<String, dynamic>;
+    return (data['verificacao'] as Map<String, dynamic>?) ?? data;
+  }
+
+  Future<Map<String, dynamic>> rejeitarVerificacao(
+    int perfilId,
+    String motivoRejeicao,
+  ) async {
+    final response = await _dio.patch(
+      ApiConfig.rejeitarVerificacao(perfilId),
+      data: {'motivo_rejeicao': motivoRejeicao},
+    );
+    final data = response.data as Map<String, dynamic>;
+    return (data['verificacao'] as Map<String, dynamic>?) ?? data;
+  }
+
+  Future<Uint8List> baixarMeuDocumentoVerificacao() {
+    return baixarImagemProtegida(ApiConfig.perfilVerificacaoDocumento);
+  }
+
+  Future<Uint8List> baixarDocumentoVerificacaoAdmin(int perfilId) {
+    return baixarImagemProtegida(ApiConfig.adminDocumentoVerificacao(perfilId));
+  }
+
+  Future<List<Map<String, dynamic>>> listarDenunciasAdmin({
+    String? status,
+  }) async {
+    final response = await _dio.get(
+      ApiConfig.adminDenuncias,
+      queryParameters: status == null ? null : {'status': status},
+    );
+    final data = response.data as Map<String, dynamic>;
+    return ((data['denuncias'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> buscarDenunciaAdmin(int denunciaId) async {
+    final response = await _dio.get(ApiConfig.denunciaAdmin(denunciaId));
+    final data = response.data as Map<String, dynamic>;
+    return (data['denuncia'] as Map<String, dynamic>?) ?? data;
+  }
+
+  Future<Map<String, dynamic>> atualizarDenunciaAdmin({
+    required int denunciaId,
+    required String status,
+    String? resolucaoAdmin,
+  }) async {
+    final response = await _dio.patch(
+      ApiConfig.denunciaAdmin(denunciaId),
+      data: {
+        'status': status,
+        if (resolucaoAdmin != null && resolucaoAdmin.trim().isNotEmpty)
+          'resolucao_admin': resolucaoAdmin.trim(),
+      },
+    );
+    final data = response.data as Map<String, dynamic>;
+    return (data['denuncia'] as Map<String, dynamic>?) ?? data;
   }
 
   Future<bool> checkHealth() async {

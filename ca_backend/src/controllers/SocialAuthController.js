@@ -8,6 +8,10 @@ const {
     criarRespostaLogin,
     montarRespostaUsuario,
 } = require('../services/authResponseService');
+const {
+    validarContextoApple,
+    validarNonceTokenApple,
+} = require('./AppleAuthController');
 
 function criarErroHttp(status, mensagem) {
     const erro = new Error(mensagem);
@@ -26,7 +30,16 @@ function exigirEnv(nome) {
 function decodificarJwtHeader(token) {
     const [header] = String(token || '').split('.');
     if (!header) throw criarErroHttp(401, 'Token social mal formatado.');
-    return JSON.parse(Buffer.from(header, 'base64url').toString('utf8'));
+    try {
+        const decodificado = JSON.parse(Buffer.from(header, 'base64url').toString('utf8'));
+        if (!decodificado.kid) {
+            throw criarErroHttp(401, 'Token social sem identificador de chave publica.');
+        }
+        return decodificado;
+    } catch (erro) {
+        if (erro.status) throw erro;
+        throw criarErroHttp(401, 'Token social mal formatado.');
+    }
 }
 
 async function buscarJson(url, options = {}) {
@@ -51,14 +64,23 @@ async function buscarChavePublica(jwksUrl, kid) {
 async function verificarJwtSocial({ token, jwksUrl, issuer, audience }) {
     const header = decodificarJwtHeader(token);
     const publicKey = await buscarChavePublica(jwksUrl, header.kid);
-    return jwt.verify(token, publicKey, {
-        algorithms: ['RS256'],
-        issuer,
-        audience,
-    });
+    try {
+        return jwt.verify(token, publicKey, {
+            algorithms: ['RS256'],
+            issuer,
+            audience,
+        });
+    } catch (_) {
+        // Inclui assinatura, expiração, issuer e audience inválidos, sem
+        // enfraquecer a verificação criptográfica realizada por jwt.verify.
+        throw criarErroHttp(
+            401,
+            'Token social invalido, expirado ou destinado a outro aplicativo.'
+        );
+    }
 }
 
-async function verificarTokenSocial(provider, token) {
+async function verificarTokenSocial(provider, token, contexto = {}) {
     if (!token) {
         throw criarErroHttp(400, 'Token do provedor social é obrigatório.');
     }
@@ -73,6 +95,9 @@ async function verificarTokenSocial(provider, token) {
         if (claims.email_verified !== true && claims.email_verified !== 'true') {
             throw criarErroHttp(401, 'Token Google válido, mas e-mail não verificado.');
         }
+        if (!claims.email || typeof claims.email !== 'string') {
+            throw criarErroHttp(401, 'Token Google valido, mas sem e-mail.');
+        }
         return {
             providerId: claims.sub,
             email: claims.email,
@@ -82,12 +107,18 @@ async function verificarTokenSocial(provider, token) {
     }
 
     if (provider === 'apple') {
+        const contextoApple = validarContextoApple({
+            platform: contexto.platform,
+            state: contexto.state,
+            nonce: contexto.nonce,
+        });
         const claims = await verificarJwtSocial({
             token,
             jwksUrl: 'https://appleid.apple.com/auth/keys',
             issuer: 'https://appleid.apple.com',
-            audience: exigirEnv('APPLE_CLIENT_ID'),
+            audience: contextoApple.audience,
         });
+        validarNonceTokenApple(claims.nonce, contextoApple.nonce);
         if (!claims.email) {
             throw criarErroHttp(401, 'Token Apple válido, mas sem e-mail.');
         }
@@ -99,30 +130,45 @@ async function verificarTokenSocial(provider, token) {
         };
     }
 
-    if (provider === 'github') {
-        const headers = {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/vnd.github+json',
-            'User-Agent': 'Conecta-AMAUC',
-        };
-        const perfil = await buscarJson('https://api.github.com/user', { headers });
-        const emails = await buscarJson('https://api.github.com/user/emails', { headers });
-        const principal = emails.find((item) => item.primary && item.verified) ||
-            emails.find((item) => item.verified);
+    throw criarErroHttp(400, 'provider deve ser google ou apple.');
+}
 
-        if (!principal?.email && !perfil.email) {
-            throw criarErroHttp(401, 'Token GitHub válido, mas sem e-mail verificado.');
-        }
+async function obterOuCriarUsuarioSocial({ perfilSocial, provider, cidade }) {
+    const emailNormalizado = String(perfilSocial.email || '').trim().toLowerCase();
+    let usuario = await UserModel.buscarPorEmail(emailNormalizado);
 
-        return {
-            providerId: String(perfil.id),
-            email: principal?.email || perfil.email,
-            nome: perfil.name || perfil.login,
-            fotoUrl: perfil.avatar_url || null,
-        };
+    if (usuario?.ativo === false) {
+        throw criarErroHttp(401, 'Esta conta foi removida e nao pode mais ser acessada.');
     }
 
-    throw criarErroHttp(400, 'provider deve ser google, apple ou github.');
+    if (!usuario) {
+        const cidadeValidada = cidadePermitida(cidade);
+        if (!cidadeValidada) {
+            const erro = criarErroHttp(
+                403,
+                'RF01 — Cadastro social restrito à região AMAUC. Informe uma cidade permitida.'
+            );
+            erro.cidadesPermitidas = CIDADES_AMAUC;
+            throw erro;
+        }
+
+        const nomeSocial = String(perfilSocial.nome || emailNormalizado.split('@')[0]).trim();
+        const senhaSocialHash = await bcrypt.hash(
+            `${provider}:${perfilSocial.providerId || emailNormalizado}:${Date.now()}`,
+            10
+        );
+
+        usuario = await UserModel.criarUsuario(
+            nomeSocial.length >= 2 ? nomeSocial : 'Usuário AMAUC',
+            emailNormalizado,
+            senhaSocialHash,
+            null,
+            cidadeValidada,
+            'cidadao'
+        );
+    }
+
+    return usuario;
 }
 
 const SocialAuthController = {
@@ -135,46 +181,23 @@ const SocialAuthController = {
                 access_token,
                 cidade_amauc,
                 cidade,
+                platform,
+                state,
+                nonce,
             } = req.body;
 
             const providerNormalizado = String(provider || '').toLowerCase();
             const tokenSocial = token || id_token || access_token;
-            const perfilSocial = await verificarTokenSocial(providerNormalizado, tokenSocial);
-            const emailNormalizado = String(perfilSocial.email || '').trim().toLowerCase();
-
-            let usuario = await UserModel.buscarPorEmail(emailNormalizado);
-
-            if (usuario?.ativo === false) {
-                return res.status(401).json({
-                    erro: 'Esta conta foi removida e nao pode mais ser acessada.',
-                });
-            }
-
-            if (!usuario) {
-                const cidadeInformada = cidade_amauc || cidade;
-                const cidadeValidada = cidadePermitida(cidadeInformada);
-                if (!cidadeValidada) {
-                    return res.status(403).json({
-                        erro: 'RF01 — Cadastro social restrito à região AMAUC. Informe uma cidade permitida.',
-                        cidades_permitidas: CIDADES_AMAUC,
-                    });
-                }
-
-                const nomeSocial = String(perfilSocial.nome || emailNormalizado.split('@')[0]).trim();
-                const senhaSocialHash = await bcrypt.hash(
-                    `${providerNormalizado}:${perfilSocial.providerId || emailNormalizado}:${Date.now()}`,
-                    10
-                );
-
-                usuario = await UserModel.criarUsuario(
-                    nomeSocial.length >= 2 ? nomeSocial : 'Usuário AMAUC',
-                    emailNormalizado,
-                    senhaSocialHash,
-                    null,
-                    cidadeValidada,
-                    'cidadao'
-                );
-            }
+            const perfilSocial = await verificarTokenSocial(
+                providerNormalizado,
+                tokenSocial,
+                { platform, state, nonce }
+            );
+            const usuario = await obterOuCriarUsuarioSocial({
+                perfilSocial,
+                provider: providerNormalizado,
+                cidade: cidade_amauc || cidade,
+            });
 
             return res.status(200).json(
                 await criarRespostaLogin(
@@ -197,11 +220,18 @@ const SocialAuthController = {
             } else {
                 logger.error('Falha no login social.', contexto);
             }
-            return res.status(erro.status || 500).json({
+            const corpo = {
                 erro: erro.status ? erro.message : 'Erro interno no servidor.',
-            });
+            };
+            if (erro.cidadesPermitidas) {
+                corpo.cidades_permitidas = erro.cidadesPermitidas;
+            }
+            return res.status(erro.status || 500).json(corpo);
         }
     },
 };
 
-module.exports = SocialAuthController;
+module.exports = {
+    ...SocialAuthController,
+    obterOuCriarUsuarioSocial,
+};
