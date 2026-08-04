@@ -85,6 +85,40 @@ describe('rateLimitMiddleware', () => {
         expect(next).not.toHaveBeenCalled();
     });
 
+    test('estorna a cota quando a requisicao termina com erro do backend', async () => {
+        const eventos = {};
+        const res = criarRespostaMock();
+        res.once = jest.fn((evento, callback) => {
+            eventos[evento] = callback;
+        });
+        res.statusCode = 500;
+        const store = {
+            consumir: jest.fn().mockResolvedValue({
+                count: 1,
+                resetAt: Date.now() + 60_000,
+            }),
+            estornar: jest.fn().mockResolvedValue(),
+        };
+        const limiter = criarRateLimiter({
+            keyGenerator: chavePorUsuario,
+            keyPrefix: 'upload-v2',
+            estornarEmErro: true,
+            store,
+        });
+
+        await limiter(
+            { ip: '127.0.0.1', usuarioLogado: { id: 9 } },
+            res,
+            jest.fn()
+        );
+        eventos.finish();
+        await Promise.resolve();
+
+        expect(store.estornar).toHaveBeenCalledWith({
+            chave: 'upload-v2:usuario:9',
+        });
+    });
+
     test('usa o ID autenticado como chave, isolando usuários no mesmo IP', () => {
         const limiter = criarRateLimiter({
             max: 1,

@@ -39,4 +39,14 @@ describe('rateLimitStore compartilhado', () => {
         await store.resetar();
         expect(pool.query).toHaveBeenCalledWith('DELETE FROM rate_limit_buckets');
     });
+
+    test('estorna somente a tentativa que terminou em erro', async () => {
+        pool.query.mockResolvedValue({});
+        const store = criarPostgresRateLimitStore();
+
+        await store.estornar({ chave: 'usuario:9' });
+
+        expect(pool.query.mock.calls[0][0]).toContain('GREATEST(contador - 1, 0)');
+        expect(pool.query.mock.calls[0][1]).toEqual([hashKey('usuario:9')]);
+    });
 });

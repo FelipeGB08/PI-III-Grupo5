@@ -6,6 +6,7 @@ function criarRateLimiter({
     max = 20,
     keyGenerator,
     keyPrefix = '',
+    estornarEmErro = false,
     message = 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
     store,
 } = {}) {
@@ -43,7 +44,14 @@ function criarRateLimiter({
         };
     }
 
-    function responder(resultado, res, next) {
+    function estornar(chave, agora = Date.now()) {
+        limparExpirados(agora);
+        const registro = tentativas.get(chave);
+        if (!registro || registro.resetAt <= agora) return;
+        registro.count = Math.max(0, registro.count - 1);
+    }
+
+    function responder(resultado, res, next, chave) {
         const permitido = resultado.count <= max;
         const remaining = Math.max(max - resultado.count, 0);
         const retryAfter = Math.max(1, Math.ceil((resultado.resetAt - Date.now()) / 1000));
@@ -55,6 +63,16 @@ function criarRateLimiter({
             res.setHeader('Retry-After', String(retryAfter));
             return res.status(429).json({ erro: message });
         }
+
+        if (estornarEmErro && typeof res.once === 'function') {
+            res.once('finish', () => {
+                if (res.statusCode < 400) return;
+                const operacao = store
+                    ? store.estornar({ chave })
+                    : estornar(chave);
+                Promise.resolve(operacao).catch(() => {});
+            });
+        }
         return next();
     }
 
@@ -65,17 +83,18 @@ function criarRateLimiter({
         const chave = keyPrefix ? `${keyPrefix}:${chaveBase}` : chaveBase;
         if (store) {
             return store.consumir({ chave, windowMs })
-                .then((resultado) => responder(resultado, res, next))
+                .then((resultado) => responder(resultado, res, next, chave))
                 .catch(next);
         }
         const resultado = consumir(chave);
         return responder({
             count: resultado.count,
             resetAt: resultado.resetAt,
-        }, res, next);
+        }, res, next, chave);
     };
 
     middleware.consumir = consumir;
+    middleware.estornar = estornar;
     middleware.resetar = () => (store ? store.resetar() : tentativas.clear());
     middleware.max = max;
     middleware.windowMs = windowMs;
@@ -152,6 +171,7 @@ const solicitacaoRateLimit = criarRateLimiter({
     // Separa contadores criados antes de a validacao passar a ocorrer antes
     // do consumo da cota, evitando bloqueios por tentativas invalidas antigas.
     keyPrefix: 'solicitacao-v2',
+    estornarEmErro: true,
     message: 'Limite de criacao de solicitacoes atingido. Aguarde antes de tentar novamente.',
     store: storeCompartilhado,
 });
@@ -160,6 +180,7 @@ const chatRateLimit = criarRateLimiter({
     windowMs: Number(process.env.CHAT_RATE_LIMIT_WINDOW_MS || 60 * 1000),
     max: Number(process.env.CHAT_RATE_LIMIT_MAX || 60),
     keyGenerator: chavePorUsuario,
+    estornarEmErro: true,
     message: 'Limite de envio de mensagens atingido. Aguarde um minuto e tente novamente.',
     store: storeCompartilhado,
 });
@@ -168,6 +189,7 @@ const uploadRateLimit = criarRateLimiter({
     windowMs: Number(process.env.UPLOAD_RATE_LIMIT_WINDOW_MS || 60 * 60 * 1000),
     max: Number(process.env.UPLOAD_RATE_LIMIT_MAX || 30),
     keyGenerator: chavePorUsuario,
+    estornarEmErro: true,
     message: 'Limite de upload de imagens atingido. Aguarde antes de enviar outra imagem.',
     store: storeCompartilhado,
 });

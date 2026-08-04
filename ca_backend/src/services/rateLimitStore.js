@@ -38,6 +38,15 @@ function criarPostgresRateLimitStore() {
                 resetAt: new Date(row.reset_em).getTime(),
             };
         },
+        estornar: async ({ chave }) => {
+            await pool.query(
+                `UPDATE rate_limit_buckets
+                 SET contador = GREATEST(contador - 1, 0)
+                 WHERE chave_hash = $1
+                   AND reset_em > NOW()`,
+                [hashKey(chave)]
+            );
+        },
         resetar: async () => {
             if (process.env.NODE_ENV === 'test') {
                 await pool.query('DELETE FROM rate_limit_buckets');

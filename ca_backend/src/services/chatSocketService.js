@@ -148,12 +148,16 @@ function initChatSocket(io, { rateLimiter = chatRateLimit } = {}) {
         });
 
         socket.on('chat:send', async ({ servico_id, mensagem, client_id } = {}, ack) => {
+            let chaveRateLimit = null;
+            let consumoPermitido = false;
             try {
                 if (!await garantirSessaoAtiva(ack)) return;
 
-                const limite = rateLimiter.consumir(
-                    chavePorUsuarioId(socket.usuario.id, socket.handshake?.address)
+                chaveRateLimit = chavePorUsuarioId(
+                    socket.usuario.id,
+                    socket.handshake?.address
                 );
+                const limite = rateLimiter.consumir(chaveRateLimit);
                 if (!limite.permitido) {
                     const erro = {
                         erro: 'Limite de envio de mensagens atingido. Aguarde um minuto e tente novamente.',
@@ -164,6 +168,7 @@ function initChatSocket(io, { rateLimiter = chatRateLimit } = {}) {
                     socket.emit('chat:error', erro);
                     return;
                 }
+                consumoPermitido = true;
 
                 const servicoId = Number(servico_id);
                 const novaMensagem = await ChatModel.criarMensagem(
@@ -174,6 +179,8 @@ function initChatSocket(io, { rateLimiter = chatRateLimit } = {}) {
                 );
 
                 if (!novaMensagem) {
+                    rateLimiter.estornar(chaveRateLimit);
+                    consumoPermitido = false;
                     const erro = { erro: 'Mensagem invalida ou acesso negado.' };
                     if (typeof ack === 'function') ack(erro);
                     socket.emit('chat:error', erro);
@@ -199,6 +206,9 @@ function initChatSocket(io, { rateLimiter = chatRateLimit } = {}) {
                 }
                 if (typeof ack === 'function') ack({ mensagem: novaMensagem });
             } catch (erro) {
+                if (consumoPermitido && chaveRateLimit) {
+                    rateLimiter.estornar(chaveRateLimit);
+                }
                 const payload = { erro: 'Erro interno ao enviar mensagem.' };
                 if (typeof ack === 'function') ack(payload);
                 socket.emit('chat:error', payload);
