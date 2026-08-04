@@ -1,5 +1,6 @@
 const ServicoModel = require('../models/ServicoModel');
 const UserModel = require('../models/UserModel');
+const UploadClaimModel = require('../models/UploadClaimModel');
 const { validarAgendamento } = require('../services/agendamentoValidator');
 const { notificarUsuarioSemBloquear } = require('../services/notificationService');
 
@@ -78,6 +79,7 @@ const ServicoController = {
                 req.body.agendadoPara ||
                 req.body.data_hora ||
                 null;
+            const categoria = normalizarTexto(req.body.categoria) || null;
 
             if (!cidadaoId) {
                 return res.status(401).json({ erro: 'Usuario nao autenticado.' });
@@ -106,9 +108,16 @@ const ServicoController = {
                 profId,
                 agendaServicoId,
                 agendadoPara,
+                categoria,
             });
 
             const fotoUrl = req.file?.url || null;
+            if (fotoUrl) {
+                await UploadClaimModel.registrar({
+                    usuarioId: cidadaoId,
+                    caminho: fotoUrl,
+                });
+            }
 
             const novoServico = await ServicoModel.criar(
                 cidadaoId,
@@ -117,6 +126,7 @@ const ServicoController = {
                 fotoUrl,
                 {
                     agenda_servico_id: dadosAgenda.agenda_servico_id,
+                    categoria_id: dadosAgenda.categoria_id,
                     servico_nome: dadosAgenda.servico_nome,
                     endereco_atendimento: enderecoAtendimento || null,
                     agendado_para: dadosAgenda.agendado_para,
@@ -124,6 +134,11 @@ const ServicoController = {
                     duracao_minutos: dadosAgenda.duracao_minutos,
                 }
             );
+            if (!novoServico) {
+                return res.status(400).json({
+                    erro: 'A imagem informada nao pertence ao usuario ou ja foi utilizada.',
+                });
+            }
 
             notificarNovoChamado(novoServico);
 

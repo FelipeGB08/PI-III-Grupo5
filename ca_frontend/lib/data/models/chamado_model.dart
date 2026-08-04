@@ -76,16 +76,18 @@ class ChamadoModel extends Chamado {
     double? atendimentoLatitude,
     double? atendimentoLongitude,
     String? fotoUrl,
+    String? categoria,
   }) =>
       {
         'profissional_id': profissionalId,
         'descricao': descricao,
         if (agendaServicoId != null) 'agenda_servico_id': agendaServicoId,
-        if (servicoNome != null && servicoNome.isNotEmpty)
-          'servico_nome': servicoNome,
-        if (preco != null) 'preco': preco,
+        // Nome e preco sao definidos pelo servico da agenda no backend.
+        // Mantemos os parametros por compatibilidade com os chamadores, mas
+        // nao os enviamos para impedir que o aplicativo os trate como fonte
+        // de verdade.
         if (agendadoPara != null)
-          'agendado_para': agendadoPara.toIso8601String(),
+          'agendado_para': agendadoPara.toUtc().toIso8601String(),
         if (enderecoAtendimento != null && enderecoAtendimento.isNotEmpty)
           'endereco_atendimento': enderecoAtendimento,
         if (atendimentoLatitude != null)
@@ -93,6 +95,7 @@ class ChamadoModel extends Chamado {
         if (atendimentoLongitude != null)
           'atendimento_longitude': atendimentoLongitude,
         if (fotoUrl != null && fotoUrl.isNotEmpty) 'foto_url': fotoUrl,
+        if (categoria != null && categoria.isNotEmpty) 'categoria': categoria,
       };
 
   Map<String, dynamic> toStatusJson(ChamadoStatus status) => {

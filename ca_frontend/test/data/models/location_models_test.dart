@@ -33,6 +33,8 @@ void main() {
     final body = model.toCreateJson(
       profissionalId: 9,
       descricao: 'Instalacao',
+      servicoNome: 'Nome informado pelo cliente',
+      preco: 1,
       atendimentoLatitude: -27.2342,
       atendimentoLongitude: -52.0277,
     );
@@ -46,6 +48,8 @@ void main() {
 
     expect(body['atendimento_latitude'], -27.2342);
     expect(body['atendimento_longitude'], -52.0277);
+    expect(body.containsKey('servico_nome'), isFalse);
+    expect(body.containsKey('preco'), isFalse);
     expect(chamado.atendimentoLatitude, -27.2342);
     expect(chamado.atendimentoLongitude, -52.0277);
   });

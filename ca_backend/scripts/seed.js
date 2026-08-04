@@ -8,6 +8,7 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const pool = require('../src/config/db');
+let db = pool;
 
 const SENHA = 'sim123456';
 
@@ -73,20 +74,42 @@ const PRESTADORES = [
 ];
 
 async function limparDadosSimulacao() {
-  await pool.query(`
-    DELETE FROM avaliacoes;
-    DELETE FROM servicos_solicitados;
-    DELETE FROM profissional_agenda_horarios;
-    DELETE FROM profissional_agenda_servicos;
-    DELETE FROM profissional_categorias;
-    DELETE FROM perfis_profissionais;
-    DELETE FROM usuarios WHERE email LIKE '%@amauc.com';
-  `);
+  const emails = [...CLIENTES, ADMIN, ...PRESTADORES].map((conta) => conta.email);
+  const exclusoes = [
+    `
+    DELETE FROM avaliacoes
+    WHERE servico_id IN (
+      SELECT s.id FROM servicos_solicitados s
+      JOIN usuarios u ON u.id IN (s.cidadao_id, s.prof_id)
+      WHERE u.email = ANY($1::text[])
+    )`,
+    `
+    DELETE FROM servicos_solicitados
+    WHERE cidadao_id IN (SELECT id FROM usuarios WHERE email = ANY($1::text[]))
+       OR prof_id IN (SELECT id FROM usuarios WHERE email = ANY($1::text[]))`,
+    `
+    DELETE FROM profissional_agenda_horarios
+    WHERE profissional_id IN (SELECT id FROM usuarios WHERE email = ANY($1::text[]))`,
+    `
+    DELETE FROM profissional_agenda_servicos
+    WHERE profissional_id IN (SELECT id FROM usuarios WHERE email = ANY($1::text[]))`,
+    `
+    DELETE FROM profissional_categorias
+    WHERE profissional_id IN (SELECT id FROM usuarios WHERE email = ANY($1::text[]))`,
+    `
+    DELETE FROM perfis_profissionais
+    WHERE usuario_id IN (SELECT id FROM usuarios WHERE email = ANY($1::text[]))`,
+    'DELETE FROM usuarios WHERE email = ANY($1::text[])',
+  ];
+
+  for (const sql of exclusoes) {
+    await db.query(sql, [emails]);
+  }
 }
 
 async function criarUsuario({ nome, email, perfilTipo, cidade, telefone }) {
   const hash = await bcrypt.hash(SENHA, 10);
-  const result = await pool.query(
+  const result = await db.query(
     `INSERT INTO usuarios (nome, email, senha_hash, telefone, cidade_amauc, perfil_tipo)
      VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING id`,
@@ -104,7 +127,7 @@ async function criarPrestadorCompleto(p, mapaCategorias) {
     telefone: p.telefone,
   });
 
-  await pool.query(
+  await db.query(
     `INSERT INTO perfis_profissionais (
        usuario_id,
        biografia,
@@ -125,7 +148,7 @@ async function criarPrestadorCompleto(p, mapaCategorias) {
 
   const catId = mapaCategorias[p.categoria];
   if (catId) {
-    await pool.query(
+    await db.query(
       `INSERT INTO profissional_categorias (profissional_id, categoria_id) VALUES ($1, $2)`,
       [userId, catId]
     );
@@ -169,7 +192,7 @@ function servicosPorCategoria(categoria) {
 async function configurarAgendaPrestador(profissionalId, categoria) {
   const servicos = servicosPorCategoria(categoria);
   for (const [ordem, servico] of servicos.entries()) {
-    await pool.query(
+    await db.query(
       `INSERT INTO profissional_agenda_servicos
        (profissional_id, nome, duracao_minutos, preco, ativo, ordem)
        VALUES ($1, $2, $3, $4, TRUE, $5)`,
@@ -180,7 +203,7 @@ async function configurarAgendaPrestador(profissionalId, categoria) {
   const horarios = ['09:00', '10:30', '14:00', '15:30'];
   for (const dia of [1, 2, 3, 4, 5]) {
     for (const horario of horarios) {
-      await pool.query(
+      await db.query(
         `INSERT INTO profissional_agenda_horarios (profissional_id, dia_semana, horario, ativo)
          VALUES ($1, $2, $3, TRUE)`,
         [profissionalId, dia, horario]
@@ -190,10 +213,35 @@ async function configurarAgendaPrestador(profissionalId, categoria) {
 }
 
 async function seed() {
+  const databaseName = process.env.DB_NAME || (() => {
+    try {
+      return new URL(process.env.DATABASE_URL).pathname.replace(/^\//, '');
+    } catch (_) {
+      return '';
+    }
+  })();
+  const allowlist = String(process.env.SEED_DATABASE_ALLOWLIST || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Seed recusado: nunca e permitido em producao.');
+  }
+  if (process.env.ALLOW_DESTRUCTIVE_SEED !== 'true') {
+    throw new Error('Seed recusado: defina ALLOW_DESTRUCTIVE_SEED=true conscientemente.');
+  }
+  if (!databaseName || !allowlist.includes(databaseName)) {
+    throw new Error('Seed recusado: banco nao consta em SEED_DATABASE_ALLOWLIST.');
+  }
+
+  const client = await pool.connect();
+  db = client;
+  await client.query('BEGIN');
+  try {
   console.log('Limpando dados de simulação anteriores...');
   await limparDadosSimulacao();
 
-  const cats = await pool.query('SELECT id, nome_servico FROM categorias');
+  const cats = await db.query('SELECT id, nome_servico FROM categorias');
   const mapaCategorias = Object.fromEntries(cats.rows.map((c) => [c.nome_servico, c.id]));
 
   console.log('Criando clientes...');
@@ -249,7 +297,7 @@ async function seed() {
 
   let concluidoId = null;
   for (const ch of chamados) {
-    const res = await pool.query(
+    const res = await db.query(
       `INSERT INTO servicos_solicitados (cidadao_id, prof_id, descricao, status, preco)
        VALUES ($1, $2, $3, $4, $5) RETURNING id`,
       [
@@ -264,7 +312,7 @@ async function seed() {
   }
 
   if (concluidoId) {
-    await pool.query(
+    await db.query(
       `INSERT INTO avaliacoes (servico_id, nota_estrelas, comentario)
        VALUES ($1, 5, $2)`,
       [
@@ -287,10 +335,24 @@ async function seed() {
   console.log('  1 concluido + avaliação → Lúcia → Carlos (construção)');
   console.log('  2 pendentes extras → Ana/Pedro\n');
 
-  process.exit(0);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+    await pool.end();
+  }
 }
 
-seed().catch((err) => {
-  console.error('Erro no seed:', err.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  seed().catch((err) => {
+    console.error('Erro no seed:', err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  limparDadosSimulacao,
+  seed,
+};

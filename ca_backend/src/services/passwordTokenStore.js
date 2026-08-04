@@ -1,8 +1,5 @@
 const crypto = require('crypto');
 
-const magicLinkTokens = new Map();
-const passwordResetTokens = new Map();
-
 function ambienteDesenvolvimento() {
     return process.env.NODE_ENV !== 'production';
 }
@@ -16,16 +13,7 @@ function hashToken(token) {
 }
 
 function expiraEmMinutos(minutos) {
-    return Date.now() + minutos * 60 * 1000;
-}
-
-function limparExpirados(store) {
-    const agora = Date.now();
-    for (const [hash, dados] of store.entries()) {
-        if (dados.expiraEm <= agora) {
-            store.delete(hash);
-        }
-    }
+    return new Date(Date.now() + minutos * 60 * 1000);
 }
 
 module.exports = {
@@ -33,7 +21,4 @@ module.exports = {
     expiraEmMinutos,
     gerarTokenSeguro,
     hashToken,
-    limparExpirados,
-    magicLinkTokens,
-    passwordResetTokens,
 };

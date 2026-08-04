@@ -12,12 +12,53 @@ class ApiConfig {
   ///
   /// Dispositivo físico Android: use `--dart-define=API_BASE_URL=http://SEU_IP:3000`
   static String get baseUrl {
-    final fromEnv = AppEnv.apiBaseUrl;
-    if (fromEnv.isNotEmpty) return fromEnv;
+    return resolveBaseUrlForEnvironment(
+      configured: AppEnv.apiBaseUrl,
+      isWeb: kIsWeb,
+      platform: defaultTargetPlatform,
+      isRelease: kReleaseMode,
+    );
+  }
 
-    if (kIsWeb) return 'http://localhost:3000';
+  static String resolveBaseUrlForEnvironment({
+    required String configured,
+    required bool isWeb,
+    required TargetPlatform platform,
+    required bool isRelease,
+  }) {
+    final value = configured.trim().replaceFirst(RegExp(r'/+$'), '');
+    if (value.isNotEmpty) {
+      final uri = Uri.tryParse(value);
+      final isHttp = uri?.scheme == 'http' || uri?.scheme == 'https';
+      final isOriginOnly = uri != null &&
+          isHttp &&
+          uri.host.isNotEmpty &&
+          (uri.path.isEmpty || uri.path == '/') &&
+          !uri.hasQuery &&
+          !uri.hasFragment &&
+          uri.userInfo.isEmpty;
 
-    switch (defaultTargetPlatform) {
+      if (!isOriginOnly) {
+        throw StateError(
+          'API_BASE_URL deve conter somente uma origem HTTP(S) válida.',
+        );
+      }
+      if (isRelease && uri.scheme != 'https') {
+        throw StateError('API_BASE_URL deve usar HTTPS em builds release.');
+      }
+      return value;
+    }
+
+    if (isRelease) {
+      throw StateError(
+        'API_BASE_URL é obrigatória em builds release. '
+        'Use --dart-define=API_BASE_URL=https://seu-backend.',
+      );
+    }
+
+    if (isWeb) return 'http://localhost:3000';
+
+    switch (platform) {
       case TargetPlatform.android:
         return 'http://10.0.2.2:3000';
       default:
@@ -128,5 +169,17 @@ class ApiConfig {
     if (path == null || path.isEmpty) return '';
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
     return '$baseUrl$path';
+  }
+
+  static bool isTrustedApiUrl(String url) {
+    final target = Uri.tryParse(resolveAssetUrl(url));
+    final api = Uri.tryParse(baseUrl);
+    if (target == null || api == null) return false;
+    int port(Uri uri) => uri.hasPort
+        ? uri.port
+        : (uri.scheme.toLowerCase() == 'https' ? 443 : 80);
+    return target.scheme.toLowerCase() == api.scheme.toLowerCase() &&
+        target.host.toLowerCase() == api.host.toLowerCase() &&
+        port(target) == port(api);
   }
 }

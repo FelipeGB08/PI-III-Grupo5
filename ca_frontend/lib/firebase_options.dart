@@ -53,7 +53,7 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyB92Qhb_GDRV9KHVj4DCLjSCBwCHDQ6YaM',
+    apiKey: 'AIzaSyAlxDUaiqblQombymDi4vyewP4ilS1UY6U',
     appId: '1:347239352136:android:e36669ed0a30aff360157d',
     messagingSenderId: '347239352136',
     projectId: 'conecta-amauc',

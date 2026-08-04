@@ -7,6 +7,9 @@ process.env.UPLOADS_DIR = pastaUploadsTeste;
 jest.mock('../../src/services/authTokenService', () => ({
     validarAccessTokenAtivo: jest.fn(),
 }));
+jest.mock('../../src/models/UploadClaimModel', () => ({
+    registrar: jest.fn().mockResolvedValue({ id: 1 }),
+}));
 
 jest.mock('../../src/controllers/SolicitacaoController', () => ({
     aceitarPropostaValor: jest.fn(),

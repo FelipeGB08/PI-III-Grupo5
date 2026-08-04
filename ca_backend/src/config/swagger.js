@@ -110,7 +110,7 @@ const swaggerSpec = swaggerJsdoc({
                     properties: {
                         nome: { type: 'string', example: 'Maria da Silva' },
                         email: { type: 'string', format: 'email', example: 'maria@exemplo.com' },
-                        senha: { type: 'string', format: 'password', minLength: 6, example: 'Teste123456' },
+                        senha: { type: 'string', format: 'password', minLength: 10, maxLength: 72, example: 'Teste123456' },
                         telefone: { type: 'string', example: '(49) 99999-0000' },
                         cidade_amauc: { type: 'string', example: 'Concórdia' },
                         endereco_principal: { type: 'string', example: 'Rua das Flores, 123' },
@@ -199,7 +199,7 @@ const swaggerSpec = swaggerJsdoc({
                     type: 'object', required: ['token', 'senha'],
                     properties: {
                         token: { type: 'string', example: 'token-recebido-por-email' },
-                        senha: { type: 'string', format: 'password', minLength: 6, example: 'NovaSenha123' },
+                        senha: { type: 'string', format: 'password', minLength: 10, maxLength: 72, example: 'NovaSenha123' },
                     },
                 },
                 Categoria: {

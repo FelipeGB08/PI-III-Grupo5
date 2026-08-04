@@ -5,9 +5,8 @@ services:
     plan: free
     region: oregon
     rootDir: ca_backend
-    buildCommand: npm install
+    buildCommand: npm ci
     startCommand: npm run db:migrate && npm start
-    initialDeployHook: npm run db:seed
     healthCheckPath: /api/v1/status
     autoDeployTrigger: off
     envVars:
@@ -15,6 +14,8 @@ services:
         value: production
       - key: NODE_VERSION
         value: "22"
+      - key: TRUST_PROXY_HOPS
+        value: "1"
       - key: DATABASE_URL
         fromDatabase:
           name: conecta-amauc-db
@@ -33,6 +34,32 @@ services:
         sync: false
       - key: SENTRY_ENVIRONMENT
         value: production
+      # Firebase Admin: configure os tres valores no painel, nunca no Git.
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      # E-mail transacional para verificacao e recuperacao de senha.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      # Em producao, estes caminhos precisam apontar para armazenamento
+      # persistente. O disco efemero do servico nao preserva uploads.
+      - key: UPLOADS_DIR
+        sync: false
+      - key: VERIFICATION_DOCUMENTS_DIR
+        sync: false
       # Web Client ID usado como audience dos ID tokens Google.
       - key: GOOGLE_CLIENT_ID
         sync: false

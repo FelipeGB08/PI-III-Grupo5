@@ -12,6 +12,7 @@ abstract class ChamadoRepository {
     double? atendimentoLatitude,
     double? atendimentoLongitude,
     String? fotoUrl,
+    String? categoria,
   });
 
   Future<PaginaChamados> listarMeusChamados({

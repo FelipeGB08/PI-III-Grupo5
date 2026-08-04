@@ -15,9 +15,10 @@ void main() {
 
   group('FormValidators.password', () {
     test('respeita tamanho minimo padrao e customizado', () {
-      expect(FormValidators.password('123456'), isNull);
-      expect(FormValidators.password('12345'), isNotNull);
+      expect(FormValidators.password('1234567890'), isNull);
+      expect(FormValidators.password('123456789'), isNotNull);
       expect(FormValidators.password('1234567', minLength: 8), isNotNull);
+      expect(FormValidators.password(List.filled(40, 'á').join()), isNotNull);
     });
   });
 

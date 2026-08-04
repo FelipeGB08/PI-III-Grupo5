@@ -3,7 +3,8 @@ const logger = require('../utils/logger');
 
 function escaparCsv(valor) {
     const texto = valor === null || valor === undefined ? '' : String(valor);
-    return `"${texto.replace(/"/g, '""')}"`;
+    const seguro = /^[=+\-@\t\r]/.test(texto) ? `'${texto}` : texto;
+    return `"${seguro.replace(/"/g, '""')}"`;
 }
 
 function adicionarSecaoCsv(linhas, titulo, cabecalhos, registros, campos) {

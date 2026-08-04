@@ -70,9 +70,21 @@ class AuthInterceptor extends Interceptor {
     return _publicPaths.any((publicPath) => path.startsWith(publicPath));
   }
 
+  bool _isTrustedApi(RequestOptions options) {
+    final target = options.uri;
+    final api = Uri.tryParse(_dio.options.baseUrl);
+    if (api == null) return false;
+    int port(Uri uri) => uri.hasPort
+        ? uri.port
+        : (uri.scheme.toLowerCase() == 'https' ? 443 : 80);
+    return target.scheme.toLowerCase() == api.scheme.toLowerCase() &&
+        target.host.toLowerCase() == api.host.toLowerCase() &&
+        port(target) == port(api);
+  }
+
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    if (!_isPublic(options)) {
+    if (_isTrustedApi(options) && !_isPublic(options)) {
       final token = tokenProvider();
       if (token != null && token.isNotEmpty) {
         options.headers['Authorization'] = 'Bearer $token';
@@ -88,6 +100,7 @@ class AuthInterceptor extends Interceptor {
   ) async {
     final request = err.requestOptions;
     final podeRenovar = err.response?.statusCode == 401 &&
+        _isTrustedApi(request) &&
         !_isPublic(request) &&
         request.extra[_retryKey] != true;
 

@@ -26,11 +26,13 @@ const {
 const errorHandler = require('./middlewares/errorHandler');
 const { criarProtecaoDeUpload } = require('./middlewares/uploadAccessMiddleware');
 const { criarHealthController } = require('./controllers/HealthController');
+const { configurarTrustProxy } = require('./config/trustProxy');
 
 avisarCredenciaisSociaisAusentes();
 const pool = require('./config/db');
 
 const { initChatSocket } = require('./services/chatSocketService');
+const { criarEncerramentoGracioso } = require('./services/gracefulShutdownService');
 
 const configuredOrigins = (process.env.ALLOWED_ORIGINS || '')
     .split(',')
@@ -40,6 +42,7 @@ const corsOrigin = configuredOrigins.length > 0
     ? configuredOrigins
     : (process.env.NODE_ENV === 'production' ? [] : '*');
 const app = express();
+configurarTrustProxy(app);
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
@@ -131,3 +134,16 @@ server.listen(PORT, () => {
         ambiente: process.env.NODE_ENV || 'development',
     });
 });
+
+const encerrarGraciosamente = criarEncerramentoGracioso({
+    server,
+    io,
+    pool,
+    logger,
+    timeoutMs: Number(process.env.GRACEFUL_SHUTDOWN_TIMEOUT_MS || 10_000),
+});
+
+process.once('SIGTERM', () => encerrarGraciosamente('SIGTERM'));
+process.once('SIGINT', () => encerrarGraciosamente('SIGINT'));
+
+module.exports = { app, encerrarGraciosamente, server };

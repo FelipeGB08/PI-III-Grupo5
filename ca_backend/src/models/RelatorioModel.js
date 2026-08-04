@@ -38,8 +38,7 @@ const RelatorioModel = {
                    c.nome_servico AS categoria,
                    COUNT(DISTINCT s.id)::int AS total_chamados
             FROM categorias c
-            LEFT JOIN profissional_categorias pc ON pc.categoria_id = c.id
-            LEFT JOIN servicos_solicitados s ON s.prof_id = pc.profissional_id
+            LEFT JOIN servicos_solicitados s ON s.categoria_id = c.id
             GROUP BY c.id, c.nome_servico
             ORDER BY total_chamados DESC, categoria ASC;
         `;

@@ -3,6 +3,7 @@ const {
     PERFIS_AUTOCADASTRO,
     normalizarPerfilTipo,
 } = require('../utils/userRegistrationHelpers');
+const { validarSenha } = require('../utils/passwordPolicy');
 
 const emailSchema = z
     .string({ error: 'Informe um e-mail valido.' })
@@ -14,21 +15,40 @@ const cadastroSchema = z
         nome: z
             .string({ error: 'Informe o nome.' })
             .trim()
-            .min(1, 'Informe o nome.'),
+            .min(1, 'Informe o nome.')
+            .max(120, 'O nome deve ter no maximo 120 caracteres.'),
         email: emailSchema,
         senha: z
             .string({ error: 'Informe a senha.' })
-            .min(6, 'A senha deve ter pelo menos 6 caracteres.'),
-        cidade_amauc: z.string().trim().optional(),
-        cidade: z.string().trim().optional(),
-        perfil_tipo: z.string().trim().optional(),
-        tipo_usuario: z.string().trim().optional(),
-        biografia: z.string().optional(),
-        bio: z.string().optional(),
-        categoria: z.string().optional(),
-        categorias: z.union([z.string(), z.array(z.string())]).optional(),
+            .superRefine((senha, ctx) => {
+                const erro = validarSenha(senha);
+                if (erro) ctx.addIssue({ code: 'custom', message: erro });
+            }),
+        cidade_amauc: z.string().trim().max(120).optional(),
+        cidade: z.string().trim().max(120).optional(),
+        perfil_tipo: z.string().trim().max(30).optional(),
+        tipo_usuario: z.string().trim().max(30).optional(),
+        biografia: z.string().trim().max(2000).optional(),
+        bio: z.string().trim().max(2000).optional(),
+        categoria: z.string().trim().max(120).optional(),
+        categorias: z.union([
+            z.string().trim().max(120),
+            z.array(z.string().trim().max(120)).max(20),
+        ]).optional(),
+        cidades: z.union([
+            z.string().trim().max(120),
+            z.array(z.string().trim().max(120)).max(20),
+        ]).optional(),
+        cidades_atendidas: z.union([
+            z.string().trim().max(120),
+            z.array(z.string().trim().max(120)).max(20),
+        ]).optional(),
+        telefone: z.string().trim().max(30).optional(),
+        endereco_principal: z.string().trim().max(500).optional(),
+        latitude: z.union([z.number(), z.string().trim().max(32)]).optional(),
+        longitude: z.union([z.number(), z.string().trim().max(32)]).optional(),
     })
-    .passthrough()
+    .strict()
     .superRefine((dados, ctx) => {
         const cidade = dados.cidade_amauc || dados.cidade;
         if (!cidade) {
@@ -80,9 +100,10 @@ const loginSchema = z
         email: emailSchema,
         senha: z
             .string({ error: 'Informe a senha.' })
-            .min(1, 'Informe a senha.'),
+            .min(1, 'Informe a senha.')
+            .max(256, 'Senha invalida.'),
     })
-    .passthrough();
+    .strict();
 
 const socialLoginSchema = z
     .object({
@@ -94,11 +115,11 @@ const socialLoginSchema = z
                 (valor) => valor === 'google' || valor === 'apple',
                 'provider deve ser google ou apple.'
             ),
-        token: z.string().trim().optional(),
-        id_token: z.string().trim().optional(),
-        access_token: z.string().trim().optional(),
-        cidade_amauc: z.string().trim().optional(),
-        cidade: z.string().trim().optional(),
+        token: z.string().trim().max(8192).optional(),
+        id_token: z.string().trim().max(8192).optional(),
+        access_token: z.string().trim().max(8192).optional(),
+        cidade_amauc: z.string().trim().max(120).optional(),
+        cidade: z.string().trim().max(120).optional(),
         platform: z
             .string()
             .trim()
@@ -108,7 +129,7 @@ const socialLoginSchema = z
         state: z.string().trim().max(2048, 'state do login social e invalido.').optional(),
         nonce: z.string().trim().max(256, 'nonce do login social e invalido.').optional(),
     })
-    .passthrough()
+    .strict()
     .superRefine((dados, ctx) => {
         if (!dados.token && !dados.id_token && !dados.access_token) {
             ctx.addIssue({
@@ -134,9 +155,10 @@ const refreshTokenSchema = z
         refresh_token: z
             .string({ error: 'Informe o refresh token.' })
             .trim()
-            .min(32, 'Refresh token invalido.'),
+            .min(32, 'Refresh token invalido.')
+            .max(512, 'Refresh token invalido.'),
     })
-    .passthrough();
+    .strict();
 
 module.exports = {
     cadastroSchema,

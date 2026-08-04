@@ -25,6 +25,12 @@ function errorHandler(err, req, res, next) {
         });
     }
 
+    if (['22001', '22003', '22P02', '23514', '23502'].includes(err.code)) {
+        return res.status(400).json({
+            erro: 'Dados enviados sao invalidos ou excedem os limites permitidos.',
+        });
+    }
+
     logger.error('Erro nao tratado pela API.', {
         erro: err,
         metodo: req.method,

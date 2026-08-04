@@ -788,7 +788,8 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
                   onToggle: () =>
                       setState(() => _obscureLoginSenha = !_obscureLoginSenha),
                 ),
-                validator: FormValidators.password,
+                validator: (value) =>
+                    FormValidators.password(value, minLength: 1),
               ),
             ],
             const SizedBox(height: 32),

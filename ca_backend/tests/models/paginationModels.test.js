@@ -79,6 +79,7 @@ describe('paginacao dos models', () => {
             12,
             9,
             3,
+            null,
             'Eletricista',
             'Trocar tomada',
             'Rua Central',

@@ -17,6 +17,7 @@ const API_ORIGIN = API_BASE_URL
 const runId = Date.now();
 const senha = 'Teste123456';
 const cidade = 'Concordia';
+const FUSO_AMAUC = 'America/Sao_Paulo';
 
 const cidadaoEmail = `cidadao.e2e.${runId}@amauc.com`;
 const intrusoEmail = `intruso.e2e.${runId}@amauc.com`;
@@ -282,28 +283,53 @@ async function validarRevogacaoSocket({
   }
 }
 
-function proximoDiaUtilComHorario(horario = '10:00') {
-  const agora = new Date();
-  const alvo = new Date(agora);
-  alvo.setDate(alvo.getDate() + 1);
+function partesDataAmaUc(data) {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: FUSO_AMAUC,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(data);
+  const valor = (tipo) => partes.find((parte) => parte.type === tipo)?.value;
+  return {
+    ano: Number(valor('year')),
+    mes: Number(valor('month')),
+    dia: Number(valor('day')),
+    hora: Number(valor('hour')),
+    minuto: Number(valor('minute')),
+  };
+}
 
-  while (alvo.getDay() === 0 || alvo.getDay() === 6) {
-    alvo.setDate(alvo.getDate() + 1);
+function proximoDiaUtilComHorario(horario = '10:00', agora = new Date()) {
+  const partes = partesDataAmaUc(agora);
+  const alvo = new Date(Date.UTC(partes.ano, partes.mes - 1, partes.dia));
+  alvo.setUTCDate(alvo.getUTCDate() + 1);
+
+  while (alvo.getUTCDay() === 0 || alvo.getUTCDay() === 6) {
+    alvo.setUTCDate(alvo.getUTCDate() + 1);
   }
 
   const [hora, minuto] = horario.split(':').map(Number);
-  alvo.setHours(hora, minuto, 0, 0);
+  alvo.setUTCHours(hora, minuto, 0, 0);
   return alvo;
 }
 
 function diaSemanaAmaUc(data) {
-  const dia = data.getDay();
+  const dia = data.getUTCDay();
   return dia === 0 ? 7 : dia;
 }
 
 function timestampLocal(data) {
-  const pad = (value) => String(value).padStart(2, '0');
-  return `${data.getFullYear()}-${pad(data.getMonth() + 1)}-${pad(data.getDate())}T${pad(data.getHours())}:${pad(data.getMinutes())}:00`;
+  const pad = (valor) => String(valor).padStart(2, '0');
+  return `${data.getUTCFullYear()}-${pad(data.getUTCMonth() + 1)}-${pad(data.getUTCDate())}`
+    + `T${pad(data.getUTCHours())}:${pad(data.getUTCMinutes())}:00-03:00`;
+}
+
+function horaAmaUc(data) {
+  return partesDataAmaUc(data).hora;
 }
 
 async function request(path, options = {}) {
@@ -810,7 +836,7 @@ async function executarFluxoE2E() {
 
   console.log('[E2E] Validando bloqueio de horario indisponivel...');
   const dataIndisponivel = new Date(dataAgendada);
-  dataIndisponivel.setHours(15, 30, 0, 0);
+  dataIndisponivel.setUTCHours(15, 30, 0, 0);
   await request('/solicitacoes', {
     method: 'POST',
     token: cidadaoToken,
@@ -882,7 +908,7 @@ async function executarFluxoE2E() {
 
   console.log('[E2E] Prestador propoe remarcacao...');
   const novaData = new Date(dataAgendada);
-  novaData.setHours(14, 0, 0, 0);
+  novaData.setUTCHours(14, 0, 0, 0);
   const remarcacaoResponse = await request(`/solicitacoes/${solicitacao.id}/remarcar`, {
     method: 'PATCH',
     token: profissionalToken,
@@ -902,7 +928,9 @@ async function executarFluxoE2E() {
     token: cidadaoToken,
   });
 
-  const horaAplicada = new Date(aceiteRemarcacao.solicitacao?.agendado_para).getHours();
+  const horaAplicada = horaAmaUc(
+    new Date(aceiteRemarcacao.solicitacao?.agendado_para)
+  );
   if (aceiteRemarcacao.solicitacao?.status !== 'aceito' || horaAplicada !== 14) {
     throw new Error('Cliente aceitou remarcacao, mas horario novo nao foi aplicado.');
   }
@@ -1093,5 +1121,9 @@ if (require.main === module) {
 }
 
 module.exports = {
+  diaSemanaAmaUc,
+  horaAmaUc,
+  proximoDiaUtilComHorario,
   prepararEsperaRevogacaoSocket,
+  timestampLocal,
 };

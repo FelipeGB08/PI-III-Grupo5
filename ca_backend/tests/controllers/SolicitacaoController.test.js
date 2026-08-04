@@ -147,6 +147,8 @@ describe('SolicitacaoController', () => {
                 agendadoPara: '2030-01-03T14:30:00',
                 atendimentoLatitude: '-27.2335',
                 atendimentoLongitude: '-52.0277',
+                servico_nome: 'Nome enviado pelo cliente',
+                preco: 1,
             },
         };
 

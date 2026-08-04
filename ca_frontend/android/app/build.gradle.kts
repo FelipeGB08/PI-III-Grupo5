@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
@@ -50,8 +51,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
     }
 
     defaultConfig {
@@ -95,15 +98,25 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
 
-// A release artefact must be signed with an explicitly supplied release key.
-// This guard deliberately does not affect debug/profile builds.
-tasks.configureEach {
-    if (name == "packageRelease" || name == "bundleRelease") {
-        doFirst {
-            check(hasReleaseSigning) {
-                "Assinatura de release ausente. Configure android/key.properties " +
-                    "ou KEYSTORE_PATH, KEYSTORE_PASSWORD, KEY_ALIAS e KEY_PASSWORD."
-            }
+// Validate the complete graph before Gradle executes packaging dependencies.
+// A doFirst on bundleRelease runs too late: its dependencies can leave an
+// unsigned intermediate AAB behind before the aggregate task is reached.
+gradle.taskGraph.whenReady {
+    val releaseArtifactTasks = setOf(
+        "packageRelease",
+        "packageReleaseBundle",
+        "packageReleaseUniversalApk",
+        "signReleaseBundle",
+        "bundleRelease",
+    )
+    val requestsReleaseArtifact = allTasks.any { task ->
+        task.project == project && task.name in releaseArtifactTasks
+    }
+
+    if (requestsReleaseArtifact) {
+        check(hasReleaseSigning) {
+            "Assinatura de release ausente. Configure android/key.properties " +
+                "ou KEYSTORE_PATH, KEYSTORE_PASSWORD, KEY_ALIAS e KEY_PASSWORD."
         }
     }
 }

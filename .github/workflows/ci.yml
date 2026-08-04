@@ -63,6 +63,10 @@ jobs:
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_NAME: conecta_amauc
+      # O Postgres deste job e efemero e exclusivo do CI; o seed se recusa a
+      # apagar dados sem estas duas confirmacoes explicitas.
+      ALLOW_DESTRUCTIVE_SEED: "true"
+      SEED_DATABASE_ALLOWLIST: conecta_amauc
       GOOGLE_CLIENT_ID: ci-google-client
       APPLE_IOS_CLIENT_ID: ci-apple-ios-client
       APPLE_SERVICES_ID: ci-apple-services-client
@@ -95,18 +99,29 @@ jobs:
       - name: Seed database
         run: npm run db:seed
 
-      - name: Start API
+      - name: Start API and run E2E
         run: |
           npm run start > server.log 2>&1 &
+          api_pid=$!
+          cleanup() {
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              cat server.log || true
+            fi
+            kill "$api_pid" 2>/dev/null || true
+            wait "$api_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
           for i in {1..30}; do
-            curl -fsS http://localhost:3000/api/v1/status && exit 0
+            if curl -fsS http://localhost:3000/api/v1/status; then
+              break
+            fi
             sleep 1
           done
-          cat server.log
-          exit 1
 
-      - name: Run E2E
-        run: npm run test:e2e
+          curl -fsS http://localhost:3000/api/v1/status
+          npm run test:e2e
 
   flutter:
     name: Flutter Analyze/Test

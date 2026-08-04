@@ -158,6 +158,7 @@ const SolicitacaoController = {
                 req.body.agendadoPara ||
                 req.body.data_hora ||
                 null;
+            const categoria = normalizarTexto(req.body.categoria) || null;
 
             if (!cidadaoId) {
                 return res.status(401).json({ erro: 'Usuario nao autenticado.' });
@@ -178,6 +179,7 @@ const SolicitacaoController = {
                 profId,
                 agendaServicoId,
                 agendadoPara,
+                categoria,
             });
 
             const novaSolicitacao = await ServicoModel.criar(
@@ -187,6 +189,7 @@ const SolicitacaoController = {
                 fotoUrl,
                 {
                     agenda_servico_id: dadosAgenda.agenda_servico_id,
+                    categoria_id: dadosAgenda.categoria_id,
                     servico_nome: dadosAgenda.servico_nome,
                     endereco_atendimento: enderecoAtendimento || null,
                     ...(latitudeAtendimento !== null &&
@@ -201,6 +204,11 @@ const SolicitacaoController = {
                     duracao_minutos: dadosAgenda.duracao_minutos,
                 }
             );
+            if (!novaSolicitacao) {
+                return res.status(400).json({
+                    erro: 'A imagem informada nao pertence ao usuario ou ja foi utilizada.',
+                });
+            }
 
             notificarNovoChamado(novaSolicitacao);
 
@@ -694,6 +702,7 @@ const SolicitacaoController = {
                 profId,
                 agendaServicoId: solicitacaoAtual.agenda_servico_id,
                 agendadoPara: novaDataHora,
+                categoriaId: solicitacaoAtual.categoria_id,
                 ignorarSolicitacaoId: id,
             });
 

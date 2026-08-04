@@ -1,6 +1,8 @@
 const bcrypt = require('bcrypt');
 const UserModel = require('../models/UserModel');
+const PasswordTokenModel = require('../models/PasswordTokenModel');
 const logger = require('../utils/logger');
+const { validarSenha } = require('../utils/passwordPolicy');
 const { criarRespostaLogin } = require('../services/authResponseService');
 const { enviarMagicLink, enviarResetSenha } = require('../services/emailService');
 const {
@@ -8,9 +10,6 @@ const {
     expiraEmMinutos,
     gerarTokenSeguro,
     hashToken,
-    limparExpirados,
-    magicLinkTokens,
-    passwordResetTokens,
 } = require('../services/passwordTokenStore');
 
 const PasswordResetController = {
@@ -23,7 +22,7 @@ const PasswordResetController = {
                 return res.status(400).json({ erro: 'Email e obrigatorio.' });
             }
 
-            limparExpirados(magicLinkTokens);
+            await PasswordTokenModel.limparExpirados();
             const usuario = await UserModel.buscarPorEmail(emailNormalizado);
             const resposta = {
                 mensagem: 'Se o email estiver cadastrado, enviaremos um link de acesso.',
@@ -31,8 +30,10 @@ const PasswordResetController = {
 
             if (usuario) {
                 const token = gerarTokenSeguro();
-                magicLinkTokens.set(hashToken(token), {
+                await PasswordTokenModel.criar({
                     usuarioId: usuario.id,
+                    tokenHash: hashToken(token),
+                    finalidade: 'magic_link',
                     expiraEm: expiraEmMinutos(15),
                 });
 
@@ -48,8 +49,6 @@ const PasswordResetController = {
                     logger.info('Magic link gerado no modo de desenvolvimento.', {
                         componente: 'autenticacao',
                         operacao: 'magic_link_dev',
-                        email: emailNormalizado,
-                        token,
                     });
                 }
 
@@ -78,24 +77,26 @@ const PasswordResetController = {
                 return res.status(400).json({ erro: 'Token e obrigatorio.' });
             }
 
-            limparExpirados(magicLinkTokens);
             const tokenHash = hashToken(tokenInformado);
-            const dados = magicLinkTokens.get(tokenHash);
+            const dados = await PasswordTokenModel.consumir({
+                tokenHash,
+                finalidade: 'magic_link',
+            });
 
-            if (!dados || dados.expiraEm <= Date.now()) {
-                magicLinkTokens.delete(tokenHash);
+            if (!dados) {
                 return res.status(401).json({ erro: 'Link expirado ou invalido.' });
             }
 
-            const usuario = await UserModel.buscarPorId(dados.usuarioId);
-            magicLinkTokens.delete(tokenHash);
+            const usuarioNormalizado = await UserModel.buscarPorId(
+                dados.usuario_id ?? dados.usuarioId
+            );
 
-            if (!usuario || usuario.ativo === false) {
+            if (!usuarioNormalizado || usuarioNormalizado.ativo === false) {
                 return res.status(404).json({ erro: 'Usuario nao encontrado.' });
             }
 
             return res.status(200).json(
-                await criarRespostaLogin(usuario, 'Login sem senha realizado com sucesso!')
+                await criarRespostaLogin(usuarioNormalizado, 'Login sem senha realizado com sucesso!')
             );
         } catch (erro) {
             logger.error('Falha ao verificar magic link.', {
@@ -116,7 +117,7 @@ const PasswordResetController = {
                 return res.status(400).json({ erro: 'Email e obrigatorio.' });
             }
 
-            limparExpirados(passwordResetTokens);
+            await PasswordTokenModel.limparExpirados();
             const usuario = await UserModel.buscarPorEmail(emailNormalizado);
             const resposta = {
                 mensagem: 'Se o email estiver cadastrado, enviaremos instrucoes para redefinir a senha.',
@@ -124,8 +125,10 @@ const PasswordResetController = {
 
             if (usuario) {
                 const token = gerarTokenSeguro();
-                passwordResetTokens.set(hashToken(token), {
+                await PasswordTokenModel.criar({
                     usuarioId: usuario.id,
+                    tokenHash: hashToken(token),
+                    finalidade: 'password_reset',
                     expiraEm: expiraEmMinutos(30),
                 });
 
@@ -141,8 +144,6 @@ const PasswordResetController = {
                     logger.info('Token de reset gerado no modo de desenvolvimento.', {
                         componente: 'autenticacao',
                         operacao: 'reset_senha_dev',
-                        email: emailNormalizado,
-                        token,
                     });
                 }
 
@@ -171,25 +172,20 @@ const PasswordResetController = {
                 return res.status(400).json({ erro: 'Token e nova senha sao obrigatorios.' });
             }
 
-            if (String(senha).length < 6) {
-                return res.status(400).json({ erro: 'A senha deve ter ao menos 6 caracteres.' });
+            const erroSenha = validarSenha(senha);
+            if (erroSenha) {
+                return res.status(400).json({ erro: erroSenha });
             }
 
-            limparExpirados(passwordResetTokens);
             const tokenHash = hashToken(tokenInformado);
-            const dados = passwordResetTokens.get(tokenHash);
-
-            if (!dados || dados.expiraEm <= Date.now()) {
-                passwordResetTokens.delete(tokenHash);
-                return res.status(401).json({ erro: 'Token expirado ou invalido.' });
-            }
-
             const senhaHash = await bcrypt.hash(String(senha), 10);
-            const usuario = await UserModel.atualizarSenha(dados.usuarioId, senhaHash);
-            passwordResetTokens.delete(tokenHash);
+            const usuario = await PasswordTokenModel.consumirResetEAtualizarSenha({
+                tokenHash,
+                senhaHash,
+            });
 
             if (!usuario) {
-                return res.status(404).json({ erro: 'Usuario nao encontrado.' });
+                return res.status(401).json({ erro: 'Token expirado ou invalido.' });
             }
 
             return res.status(200).json({ mensagem: 'Senha alterada com sucesso.' });

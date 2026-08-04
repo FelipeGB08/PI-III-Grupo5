@@ -25,6 +25,10 @@ describe('RelatorioModel', () => {
         expect(pool.query).toHaveBeenCalledTimes(7);
         expect(pool.query.mock.calls[2][0]).toContain('AVG(a.nota_estrelas)');
         expect(pool.query.mock.calls[3][0]).toContain('COUNT(DISTINCT s.id)');
+        expect(pool.query.mock.calls[3][0]).toContain('s.categoria_id = c.id');
+        expect(pool.query.mock.calls[3][0]).not.toContain(
+            's.prof_id = pc.profissional_id'
+        );
         expect(pool.query.mock.calls[4][0]).toContain("s.status = 'cancelado_cliente'");
         expect(pool.query.mock.calls[5][0]).toContain("status_verificacao = 'pendente'");
         expect(pool.query.mock.calls[6][0]).toContain("status = 'aberta'");

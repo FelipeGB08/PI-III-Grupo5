@@ -174,7 +174,7 @@ describe('rateLimitMiddleware', () => {
             path: '/refresh',
             body: { refresh_token: 'refresh-opaco-da-sessao-dois' },
         }, respostaOutroTokenMesmoIp, jest.fn());
-        expect(respostaOutroTokenMesmoIp.status).toHaveBeenCalledWith(429);
+        expect(respostaOutroTokenMesmoIp.status).not.toHaveBeenCalled();
 
         const outroIp = jest.fn();
         authRateLimit({

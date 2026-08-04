@@ -99,6 +99,38 @@ void main() {
     expect(bytes, Uint8List.fromList([1, 2, 3, 4]));
   });
 
+  test('midia externa usa cliente separado sem bearer', () async {
+    String? authorizationExterna;
+    final autenticado = Dio(BaseOptions(baseUrl: 'https://api.example.test'))
+      ..interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            options.headers['Authorization'] = 'Bearer privado';
+            handler.next(options);
+          },
+        ),
+      );
+    final publico = Dio()
+      ..httpClientAdapter = _StubAdapter((options) async {
+        authorizationExterna = options.headers['Authorization']?.toString();
+        return ResponseBody.fromBytes(
+          [1, 2, 3],
+          200,
+          headers: {
+            Headers.contentTypeHeader: ['image/jpeg'],
+          },
+        );
+      });
+
+    final bytes = await ApiService(
+      autenticado,
+      publicMediaDio: publico,
+    ).baixarImagemProtegida('https://cdn.example.test/foto.jpg');
+
+    expect(bytes, Uint8List.fromList([1, 2, 3]));
+    expect(authorizationExterna, isNull);
+  });
+
   test('prefixo canonico do app e api v1', () {
     expect(ApiConfig.apiPrefix, '/api/v1');
     expect(ApiConfig.authLogin, startsWith('/api/v1/'));

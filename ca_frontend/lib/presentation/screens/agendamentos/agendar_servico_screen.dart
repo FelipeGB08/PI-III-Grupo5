@@ -29,6 +29,7 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
 
   int _servicoIndex = 0;
   int _diaIndex = 0;
+  String? _categoriaSelecionada;
   String? _horario;
   XFile? _fotoProblema;
   Uint8List? _fotoProblemaBytes;
@@ -40,6 +41,9 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
   @override
   void initState() {
     super.initState();
+    _categoriaSelecionada = widget.prestador.categorias.isNotEmpty
+        ? widget.prestador.categorias.first
+        : widget.prestador.categoria;
     final user = ref.read(authStateProvider).user;
     _enderecoController.text = user?.enderecoPrincipal?.isNotEmpty == true
         ? user!.enderecoPrincipal!
@@ -116,7 +120,8 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
             enderecoAtendimento: endereco,
             atendimentoLatitude: _atendimentoLatitude,
             atendimentoLongitude: _atendimentoLongitude,
-            fotoUrl: fotoUrl,
+             fotoUrl: fotoUrl,
+             categoria: _categoriaSelecionada,
           );
       await ref.read(chamadosProvider.notifier).carregar();
       if (!mounted) return;
@@ -333,6 +338,26 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
           ),
         ],
         const SizedBox(height: 22),
+        if (widget.prestador.categorias.length > 1) ...[
+          DropdownButtonFormField<String>(
+            initialValue: _categoriaSelecionada,
+            decoration: const InputDecoration(
+              labelText: 'Categoria contratada',
+              prefixIcon: Icon(Icons.category_outlined),
+            ),
+            items: widget.prestador.categorias
+                .map(
+                  (categoria) => DropdownMenuItem(
+                    value: categoria,
+                    child: Text(categoria),
+                  ),
+                )
+                .toList(),
+            onChanged: (categoria) =>
+                setState(() => _categoriaSelecionada = categoria),
+          ),
+          const SizedBox(height: 18),
+        ],
         _StepTitle(number: 1, title: 'Qual servico voce precisa?'),
         const SizedBox(height: 10),
         ...List.generate(servicos.length, (index) {

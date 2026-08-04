@@ -11,13 +11,32 @@ function normalizarErro(erro) {
     };
 }
 
+const CHAVES_SENSIVEIS = /password|senha|token|authorization|secret|credential|cookie|latitude|longitude|endereco/i;
+
+function sanitizar(valor, chave = '', profundidade = 0) {
+    if (CHAVES_SENSIVEIS.test(chave)) return '[REDACTED]';
+    if (profundidade > 5) return '[TRUNCATED]';
+    if (Array.isArray(valor)) {
+        return valor.map((item) => sanitizar(item, chave, profundidade + 1));
+    }
+    if (valor && typeof valor === 'object' && !(valor instanceof Error)) {
+        return Object.fromEntries(
+            Object.entries(valor).map(([nome, item]) => [
+                nome,
+                sanitizar(item, nome, profundidade + 1),
+            ])
+        );
+    }
+    return valor;
+}
+
 function registrar(nivel, mensagem, contexto = {}) {
     const { erro, ...dados } = contexto;
     const evento = {
         timestamp: new Date().toISOString(),
         nivel,
         mensagem,
-        ...dados,
+        ...sanitizar(dados),
         ...(erro ? { erro: normalizarErro(erro) } : {}),
     };
 
@@ -30,7 +49,7 @@ function registrar(nivel, mensagem, contexto = {}) {
 
     Sentry.withScope((scope) => {
         scope.setLevel('error');
-        scope.setContext('log', dados);
+        scope.setContext('log', sanitizar(dados));
 
         if (dados.usuarioId !== undefined && dados.usuarioId !== null) {
             scope.setUser({ id: String(dados.usuarioId) });

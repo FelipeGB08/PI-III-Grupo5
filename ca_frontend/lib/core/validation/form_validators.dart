@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 /// Validadores compartilhados para formulários de autenticação.
 class FormValidators {
   FormValidators._();
@@ -16,12 +18,15 @@ class FormValidators {
     return null;
   }
 
-  static String? password(String? value, {int minLength = 6}) {
+  static String? password(String? value, {int minLength = 10}) {
     if (value == null || value.isEmpty) {
       return 'Informe sua senha';
     }
     if (value.length < minLength) {
       return 'Mínimo $minLength caracteres';
+    }
+    if (utf8.encode(value).length > 72) {
+      return 'Máximo de 72 bytes';
     }
     return null;
   }

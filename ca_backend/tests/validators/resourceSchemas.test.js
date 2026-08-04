@@ -45,13 +45,13 @@ describe('schemas de autenticacao', () => {
         const cadastro = cadastroSchema.safeParse({
             nome: 'Pessoa',
             email: 'invalido',
-            senha: 'segredo',
+            senha: 'Segredo1234',
             cidade_amauc: 'Concordia',
             perfil_tipo: 'cidadao',
         });
         const login = loginSchema.safeParse({
             email: 'invalido',
-            senha: 'segredo',
+            senha: 'Segredo1234',
         });
 
         expect(cadastro.success).toBe(false);
@@ -63,7 +63,7 @@ describe('schemas de autenticacao', () => {
         const valido = cadastroSchema.safeParse({
             nome: 'Profissional',
             email: 'profissional@exemplo.com',
-            senha: 'segredo',
+            senha: 'Segredo1234',
             cidade: 'Concordia',
             tipo_usuario: 'profissional',
             bio: 'Experiencia profissional comprovada.',
@@ -72,7 +72,7 @@ describe('schemas de autenticacao', () => {
         const semBiografia = cadastroSchema.safeParse({
             nome: 'Profissional',
             email: 'profissional@exemplo.com',
-            senha: 'segredo',
+            senha: 'Segredo1234',
             cidade: 'Concordia',
             tipo_usuario: 'profissional',
             categorias: ['TI'],
@@ -80,6 +80,21 @@ describe('schemas de autenticacao', () => {
 
         expect(valido.success).toBe(true);
         expect(semBiografia.success).toBe(false);
+    });
+
+    test('aceita cidades atendidas no autocadastro profissional', () => {
+        const resultado = cadastroSchema.safeParse({
+            nome: 'Profissional Regional',
+            email: 'profissional.regional@exemplo.com',
+            senha: 'Segredo1234',
+            cidade_amauc: 'Concordia',
+            perfil_tipo: 'profissional',
+            biografia: 'Experiencia profissional comprovada.',
+            categoria: 'TI',
+            cidades_atendidas: ['Concordia', 'Seara'],
+        });
+
+        expect(resultado.success).toBe(true);
     });
 
     test('rejeita perfil administrativo no autocadastro', () => {
@@ -151,9 +166,11 @@ describe('schema de solicitacao', () => {
             prestador_id: '9',
             agenda_servico_id: '12',
             descricao: 'Instalacao eletrica',
-            agendadoPara: '2030-01-02T14:00:00',
+            agendadoPara: '2030-01-02T17:00:00.000Z',
             atendimentoLatitude: '-27.2335',
             atendimentoLongitude: '-52.0277',
+            servico_nome: 'Instalacao eletrica',
+            preco: 120,
         });
 
         expect(resultado.success).toBe(true);
@@ -174,7 +191,7 @@ describe('schema de solicitacao', () => {
             profissional_id: 9,
             agenda_servico_id: 12,
             descricao: 'Instalacao eletrica',
-            agendado_para: '2030-01-02T14:00:00',
+            agendado_para: '2030-01-02T17:00:00.000Z',
             ...localizacao,
         });
 
@@ -187,7 +204,7 @@ describe('schema de solicitacao', () => {
             profissional_id: 9,
             agenda_servico_id: 12,
             descricao: 'Instalacao eletrica',
-            agendado_para: '2029-12-31T14:00:00',
+            agendado_para: '2029-12-31T17:00:00.000Z',
         });
 
         expect(resultado.success).toBe(false);

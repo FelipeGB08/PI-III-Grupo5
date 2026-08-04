@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 
 import '../config/api_config.dart';
 import 'api_exceptions.dart';
@@ -26,10 +25,6 @@ class DioClient {
                 },
               ),
             ) {
-    if (kDebugMode) {
-      debugPrint('[DIO] baseUrl=${ApiConfig.baseUrl}');
-    }
-
     _dio.interceptors.addAll([
       AuthInterceptor(
         dio: _dio,
@@ -39,12 +34,6 @@ class DioClient {
         sessionClearer: sessionClearer,
         onUnauthorized: onUnauthorized,
       ),
-      if (kDebugMode)
-        LogInterceptor(
-          requestBody: true,
-          responseBody: true,
-          logPrint: (o) => debugPrint('[DIO] $o'),
-        ),
       InterceptorsWrapper(
         onError: (error, handler) {
           handler.reject(_mapError(error));

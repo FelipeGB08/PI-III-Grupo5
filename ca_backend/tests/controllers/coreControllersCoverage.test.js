@@ -80,9 +80,12 @@ jest.mock('../../src/services/passwordTokenStore', () => ({
     expiraEmMinutos: jest.fn(),
     gerarTokenSeguro: jest.fn(),
     hashToken: jest.fn((token) => `hash:${token}`),
+}));
+jest.mock('../../src/models/PasswordTokenModel', () => ({
+    criar: jest.fn(),
+    consumir: jest.fn(),
+    consumirResetEAtualizarSenha: jest.fn(),
     limparExpirados: jest.fn(),
-    magicLinkTokens: new Map(),
-    passwordResetTokens: new Map(),
 }));
 
 jest.mock('bcrypt', () => ({ hash: jest.fn() }));
@@ -106,6 +109,7 @@ const {
 const { criarRespostaLogin } = require('../../src/services/authResponseService');
 const { enviarMagicLink, enviarResetSenha } = require('../../src/services/emailService');
 const tokenStore = require('../../src/services/passwordTokenStore');
+const PasswordTokenModel = require('../../src/models/PasswordTokenModel');
 const CategoriaController = require('../../src/controllers/CategoriaController');
 const ChatController = require('../../src/controllers/ChatController');
 const DispositivoController = require('../../src/controllers/DispositivoController');
@@ -126,8 +130,6 @@ function resposta() {
 
 beforeEach(() => {
     jest.clearAllMocks();
-    tokenStore.magicLinkTokens.clear();
-    tokenStore.passwordResetTokens.clear();
     tokenStore.ambienteDesenvolvimento.mockReturnValue(true);
     tokenStore.expiraEmMinutos.mockReturnValue(Date.now() + 60_000);
     tokenStore.gerarTokenSeguro.mockReturnValue('token-de-teste');
@@ -416,16 +418,15 @@ describe('ServicoController e PasswordResetController', () => {
         expect(solicitar.status).toHaveBeenCalledWith(202);
         expect(solicitar.json.mock.calls[0][0]).toHaveProperty('dev_token', 'token-de-teste');
 
-        tokenStore.magicLinkTokens.set('hash:entrar', { usuarioId: 14, expiraEm: Date.now() + 60_000 });
+        PasswordTokenModel.consumir.mockResolvedValue({ usuario_id: 14 });
         UserModel.buscarPorId.mockResolvedValue({ id: 14, ativo: true });
         criarRespostaLogin.mockResolvedValue({ access_token: 'access', refresh_token: 'refresh' });
         const verificar = resposta();
         await PasswordResetController.verificarMagicLink({ body: { token: 'entrar' } }, verificar);
         expect(verificar.status).toHaveBeenCalledWith(200);
 
-        tokenStore.passwordResetTokens.set('hash:resetar', { usuarioId: 14, expiraEm: Date.now() + 60_000 });
         bcrypt.hash.mockResolvedValue('senha-hash');
-        UserModel.atualizarSenha.mockResolvedValue({ id: 14 });
+        PasswordTokenModel.consumirResetEAtualizarSenha.mockResolvedValue({ id: 14 });
         const resetar = resposta();
         await PasswordResetController.confirmarResetSenha({ body: { token: 'resetar', senha: 'NovaSenha123' } }, resetar);
         expect(resetar.status).toHaveBeenCalledWith(200);

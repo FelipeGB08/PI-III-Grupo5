@@ -19,6 +19,7 @@ class ChamadoRepositoryImpl implements ChamadoRepository {
     double? atendimentoLatitude,
     double? atendimentoLongitude,
     String? fotoUrl,
+    String? categoria,
   }) {
     return _api.criarChamado(
       profissionalId: profissionalId,
@@ -31,6 +32,7 @@ class ChamadoRepositoryImpl implements ChamadoRepository {
       atendimentoLatitude: atendimentoLatitude,
       atendimentoLongitude: atendimentoLongitude,
       fotoUrl: fotoUrl,
+      categoria: categoria,
     );
   }
 

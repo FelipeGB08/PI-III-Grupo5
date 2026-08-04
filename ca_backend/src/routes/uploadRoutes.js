@@ -7,6 +7,7 @@ const {
     tratarErroDeUpload,
     validarEArmazenarImagens,
 } = require('../middlewares/uploadMiddleware');
+const UploadClaimModel = require('../models/UploadClaimModel');
 
 const router = express.Router();
 
@@ -53,10 +54,15 @@ router.post(
     uploadRateLimit,
     multerConfig.single('foto'),
     validarEArmazenarImagens,
-    comLimpezaDeUpload((req, res) => {
+    comLimpezaDeUpload(async (req, res) => {
         if (!req.file) {
             return res.status(400).json({ erro: 'Nenhuma imagem foi enviada.' });
         }
+
+        await UploadClaimModel.registrar({
+            usuarioId: req.usuarioLogado.id,
+            caminho: req.file.url,
+        });
 
         return res.status(200).json({
             mensagem: 'Upload realizado com sucesso!',

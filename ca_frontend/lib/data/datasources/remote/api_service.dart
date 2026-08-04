@@ -68,15 +68,20 @@ class AppleSignInConfiguration {
 /// Padrão: Métodos assíncronos que retornam o objeto de modelo (Model)
 /// ou lançam uma exceção tratada pelo [DioClient].
 class ApiService {
-  ApiService(this._dio);
+  ApiService(this._dio, {Dio? publicMediaDio})
+      : _publicMediaDio = publicMediaDio ?? Dio();
 
   final Dio _dio;
+  final Dio _publicMediaDio;
 
   /// Baixa evidencias privadas pelo mesmo Dio autenticado das chamadas da API.
   /// O interceptor de [DioClient] aplica Bearer e renova o access token em 401.
   Future<Uint8List> baixarImagemProtegida(String url) async {
-    final response = await _dio.get<List<int>>(
-      ApiConfig.resolveAssetUrl(url),
+    final resolvedUrl = ApiConfig.resolveAssetUrl(url);
+    final client =
+        ApiConfig.isTrustedApiUrl(resolvedUrl) ? _dio : _publicMediaDio;
+    final response = await client.get<List<int>>(
+      resolvedUrl,
       options: Options(responseType: ResponseType.bytes),
     );
     final bytes = response.data;
@@ -628,6 +633,7 @@ class ApiService {
     double? atendimentoLatitude,
     double? atendimentoLongitude,
     String? fotoUrl,
+    String? categoria,
   }) async {
     final response = await _dio.post(
       ApiConfig.chamados,
@@ -647,6 +653,7 @@ class ApiService {
         atendimentoLatitude: atendimentoLatitude,
         atendimentoLongitude: atendimentoLongitude,
         fotoUrl: fotoUrl,
+        categoria: categoria,
       ),
     );
     final data = response.data as Map<String, dynamic>;
@@ -923,7 +930,7 @@ class ApiService {
     final response = await _dio.patch(
       ApiConfig.remarcarSolicitacao(chamadoId),
       data: {
-        'nova_data_hora': novaDataHora.toIso8601String(),
+        'nova_data_hora': novaDataHora.toUtc().toIso8601String(),
         if (motivo != null && motivo.trim().isNotEmpty) 'motivo': motivo.trim(),
       },
     );

@@ -184,6 +184,7 @@ class FakeChamadoRepository implements ChamadoRepository {
     double? atendimentoLatitude,
     double? atendimentoLongitude,
     String? fotoUrl,
+    String? categoria,
   }) async {
     final chamado = Chamado(
       id: chamados.length + 100,

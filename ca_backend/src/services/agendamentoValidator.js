@@ -11,30 +11,28 @@ function pad(numero) {
     return String(numero).padStart(2, '0');
 }
 
-function formatarTimestampLocal(data) {
-    return [
-        data.getFullYear(),
-        pad(data.getMonth() + 1),
-        pad(data.getDate()),
-    ].join('-') + `T${pad(data.getHours())}:${pad(data.getMinutes())}:00`;
-}
-
-function extrairHorario(valor, data) {
-    const texto = String(valor || '');
-    const match = texto.match(/[T\s](\d{2}:\d{2})(?::\d{2})?/);
-    if (match) return match[1];
-    return `${pad(data.getHours())}:${pad(data.getMinutes())}`;
-}
-
-function diaSemanaAmaUc(data) {
-    const diaJs = data.getDay();
-    return diaJs === 0 ? 7 : diaJs;
+function partesAmaUc(data) {
+    const partes = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Sao_Paulo',
+        weekday: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+    }).formatToParts(data);
+    const valor = (tipo) => partes.find((parte) => parte.type === tipo)?.value;
+    const dias = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
+    return {
+        diaSemana: dias[valor('weekday')],
+        horario: `${pad(valor('hour'))}:${pad(valor('minute'))}`,
+    };
 }
 
 async function validarAgendamento({
     profId,
     agendaServicoId,
     agendadoPara,
+    categoria,
+    categoriaId,
     ignorarSolicitacaoId = null,
 }) {
     if (!agendaServicoId) {
@@ -66,8 +64,7 @@ async function validarAgendamento({
         );
     }
 
-    const horario = extrairHorario(agendadoPara, dataAgendada);
-    const diaSemana = diaSemanaAmaUc(dataAgendada);
+    const { horario, diaSemana } = partesAmaUc(dataAgendada);
     const horarioAtivo = await AgendaModel.horarioAtivoDoProfissional(
         profId,
         diaSemana,
@@ -78,7 +75,26 @@ async function validarAgendamento({
         throw criarErro(400, 'Horário não está disponível na agenda do profissional.');
     }
 
-    const agendadoParaNormalizado = formatarTimestampLocal(dataAgendada);
+    const agendadoParaNormalizado = dataAgendada.toISOString();
+
+    const categoriaResult = await pool.query(
+        `SELECT c.id
+         FROM profissional_categorias pc
+         JOIN categorias c ON c.id = pc.categoria_id
+         WHERE pc.profissional_id = $1
+           AND ($2::text IS NULL OR LOWER(c.nome_servico) = LOWER($2))
+           AND ($3::int IS NULL OR c.id = $3::int)
+         ORDER BY c.id`,
+        [profId, categoria || null, categoriaId || null]
+    );
+    if (categoriaResult.rows.length !== 1) {
+        throw criarErro(
+            400,
+            categoria
+                ? 'A categoria informada nao pertence ao profissional.'
+                : 'Informe a categoria contratada para este profissional.'
+        );
+    }
 
     const conflito = await pool.query(
         `
@@ -87,8 +103,8 @@ async function validarAgendamento({
         WHERE prof_id = $1
           AND status IN ('pendente', 'proposta_valor', 'aceito', 'remarcacao_solicitada')
           AND (
-            agendado_para = $2::timestamp
-            OR remarcacao_solicitada_para = $2::timestamp
+            agendado_para = $2::timestamptz
+            OR remarcacao_solicitada_para = $2::timestamptz
           )
           AND ($3::int IS NULL OR id <> $3::int)
         LIMIT 1;
@@ -105,6 +121,7 @@ async function validarAgendamento({
 
     return {
         agenda_servico_id: servicoAgenda.id,
+        categoria_id: categoriaResult.rows[0].id,
         servico_nome: servicoAgenda.nome,
         preco: Number(servicoAgenda.preco),
         duracao_minutos: Number(servicoAgenda.duracao_minutos),

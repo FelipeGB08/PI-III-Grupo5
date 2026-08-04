@@ -28,25 +28,49 @@ function coordenadaValida(valor, minimo, maximo) {
 
 const criarSolicitacaoSchema = z
     .object({
-        prof_id: z.any().optional(),
-        profissional_id: z.any().optional(),
-        prestador_id: z.any().optional(),
-        agenda_servico_id: z.any().optional(),
+        prof_id: z.union([z.number().int().positive(), z.string().regex(/^\d+$/)]).optional(),
+        profissional_id: z.union([z.number().int().positive(), z.string().regex(/^\d+$/)]).optional(),
+        prestador_id: z.union([z.number().int().positive(), z.string().regex(/^\d+$/)]).optional(),
+        agenda_servico_id: z.union([z.number().int().positive(), z.string().regex(/^\d+$/)]).optional(),
+        // Campos enviados por versoes anteriores do aplicativo. A criacao usa
+        // exclusivamente os dados da agenda do profissional, nunca estes valores.
+        servico_nome: z.string().trim().max(120).optional(),
+        preco: z.union([z.number().finite(), z.string().trim().max(32)]).optional(),
         descricao: z
             .string({ error: 'Informe a descricao da solicitacao.' })
             .trim()
-            .min(1, 'Informe a descricao da solicitacao.'),
-        agendado_para: z.any().optional(),
-        agendadoPara: z.any().optional(),
-        data_hora: z.any().optional(),
-        atendimento_latitude: z.any().optional(),
-        latitude_atendimento: z.any().optional(),
-        atendimentoLatitude: z.any().optional(),
-        atendimento_longitude: z.any().optional(),
-        longitude_atendimento: z.any().optional(),
-        atendimentoLongitude: z.any().optional(),
+            .min(1, 'Informe a descricao da solicitacao.')
+            .max(2000, 'A descricao deve ter no maximo 2000 caracteres.'),
+        agendado_para: z.string().datetime({ offset: true }).optional(),
+        agendadoPara: z.string().datetime({ offset: true }).optional(),
+        data_hora: z.string().datetime({ offset: true }).optional(),
+        atendimento_latitude: z.union([z.number(), z.string().max(32)]).optional(),
+        latitude_atendimento: z.union([z.number(), z.string().max(32)]).optional(),
+        atendimentoLatitude: z.union([z.number(), z.string().max(32)]).optional(),
+        atendimento_longitude: z.union([z.number(), z.string().max(32)]).optional(),
+        longitude_atendimento: z.union([z.number(), z.string().max(32)]).optional(),
+        atendimentoLongitude: z.union([z.number(), z.string().max(32)]).optional(),
+        endereco_atendimento: z.string().trim().min(1).max(500).optional(),
+        enderecoAtendimento: z.string().trim().min(1).max(500).optional(),
+        foto_url: z
+            .string()
+            .regex(
+                /^\/uploads\/[A-Za-z0-9-]+\.(?:jpg|png|webp)$/i,
+                'foto_url deve ser um upload valido do proprio aplicativo.'
+            )
+            .max(500)
+            .optional(),
+        fotoUrl: z
+            .string()
+            .regex(
+                /^\/uploads\/[A-Za-z0-9-]+\.(?:jpg|png|webp)$/i,
+                'fotoUrl deve ser um upload valido do proprio aplicativo.'
+            )
+            .max(500)
+            .optional(),
+        categoria: z.string().trim().min(1).max(120).optional(),
     })
-    .passthrough()
+    .strict()
     .superRefine((dados, ctx) => {
         const profissionalId = dados.prof_id || dados.profissional_id || dados.prestador_id;
         if (!inteiroPositivo(profissionalId)) {

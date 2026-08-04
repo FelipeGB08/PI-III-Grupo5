@@ -1,10 +1,15 @@
+const crypto = require('crypto');
+const { criarPostgresRateLimitStore } = require('../services/rateLimitStore');
+
 function criarRateLimiter({
     windowMs = 15 * 60 * 1000,
     max = 20,
     keyGenerator,
     message = 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
+    store,
 } = {}) {
     const tentativas = new Map();
+    const maxChavesLocais = 10_000;
 
     function limparExpirados(agora) {
         for (const [chave, registro] of tentativas.entries()) {
@@ -22,9 +27,14 @@ function criarRateLimiter({
             : { count: 0, resetAt: agora + windowMs };
 
         registro.count += 1;
+        if (!tentativas.has(chave) && tentativas.size >= maxChavesLocais) {
+            const primeiraChave = tentativas.keys().next().value;
+            tentativas.delete(primeiraChave);
+        }
         tentativas.set(chave, registro);
 
         return {
+            count: registro.count,
             permitido: registro.count <= max,
             remaining: Math.max(max - registro.count, 0),
             resetAt: registro.resetAt,
@@ -32,26 +42,39 @@ function criarRateLimiter({
         };
     }
 
+    function responder(resultado, res, next) {
+        const permitido = resultado.count <= max;
+        const remaining = Math.max(max - resultado.count, 0);
+        const retryAfter = Math.max(1, Math.ceil((resultado.resetAt - Date.now()) / 1000));
+        res.setHeader('RateLimit-Limit', String(max));
+        res.setHeader('RateLimit-Remaining', String(remaining));
+        res.setHeader('RateLimit-Reset', String(Math.ceil(resultado.resetAt / 1000)));
+
+        if (!permitido) {
+            res.setHeader('Retry-After', String(retryAfter));
+            return res.status(429).json({ erro: message });
+        }
+        return next();
+    }
+
     const middleware = (req, res, next) => {
         const chave = keyGenerator
             ? keyGenerator(req)
             : chavePorIpRota(req);
-        const resultado = consumir(chave);
-
-        res.setHeader('RateLimit-Limit', String(max));
-        res.setHeader('RateLimit-Remaining', String(resultado.remaining));
-        res.setHeader('RateLimit-Reset', String(Math.ceil(resultado.resetAt / 1000)));
-
-        if (!resultado.permitido) {
-            res.setHeader('Retry-After', String(resultado.retryAfter));
-            return res.status(429).json({ erro: message });
+        if (store) {
+            return store.consumir({ chave, windowMs })
+                .then((resultado) => responder(resultado, res, next))
+                .catch(next);
         }
-
-        return next();
+        const resultado = consumir(chave);
+        return responder({
+            count: resultado.count,
+            resetAt: resultado.resetAt,
+        }, res, next);
     };
 
     middleware.consumir = consumir;
-    middleware.resetar = () => tentativas.clear();
+    middleware.resetar = () => (store ? store.resetar() : tentativas.clear());
     middleware.max = max;
     middleware.windowMs = windowMs;
 
@@ -80,7 +103,13 @@ function acaoPublicaDeAuth(req) {
 function chavePorIpEmail(req) {
     const acao = acaoPublicaDeAuth(req);
     if (acao === 'refresh') {
-        return `${req.ip}:${acao}`;
+        const token = String(req.body?.refresh_token || '');
+        const fingerprint = crypto
+            .createHash('sha256')
+            .update(token)
+            .digest('hex')
+            .slice(0, 16);
+        return `${req.ip}:${acao}:${fingerprint}`;
     }
 
     const email = String(req.body?.email || '').trim().toLowerCase();
@@ -96,16 +125,22 @@ function chavePorUsuario(req) {
     return chavePorUsuarioId(usuarioId, req.ip);
 }
 
+const storeCompartilhado = process.env.NODE_ENV === 'test'
+    ? null
+    : criarPostgresRateLimitStore();
+
 const authRateLimit = criarRateLimiter({
     windowMs: Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
     max: Number(process.env.AUTH_RATE_LIMIT_MAX || 10),
     keyGenerator: chavePorIpEmail,
+    store: storeCompartilhado,
 });
 
 const cadastroRateLimit = criarRateLimiter({
     windowMs: Number(process.env.REGISTER_RATE_LIMIT_WINDOW_MS || 60 * 60 * 1000),
     max: Number(process.env.REGISTER_RATE_LIMIT_MAX || 5),
     keyGenerator: chavePorIpEmail,
+    store: storeCompartilhado,
 });
 
 const solicitacaoRateLimit = criarRateLimiter({
@@ -113,6 +148,7 @@ const solicitacaoRateLimit = criarRateLimiter({
     max: Number(process.env.SOLICITACAO_RATE_LIMIT_MAX || 20),
     keyGenerator: chavePorUsuario,
     message: 'Limite de criacao de solicitacoes atingido. Aguarde antes de tentar novamente.',
+    store: storeCompartilhado,
 });
 
 const chatRateLimit = criarRateLimiter({
@@ -120,6 +156,7 @@ const chatRateLimit = criarRateLimiter({
     max: Number(process.env.CHAT_RATE_LIMIT_MAX || 60),
     keyGenerator: chavePorUsuario,
     message: 'Limite de envio de mensagens atingido. Aguarde um minuto e tente novamente.',
+    store: storeCompartilhado,
 });
 
 const uploadRateLimit = criarRateLimiter({
@@ -127,6 +164,7 @@ const uploadRateLimit = criarRateLimiter({
     max: Number(process.env.UPLOAD_RATE_LIMIT_MAX || 30),
     keyGenerator: chavePorUsuario,
     message: 'Limite de upload de imagens atingido. Aguarde antes de enviar outra imagem.',
+    store: storeCompartilhado,
 });
 
 module.exports = {

@@ -7,10 +7,20 @@ const {
 const ServicoModel = {
     criar: async (cidadaoId, profId, descricao, fotoUrl, dadosAgenda = {}) => {
         const query = `
+            WITH claim AS (
+                UPDATE upload_claims
+                SET consumido_em = NOW()
+                WHERE caminho = $12
+                  AND usuario_id = $1
+                  AND consumido_em IS NULL
+                RETURNING id
+            ),
+            inserida AS (
             INSERT INTO servicos_solicitados (
                 cidadao_id,
                 prof_id,
                 agenda_servico_id,
+                categoria_id,
                 servico_nome,
                 descricao,
                 endereco_atendimento,
@@ -22,16 +32,19 @@ const ServicoModel = {
                 status,
                 preco
             )
-            VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-                'pendente', $12
+            SELECT
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+                'pendente', $13
+            WHERE $12::text IS NULL OR EXISTS (SELECT 1 FROM claim)
+            RETURNING *
             )
-            RETURNING *;
+            SELECT * FROM inserida;
         `;
         const resultado = await pool.query(query, [
             cidadaoId,
             profId,
             dadosAgenda.agenda_servico_id || null,
+            dadosAgenda.categoria_id || null,
             dadosAgenda.servico_nome || null,
             descricao,
             dadosAgenda.endereco_atendimento || null,

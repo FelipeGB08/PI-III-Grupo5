@@ -161,4 +161,37 @@ void main() {
     expect(chamadasRefresh, 1);
     expect(accessToken, 'access-renovado');
   });
+
+  test('nunca envia bearer nem tenta refresh para origem externa', () async {
+    String? authorization;
+    var chamadasRefresh = 0;
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.conecta.test'));
+    dio.httpClientAdapter = _StubAdapter((options) async {
+      authorization = options.headers['Authorization']?.toString();
+      return _jsonResponse(401, {'erro': 'externo'});
+    });
+    final refreshDio = Dio(BaseOptions(baseUrl: 'https://api.conecta.test'));
+    refreshDio.httpClientAdapter = _StubAdapter((_) async {
+      chamadasRefresh++;
+      return _jsonResponse(200, {'access_token': 'novo'});
+    });
+    dio.interceptors.add(
+      AuthInterceptor(
+        dio: dio,
+        refreshDio: refreshDio,
+        tokenProvider: () => 'token-que-nao-pode-vazar',
+        refreshTokenProvider: () => 'refresh-que-nao-pode-vazar',
+        tokenSaver: (_) async {},
+        sessionClearer: () async {},
+      ),
+    );
+
+    await expectLater(
+      dio.get<Map<String, dynamic>>('https://midia-externa.test/imagem.jpg'),
+      throwsA(isA<DioException>()),
+    );
+
+    expect(authorization, isNull);
+    expect(chamadasRefresh, 0);
+  });
 }
