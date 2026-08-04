@@ -89,6 +89,30 @@ async function criarAgendaPadrao(profissionalId, client) {
     }
 }
 
+async function buscarRegistrosAgenda(profissionalId, client = pool) {
+    const [servicosResult, horariosResult] = await Promise.all([
+        client.query(
+            `SELECT id, nome, duracao_minutos, preco, ativo, ordem
+             FROM profissional_agenda_servicos
+             WHERE profissional_id = $1
+             ORDER BY ordem ASC, id ASC`,
+            [profissionalId]
+        ),
+        client.query(
+            `SELECT dia_semana, horario, ativo
+             FROM profissional_agenda_horarios
+             WHERE profissional_id = $1
+             ORDER BY dia_semana ASC, horario ASC`,
+            [profissionalId]
+        ),
+    ]);
+
+    return {
+        servicos: servicosResult.rows,
+        horarios: horariosResult.rows,
+    };
+}
+
 const AgendaModel = {
     // A agenda exibida ao cidadao precisa sempre apontar para servicos reais,
     // pois o agendamento referencia o ID imutavel do servico escolhido.
@@ -99,30 +123,38 @@ const AgendaModel = {
         await criarAgendaPadrao(profissionalId, client);
     },
 
-    buscarPorProfissional: async (profissionalId, { fallbackPadrao = true } = {}) => {
-        const [servicosResult, horariosResult] = await Promise.all([
-            pool.query(
-                `SELECT id, nome, duracao_minutos, preco, ativo, ordem
-                 FROM profissional_agenda_servicos
-                 WHERE profissional_id = $1
-                 ORDER BY ordem ASC, id ASC`,
-                [profissionalId]
-            ),
-            pool.query(
-                `SELECT dia_semana, horario, ativo
-                 FROM profissional_agenda_horarios
-                 WHERE profissional_id = $1
-                 ORDER BY dia_semana ASC, horario ASC`,
-                [profissionalId]
-            ),
-        ]);
+    // Instala a agenda inicial para contas antigas que foram criadas antes de
+    // existir a persistencia da agenda. O lock transacional evita duplicacao
+    // quando duas consultas publicas acontecem simultaneamente.
+    garantirAgendaPadraoParaProfissional: async (profissionalId) => {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            await client.query('SELECT pg_advisory_xact_lock($1::bigint)', [profissionalId]);
 
-        const temConfig = servicosResult.rows.length > 0 || horariosResult.rows.length > 0;
+            const agenda = await buscarRegistrosAgenda(profissionalId, client);
+            if (agenda.servicos.length === 0 && agenda.horarios.length === 0) {
+                await criarAgendaPadrao(profissionalId, client);
+            }
+
+            await client.query('COMMIT');
+        } catch (erro) {
+            await client.query('ROLLBACK');
+            throw erro;
+        } finally {
+            client.release();
+        }
+    },
+
+    buscarPorProfissional: async (profissionalId, { fallbackPadrao = true } = {}) => {
+        let agenda = await buscarRegistrosAgenda(profissionalId);
+        const temConfig = agenda.servicos.length > 0 || agenda.horarios.length > 0;
         if (!temConfig && fallbackPadrao) {
-            return montarAgenda(DEFAULT_SERVICOS, DEFAULT_HORARIOS, true);
+            await AgendaModel.garantirAgendaPadraoParaProfissional(profissionalId);
+            agenda = await buscarRegistrosAgenda(profissionalId);
         }
 
-        return montarAgenda(servicosResult.rows, horariosResult.rows, false);
+        return montarAgenda(agenda.servicos, agenda.horarios, false);
     },
 
     listarHorariosAtivos: async (profissionalId) => {

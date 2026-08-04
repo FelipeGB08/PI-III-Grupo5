@@ -3,6 +3,7 @@ jest.mock('../../src/config/db', () => ({
     connect: jest.fn(),
 }));
 
+const pool = require('../../src/config/db');
 const AgendaModel = require('../../src/models/AgendaModel');
 
 describe('AgendaModel.criarAgendaPadraoParaProfissional', () => {
@@ -32,5 +33,40 @@ describe('AgendaModel.criarAgendaPadraoParaProfissional', () => {
         await expect(
             AgendaModel.criarAgendaPadraoParaProfissional(42)
         ).rejects.toThrow('conexao de banco valida');
+    });
+
+    test('materializa a agenda padrao ao consultar uma conta antiga sem configuracao', async () => {
+        const client = {
+            query: jest.fn().mockResolvedValue({ rows: [] }),
+            release: jest.fn(),
+        };
+        pool.connect.mockResolvedValue(client);
+        pool.query
+            .mockResolvedValueOnce({ rows: [] })
+            .mockResolvedValueOnce({ rows: [] })
+            .mockResolvedValueOnce({
+                rows: [{
+                    id: 77,
+                    nome: 'Visita Tecnica',
+                    duracao_minutos: 40,
+                    preco: 80,
+                    ativo: true,
+                    ordem: 0,
+                }],
+            })
+            .mockResolvedValueOnce({
+                rows: [{ dia_semana: 1, horario: '09:00', ativo: true }],
+            });
+
+        const agenda = await AgendaModel.buscarPorProfissional(42);
+
+        expect(agenda.usando_padrao).toBe(false);
+        expect(agenda.servicos[0]).toEqual(expect.objectContaining({ id: 77 }));
+        expect(client.query).toHaveBeenCalledWith(
+            'SELECT pg_advisory_xact_lock($1::bigint)',
+            [42]
+        );
+        expect(client.query).toHaveBeenCalledWith('COMMIT');
+        expect(client.release).toHaveBeenCalled();
     });
 });
