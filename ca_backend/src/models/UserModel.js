@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const crypto = require('crypto');
+const AgendaModel = require('./AgendaModel');
 const { coordenadasCidade } = require('../config/amaucCidades');
 const { criarMetadadosPaginacao, normalizarPaginacao } = require('../utils/pagination');
 
@@ -280,6 +281,11 @@ const UserModel = {
                     [novoUsuario.id, categoriaResult.rows[0].id]
                 );
             }
+
+            await AgendaModel.criarAgendaPadraoParaProfissional(
+                novoUsuario.id,
+                client
+            );
 
             await client.query('COMMIT');
             return novoUsuario;

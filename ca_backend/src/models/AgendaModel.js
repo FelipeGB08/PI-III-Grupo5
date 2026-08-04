@@ -63,7 +63,42 @@ function montarAgenda(servicos, horarios, usarPadrao = false) {
     };
 }
 
+async function criarAgendaPadrao(profissionalId, client) {
+    for (const servico of DEFAULT_SERVICOS) {
+        await client.query(
+            `INSERT INTO profissional_agenda_servicos
+             (profissional_id, nome, duracao_minutos, preco, ativo, ordem)
+             VALUES ($1, $2, $3, $4, TRUE, $5)`,
+            [
+                profissionalId,
+                servico.nome,
+                servico.duracao_minutos,
+                servico.preco,
+                servico.ordem,
+            ]
+        );
+    }
+
+    for (const horario of DEFAULT_HORARIOS) {
+        await client.query(
+            `INSERT INTO profissional_agenda_horarios
+             (profissional_id, dia_semana, horario, ativo)
+             VALUES ($1, $2, $3, TRUE)`,
+            [profissionalId, horario.dia_semana, horario.horario]
+        );
+    }
+}
+
 const AgendaModel = {
+    // A agenda exibida ao cidadao precisa sempre apontar para servicos reais,
+    // pois o agendamento referencia o ID imutavel do servico escolhido.
+    criarAgendaPadraoParaProfissional: async (profissionalId, client) => {
+        if (!client?.query) {
+            throw new TypeError('Uma conexao de banco valida e obrigatoria.');
+        }
+        await criarAgendaPadrao(profissionalId, client);
+    },
+
     buscarPorProfissional: async (profissionalId, { fallbackPadrao = true } = {}) => {
         const [servicosResult, horariosResult] = await Promise.all([
             pool.query(
