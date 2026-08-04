@@ -82,9 +82,9 @@ router.post(
     '/',
     verificarToken,
     requireRole('cidadao'),
-    solicitacaoRateLimit,
     multerConfig.single('foto'),
     validate(criarSolicitacaoSchema),
+    solicitacaoRateLimit,
     validarEArmazenarImagens,
     comLimpezaDeUpload(ServicoController.criarServico)
 );

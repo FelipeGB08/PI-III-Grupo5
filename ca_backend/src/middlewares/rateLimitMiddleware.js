@@ -5,6 +5,7 @@ function criarRateLimiter({
     windowMs = 15 * 60 * 1000,
     max = 20,
     keyGenerator,
+    keyPrefix = '',
     message = 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
     store,
 } = {}) {
@@ -58,9 +59,10 @@ function criarRateLimiter({
     }
 
     const middleware = (req, res, next) => {
-        const chave = keyGenerator
+        const chaveBase = keyGenerator
             ? keyGenerator(req)
             : chavePorIpRota(req);
+        const chave = keyPrefix ? `${keyPrefix}:${chaveBase}` : chaveBase;
         if (store) {
             return store.consumir({ chave, windowMs })
                 .then((resultado) => responder(resultado, res, next))
@@ -147,6 +149,9 @@ const solicitacaoRateLimit = criarRateLimiter({
     windowMs: Number(process.env.SOLICITACAO_RATE_LIMIT_WINDOW_MS || 60 * 60 * 1000),
     max: Number(process.env.SOLICITACAO_RATE_LIMIT_MAX || 20),
     keyGenerator: chavePorUsuario,
+    // Separa contadores criados antes de a validacao passar a ocorrer antes
+    // do consumo da cota, evitando bloqueios por tentativas invalidas antigas.
+    keyPrefix: 'solicitacao-v2',
     message: 'Limite de criacao de solicitacoes atingido. Aguarde antes de tentar novamente.',
     store: storeCompartilhado,
 });

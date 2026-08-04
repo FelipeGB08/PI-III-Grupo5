@@ -471,8 +471,8 @@ router.post(
     '/',
     verificarToken,
     requireRole('cidadao'),
-    solicitacaoRateLimit,
     validate(criarSolicitacaoSchema),
+    solicitacaoRateLimit,
     SolicitacaoController.criarSolicitacao
 );
 router.post(

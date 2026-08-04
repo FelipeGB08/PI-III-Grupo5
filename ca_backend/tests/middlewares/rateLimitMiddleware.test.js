@@ -132,6 +132,32 @@ describe('rateLimitMiddleware', () => {
         expect(uploadRateLimit.windowMs).toBe(60 * 60 * 1000);
     });
 
+    test('permite versionar uma politica sem reutilizar contadores antigos', async () => {
+        const store = {
+            consumir: jest.fn().mockResolvedValue({
+                count: 1,
+                resetAt: Date.now() + 60_000,
+            }),
+        };
+        const limiter = criarRateLimiter({
+            keyGenerator: chavePorUsuario,
+            keyPrefix: 'solicitacao-v2',
+            store,
+        });
+        const next = jest.fn();
+
+        await limiter(
+            { ip: '10.0.0.1', usuarioLogado: { id: 9 } },
+            criarRespostaMock(),
+            next
+        );
+
+        expect(store.consumir).toHaveBeenCalledWith(expect.objectContaining({
+            chave: 'solicitacao-v2:usuario:9',
+        }));
+        expect(next).toHaveBeenCalledTimes(1);
+    });
+
     test('refresh usa o limitador de auth e compartilha contador entre /api e /api/v1', () => {
         const rotaRefresh = authRoutes.stack.find((item) => (
             item.route?.path === '/refresh' && item.route.methods.post
