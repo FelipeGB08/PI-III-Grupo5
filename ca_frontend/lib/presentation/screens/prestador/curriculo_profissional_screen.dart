@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/amauc_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../providers/providers.dart';
+import 'prestador_profile_screen.dart';
 import 'verificacao_profissional_screen.dart';
 
 class CurriculoProfissionalScreen extends ConsumerStatefulWidget {
@@ -28,6 +29,7 @@ class _CurriculoProfissionalScreenState
   bool _atendeEmergencia = false;
   bool _possuiVeiculo = false;
   bool _preencheuCampos = false;
+  bool _abrindoPrevia = false;
 
   @override
   void initState() {
@@ -112,6 +114,36 @@ class _CurriculoProfissionalScreenState
     );
   }
 
+  Future<void> _abrirPreviaParaCliente() async {
+    final profissionalId = ref.read(authStateProvider).user?.id;
+    if (profissionalId == null) {
+      _mostrarMensagem('Sua sessão não está disponível. Entre novamente.');
+      return;
+    }
+
+    setState(() => _abrindoPrevia = true);
+    try {
+      final prestador = await ref
+          .read(apiServiceProvider)
+          .buscarPrestadorPorId(profissionalId);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PrestadorProfileScreen(
+            prestador: prestador,
+            previewMode: true,
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        _mostrarMensagem('Não foi possível abrir a prévia: $error');
+      }
+    } finally {
+      if (mounted) setState(() => _abrindoPrevia = false);
+    }
+  }
+
   List<String> _splitLines(String value) {
     return value
         .split(RegExp(r'\r?\n|,'))
@@ -165,6 +197,18 @@ class _CurriculoProfissionalScreenState
             },
             icon: const Icon(Icons.verified_user_outlined),
             label: const Text('Verificacao do perfil'),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: state.isLoading || _abrindoPrevia
+                ? null
+                : _abrirPreviaParaCliente,
+            icon: const Icon(Icons.visibility_outlined),
+            label: Text(
+              _abrindoPrevia
+                  ? 'Abrindo prévia...'
+                  : 'Ver perfil como o cliente vê',
+            ),
           ),
           const SizedBox(height: 24),
           if (state.isLoading)

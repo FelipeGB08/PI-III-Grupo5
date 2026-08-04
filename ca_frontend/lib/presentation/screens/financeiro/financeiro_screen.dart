@@ -92,91 +92,111 @@ class _FinanceiroContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final resumo = data.resumo;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
-      children: [
-        _HeroBalance(
-          title: resumo.labelTotalConcluido,
-          value: currency.format(resumo.totalConcluido),
-          subtitle: data.isPrestador
-              ? '${resumo.concluidos} serviços concluídos'
-              : '${resumo.concluidos} serviços pagos/concluídos',
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              _HeroBalance(
+                title: resumo.labelTotalConcluido,
+                value: currency.format(resumo.totalConcluido),
+                subtitle: data.isPrestador
+                    ? '${resumo.concluidos} serviços concluídos'
+                    : '${resumo.concluidos} serviços pagos/concluídos',
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: _MetricCard(
+                      label: resumo.labelTotalEmAberto,
+                      value: currency.format(resumo.totalEmAberto),
+                      icon: Icons.pending_actions_rounded,
+                      color: AppColors.statusPendente,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _MetricCard(
+                      label: 'Volume total',
+                      value: currency.format(resumo.volumeTotal),
+                      icon: Icons.analytics_outlined,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _CountCard(
+                      label: 'Orçamentos',
+                      value: resumo.totalOrcamentos,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _CountCard(
+                      label: 'Cancelados',
+                      value: resumo.cancelados,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _CountCard(
+                      label: 'Recusados',
+                      value: resumo.recusados,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+              Text(
+                'Orçamentos',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 12),
+              _StatusFilter(
+                selected: selectedStatus,
+                onChanged: onFilter,
+              ),
+            ]),
+          ),
         ),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: _MetricCard(
-                label: resumo.labelTotalEmAberto,
-                value: currency.format(resumo.totalEmAberto),
-                icon: Icons.pending_actions_rounded,
-                color: AppColors.statusPendente,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _MetricCard(
-                label: 'Volume total',
-                value: currency.format(resumo.volumeTotal),
-                icon: Icons.analytics_outlined,
-                color: AppColors.primary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _CountCard(
-                label: 'Orçamentos',
-                value: resumo.totalOrcamentos,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _CountCard(
-                label: 'Cancelados',
-                value: resumo.cancelados,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _CountCard(
-                label: 'Recusados',
-                value: resumo.recusados,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 22),
-        Text(
-          'Orçamentos',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
-        ),
-        const SizedBox(height: 12),
-        _StatusFilter(
-          selected: selectedStatus,
-          onChanged: onFilter,
-        ),
-        const SizedBox(height: 14),
         if (data.itens.isEmpty)
-          const _StatePanel(
-            icon: Icons.receipt_long_outlined,
-            title: 'Nenhum orçamento encontrado',
-            subtitle:
-                'Quando houver agendamentos ou serviços, eles aparecem aqui.',
+          const SliverFillRemaining(
+            hasScrollBody: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(18, 14, 18, 28),
+              child: _StatePanel(
+                icon: Icons.receipt_long_outlined,
+                title: 'Nenhum orçamento encontrado',
+                subtitle:
+                    'Quando houver agendamentos ou serviços, eles aparecem aqui.',
+              ),
+            ),
           )
         else
-          ...data.itens.map(
-            (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _FinanceiroItemCard(
-                item: item,
-                currency: currency,
-                isPrestador: data.isPrestador,
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final item = data.itens[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _FinanceiroItemCard(
+                      item: item,
+                      currency: currency,
+                      isPrestador: data.isPrestador,
+                    ),
+                  );
+                },
+                childCount: data.itens.length,
               ),
             ),
           ),

@@ -10,9 +10,14 @@ import '../../widgets/profile_avatar.dart';
 import '../agendamentos/agendar_servico_screen.dart';
 
 class PrestadorProfileScreen extends ConsumerWidget {
-  const PrestadorProfileScreen({super.key, required this.prestador});
+  const PrestadorProfileScreen({
+    super.key,
+    required this.prestador,
+    this.previewMode = false,
+  });
 
   final Prestador prestador;
+  final bool previewMode;
 
   void _solicitarServico(BuildContext context, WidgetRef ref) {
     final authState = ref.read(authStateProvider);
@@ -38,35 +43,47 @@ class PrestadorProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Perfil profissional'),
+        title: Text(previewMode ? 'Prévia do perfil' : 'Perfil profissional'),
         actions: [
-          IconButton(
-            tooltip: isFavorito ? 'Remover dos favoritos' : 'Salvar favorito',
-            onPressed: () =>
-                ref.read(favoritosProvider.notifier).toggle(prestador.id),
-            icon: Icon(
-              isFavorito
-                  ? Icons.favorite_rounded
-                  : Icons.favorite_border_rounded,
-              color: isFavorito ? AppColors.statusRecusado : null,
+          if (!previewMode)
+            IconButton(
+              tooltip: isFavorito ? 'Remover dos favoritos' : 'Salvar favorito',
+              onPressed: () =>
+                  ref.read(favoritosProvider.notifier).toggle(prestador.id),
+              icon: Icon(
+                isFavorito
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                color: isFavorito ? AppColors.statusRecusado : null,
+              ),
             ),
-          ),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-        child: FilledButton.icon(
-          onPressed: () => _solicitarServico(context, ref),
-          icon: const Icon(Icons.calendar_month_rounded),
-          label: const Text('Agendar servico'),
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            backgroundColor: AppColors.accent,
-            foregroundColor: AppColors.darkBackground,
-            textStyle: const TextStyle(fontWeight: FontWeight.w900),
-          ),
-        ),
-      ),
+      bottomNavigationBar: previewMode
+          ? SafeArea(
+              minimum: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              child: Text(
+                'Você está vendo a versão pública exibida aos clientes.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: context.appTextSecondary,
+                    ),
+              ),
+            )
+          : SafeArea(
+              minimum: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              child: FilledButton.icon(
+                onPressed: () => _solicitarServico(context, ref),
+                icon: const Icon(Icons.calendar_month_rounded),
+                label: const Text('Agendar servico'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: AppColors.darkBackground,
+                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+            ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         children: [
