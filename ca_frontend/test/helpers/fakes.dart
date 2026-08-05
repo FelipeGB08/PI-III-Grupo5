@@ -361,6 +361,17 @@ class FakeAvaliacaoRepository implements AvaliacaoRepository {
   }
 
   @override
+  Future<void> criarParaCliente({
+    required int solicitacaoId,
+    required int nota,
+    String? comentario,
+  }) async {
+    this.solicitacaoId = solicitacaoId;
+    this.nota = nota;
+    this.comentario = comentario;
+  }
+
+  @override
   Future<AvaliacoesResumo> listarDoProfissional(
     int profissionalId, {
     int page = 1,

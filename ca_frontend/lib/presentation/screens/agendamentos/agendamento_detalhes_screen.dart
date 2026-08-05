@@ -720,6 +720,13 @@ class _AgendamentoDetalhesScreenState
               icon: const Icon(Icons.star_rounded),
               label: const Text('Avaliar Servico'),
             ),
+          if (_isPrestador && _chamado.status == ChamadoStatus.concluido)
+            FilledButton.icon(
+              onPressed: () =>
+                  AvaliacaoBottomSheet.showParaCliente(context, _chamado),
+              icon: const Icon(Icons.person_outline_rounded),
+              label: const Text('Avaliar Cliente'),
+            ),
           if (!_isPrestador && _chamado.status == ChamadoStatus.pendente)
             OutlinedButton.icon(
               onPressed: _processando ? null : _cancelarSolicitacao,

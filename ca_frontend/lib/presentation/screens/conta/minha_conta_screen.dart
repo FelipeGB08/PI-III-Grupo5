@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/network/api_error_formatter.dart';
 import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../data/services/reverse_geocoding_service.dart';
 import '../../../domain/entities/user.dart';
 import '../../providers/providers.dart';
 import '../../widgets/profile_avatar.dart';
@@ -136,12 +137,33 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
         ),
       );
       if (!mounted) return;
+      final endereco = await ReverseGeocodingService().buscar(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+      if (!mounted) return;
+      if (endereco != null && endereco.endereco.isNotEmpty) {
+        final possuiEnderecoManual = _enderecoController.text.trim().isNotEmpty;
+        final substituir = !possuiEnderecoManual ||
+            await _confirmarEnderecoPorGps(endereco.descricaoCompleta);
+        if (!mounted) return;
+        if (substituir) {
+          _enderecoController.text = endereco.descricaoCompleta;
+        }
+      }
+      if (!mounted) return;
       setState(() {
         _latitude = position.latitude;
         _longitude = position.longitude;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Localização atual capturada.')),
+        SnackBar(
+          content: Text(
+            endereco == null
+                ? 'Localização atual capturada. Preencha o endereço manualmente.'
+                : 'Localização e endereço atualizados.',
+          ),
+        ),
       );
     } catch (_) {
       if (!mounted) return;
@@ -149,6 +171,29 @@ class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
     } finally {
       if (mounted) setState(() => _capturandoLocalizacao = false);
     }
+  }
+
+  Future<bool> _confirmarEnderecoPorGps(String endereco) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Atualizar endereço pelo GPS?'),
+            content: Text(
+              'Você já informou um endereço. Deseja substituí-lo por: $endereco?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Manter atual'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Atualizar'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   Future<void> _trocarFoto() async {

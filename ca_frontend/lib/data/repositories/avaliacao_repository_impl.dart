@@ -22,6 +22,18 @@ class AvaliacaoRepositoryImpl implements AvaliacaoRepository {
       );
 
   @override
+  Future<void> criarParaCliente({
+    required int solicitacaoId,
+    required int nota,
+    String? comentario,
+  }) =>
+      _api.criarAvaliacaoCliente(
+        solicitacaoId: solicitacaoId,
+        nota: nota,
+        comentario: comentario,
+      );
+
+  @override
   Future<AvaliacoesResumo> listarDoProfissional(
     int profissionalId, {
     int page = 1,

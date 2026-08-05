@@ -175,4 +175,27 @@ describe('AuthController.registrarUsuario', () => {
         );
         expect(res.status).toHaveBeenCalledWith(201);
     });
+
+    test('rejeita cidades atendidas fora da regiao AMAUC', async () => {
+        const res = criarRespostaMock();
+
+        await AuthController.registrarUsuario({
+            body: {
+                nome: 'Profissional Teste',
+                email: 'profissional-cidades@exemplo.com',
+                senha: 'SenhaSegura123',
+                cidade_amauc: 'Concordia',
+                perfil_tipo: 'profissional',
+                biografia: 'Profissional com experiencia comprovada.',
+                categoria: 'Tecnologia',
+                cidades_atendidas: ['Concordia', 'Cidade inexistente'],
+            },
+        }, res);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith({
+            erro: 'Todas as cidades atendidas devem pertencer a regiao AMAUC.',
+        });
+        expect(UserModel.criarUsuarioProfissionalCompleto).not.toHaveBeenCalled();
+    });
 });

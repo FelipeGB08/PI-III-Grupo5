@@ -217,6 +217,9 @@ class _ChamadosList extends ConsumerWidget {
             onAvaliar: showAvaliar && c.status == ChamadoStatus.concluido
                 ? () => AvaliacaoBottomSheet.show(context, c)
                 : null,
+            onAvaliarCliente: isPrestador && c.status == ChamadoStatus.concluido
+                ? () => AvaliacaoBottomSheet.showParaCliente(context, c)
+                : null,
             onDetalhes: () => _abrirDetalhes(context, ref, c),
           );
         },

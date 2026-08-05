@@ -8,6 +8,9 @@ jest.mock('../../src/models/AvaliacaoModel', () => ({
     buscarPorProfissional: jest.fn(),
     calcularMedia: jest.fn(),
     criar: jest.fn(),
+    criarParaCliente: jest.fn(),
+    buscarAvaliacaoClientePorServico: jest.fn(),
+    buscarDoClientePrivado: jest.fn(),
 }));
 
 jest.mock('../../src/models/ServicoModel', () => ({
@@ -166,5 +169,55 @@ describe('AvaliacaoController', () => {
         expect(JSON.stringify(resposta)).not.toMatch(
             /cidadao_nome|servico_descricao|email|telefone/
         );
+    });
+
+    test('permite que o profissional avalie o cliente uma vez apos conclusao', async () => {
+        ServicoModel.buscarPorId.mockResolvedValue({
+            id: 44,
+            cidadao_id: 12,
+            prof_id: 9,
+            status: 'concluido',
+        });
+        AvaliacaoModel.buscarAvaliacaoClientePorServico.mockResolvedValue(null);
+        AvaliacaoModel.criarParaCliente.mockResolvedValue({
+            id: 78,
+            servico_id: 44,
+            nota_estrelas: 5,
+        });
+        const res = criarRespostaMock();
+
+        await AvaliacaoController.criarAvaliacaoCliente({
+            usuarioLogado: { id: 9 },
+            body: {
+                servico_id: 44,
+                nota_estrelas: 5,
+                comentario: 'Cliente cumpriu o combinado.',
+            },
+        }, res);
+
+        expect(AvaliacaoModel.criarParaCliente).toHaveBeenCalledWith(
+            44,
+            5,
+            'Cliente cumpriu o combinado.'
+        );
+        expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    test('nao permite que o profissional avalie cliente de outro servico', async () => {
+        ServicoModel.buscarPorId.mockResolvedValue({
+            id: 44,
+            cidadao_id: 12,
+            prof_id: 10,
+            status: 'concluido',
+        });
+        const res = criarRespostaMock();
+
+        await AvaliacaoController.criarAvaliacaoCliente({
+            usuarioLogado: { id: 9 },
+            body: { servico_id: 44, nota_estrelas: 5 },
+        }, res);
+
+        expect(AvaliacaoModel.criarParaCliente).not.toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(403);
     });
 });

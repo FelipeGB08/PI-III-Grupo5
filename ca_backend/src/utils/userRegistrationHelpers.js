@@ -31,8 +31,21 @@ function normalizarListaCidades(cidades) {
     return validadas;
 }
 
+function possuiCidadeInvalida(cidades) {
+    if (cidades === undefined || cidades === null) return false;
+    const lista = Array.isArray(cidades)
+        ? cidades
+        : String(cidades)
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean);
+
+    return lista.some((cidade) => !cidadePermitida(cidade));
+}
+
 module.exports = {
     PERFIS_AUTOCADASTRO,
     normalizarListaCidades,
     normalizarPerfilTipo,
+    possuiCidadeInvalida,
 };

@@ -5,9 +5,14 @@ import '../../domain/entities/chamado.dart';
 import '../providers/providers.dart';
 
 class AvaliacaoBottomSheet extends ConsumerStatefulWidget {
-  const AvaliacaoBottomSheet({super.key, required this.chamado});
+  const AvaliacaoBottomSheet({
+    super.key,
+    required this.chamado,
+    this.avaliarCliente = false,
+  });
 
   final Chamado chamado;
+  final bool avaliarCliente;
 
   static Future<void> show(BuildContext context, Chamado chamado) {
     return showModalBottomSheet<void>(
@@ -15,6 +20,18 @@ class AvaliacaoBottomSheet extends ConsumerStatefulWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => AvaliacaoBottomSheet(chamado: chamado),
+    );
+  }
+
+  static Future<void> showParaCliente(BuildContext context, Chamado chamado) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AvaliacaoBottomSheet(
+        chamado: chamado,
+        avaliarCliente: true,
+      ),
     );
   }
 
@@ -37,18 +54,32 @@ class _AvaliacaoBottomSheetState extends ConsumerState<AvaliacaoBottomSheet> {
   Future<void> _enviar() async {
     setState(() => _enviando = true);
     try {
-      await ref.read(avaliacaoRepositoryProvider).criar(
-            solicitacaoId: widget.chamado.id,
-            profissionalId: widget.chamado.profissionalId,
-            nota: _nota,
-            comentario: _comentarioController.text,
-          );
-      ref.read(chamadosProvider.notifier).clearPendingReview();
+      if (widget.avaliarCliente) {
+        await ref.read(avaliacaoRepositoryProvider).criarParaCliente(
+              solicitacaoId: widget.chamado.id,
+              nota: _nota,
+              comentario: _comentarioController.text,
+            );
+      } else {
+        await ref.read(avaliacaoRepositoryProvider).criar(
+              solicitacaoId: widget.chamado.id,
+              profissionalId: widget.chamado.profissionalId,
+              nota: _nota,
+              comentario: _comentarioController.text,
+            );
+        ref.read(chamadosProvider.notifier).clearPendingReview();
+      }
       await ref.read(chamadosProvider.notifier).carregar();
       if (mounted) Navigator.pop(context);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Avaliação enviada ao Currículo Vivo!')),
+          SnackBar(
+            content: Text(
+              widget.avaliarCliente
+                  ? 'Avaliação privada do cliente registrada.'
+                  : 'Avaliação enviada ao Currículo Vivo!',
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -93,13 +124,15 @@ class _AvaliacaoBottomSheetState extends ConsumerState<AvaliacaoBottomSheet> {
           ),
           const SizedBox(height: 20),
           Text(
-            'Avalie o serviço',
+            widget.avaliarCliente ? 'Avalie o cliente' : 'Avalie o serviço',
             style: theme.textTheme.headlineLarge?.copyWith(fontSize: 22),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
-            'Sua opinião alimenta o Currículo Vivo do prestador.',
+            widget.avaliarCliente
+                ? 'Esta avaliação é privada e usada somente para confiança e moderação.'
+                : 'Sua opinião alimenta o Currículo Vivo do prestador.',
             style: theme.textTheme.bodyMedium,
             textAlign: TextAlign.center,
           ),
@@ -124,8 +157,10 @@ class _AvaliacaoBottomSheetState extends ConsumerState<AvaliacaoBottomSheet> {
           TextField(
             controller: _comentarioController,
             maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'Conte como foi a experiência...',
+            decoration: InputDecoration(
+              hintText: widget.avaliarCliente
+                  ? 'Conte como foi a experiência de atendimento...'
+                  : 'Conte como foi a experiência...',
             ),
           ),
           const SizedBox(height: 20),

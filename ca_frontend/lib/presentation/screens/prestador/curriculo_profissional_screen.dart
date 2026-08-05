@@ -83,6 +83,10 @@ class _CurriculoProfissionalScreenState
       _mostrarMensagem('Informe uma biografia com pelo menos 10 caracteres.');
       return;
     }
+    if (_cidadesAtendidas.isEmpty) {
+      _mostrarMensagem('Selecione ao menos uma cidade atendida da AMAUC.');
+      return;
+    }
 
     final ok = await ref.read(curriculoProvider.notifier).salvar(
           biografia: bio,
@@ -211,6 +215,19 @@ class _CurriculoProfissionalScreenState
             ),
           ),
           const SizedBox(height: 24),
+          _ProfileCompletionCard(
+            bio: _bioController.text,
+            anosExperiencia: _anosController.text,
+            curriculo: _curriculoController.text,
+            portfolio: _portfolioController.text,
+            fotos: _portfolioFotosController.text,
+            certificacoes: _certificacoesController.text,
+            cidadesAtendidas: _cidadesAtendidas,
+            atendeRural: _atendeRural,
+            atendeEmergencia: _atendeEmergencia,
+            possuiVeiculo: _possuiVeiculo,
+          ),
+          const SizedBox(height: 24),
           if (state.isLoading)
             const Center(child: CircularProgressIndicator())
           else ...[
@@ -223,6 +240,7 @@ class _CurriculoProfissionalScreenState
             ],
             TextField(
               controller: _bioController,
+              onChanged: (_) => setState(() {}),
               maxLines: 4,
               decoration: const InputDecoration(
                 labelText: 'Biografia profissional',
@@ -233,6 +251,7 @@ class _CurriculoProfissionalScreenState
             const SizedBox(height: 16),
             TextField(
               controller: _anosController,
+              onChanged: (_) => setState(() {}),
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                 labelText: 'Anos de experiencia',
@@ -242,6 +261,7 @@ class _CurriculoProfissionalScreenState
             const SizedBox(height: 16),
             TextField(
               controller: _curriculoController,
+              onChanged: (_) => setState(() {}),
               maxLines: 5,
               decoration: const InputDecoration(
                 labelText: 'Resumo do curriculo',
@@ -252,6 +272,7 @@ class _CurriculoProfissionalScreenState
             const SizedBox(height: 16),
             TextField(
               controller: _portfolioController,
+              onChanged: (_) => setState(() {}),
               keyboardType: TextInputType.url,
               decoration: const InputDecoration(
                 labelText: 'Link de portfolio',
@@ -262,6 +283,7 @@ class _CurriculoProfissionalScreenState
             const SizedBox(height: 16),
             TextField(
               controller: _portfolioFotosController,
+              onChanged: (_) => setState(() {}),
               keyboardType: TextInputType.url,
               maxLines: 4,
               decoration: const InputDecoration(
@@ -273,6 +295,7 @@ class _CurriculoProfissionalScreenState
             const SizedBox(height: 16),
             TextField(
               controller: _certificacoesController,
+              onChanged: (_) => setState(() {}),
               keyboardType: TextInputType.url,
               maxLines: 4,
               decoration: const InputDecoration(
@@ -339,6 +362,7 @@ class _CurriculoProfissionalScreenState
             const SizedBox(height: 16),
             TextField(
               controller: _taxaController,
+              onChanged: (_) => setState(() {}),
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                 labelText: 'Taxa de deslocamento base',
@@ -364,6 +388,94 @@ class _CurriculoProfissionalScreenState
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileCompletionCard extends StatelessWidget {
+  const _ProfileCompletionCard({
+    required this.bio,
+    required this.anosExperiencia,
+    required this.curriculo,
+    required this.portfolio,
+    required this.fotos,
+    required this.certificacoes,
+    required this.cidadesAtendidas,
+    required this.atendeRural,
+    required this.atendeEmergencia,
+    required this.possuiVeiculo,
+  });
+
+  final String bio;
+  final String anosExperiencia;
+  final String curriculo;
+  final String portfolio;
+  final String fotos;
+  final String certificacoes;
+  final Set<String> cidadesAtendidas;
+  final bool atendeRural;
+  final bool atendeEmergencia;
+  final bool possuiVeiculo;
+
+  @override
+  Widget build(BuildContext context) {
+    final itens = <String>[
+      if (bio.trim().length < 50) 'Escreva uma biografia mais detalhada.',
+      if ((int.tryParse(anosExperiencia.trim()) ?? 0) <= 0)
+        'Informe sua experiência profissional.',
+      if (curriculo.trim().length < 50)
+        'Inclua cursos, diferenciais e experiências no currículo.',
+      if (cidadesAtendidas.isEmpty) 'Selecione as cidades onde você atende.',
+      if (portfolio.trim().isEmpty && fotos.trim().isEmpty)
+        'Adicione um portfólio ou fotos de trabalhos.',
+      if (certificacoes.trim().isEmpty)
+        'Inclua certificados ou diplomas, se possuir.',
+      if (!atendeRural && !atendeEmergencia && !possuiVeiculo)
+        'Informe seus diferenciais de atendimento.',
+    ];
+    final total = 7;
+    final concluidos = total - itens.length;
+    final percentual = concluidos / total;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Perfil profissional: ${(percentual * 100).round()}%',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          LinearProgressIndicator(value: percentual),
+          const SizedBox(height: 12),
+          if (itens.isEmpty)
+            const Text(
+                'Excelente! Seu perfil está completo e pronto para clientes.')
+          else
+            ...itens.take(3).map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text('• $item'),
+                  ),
+                ),
         ],
       ),
     );

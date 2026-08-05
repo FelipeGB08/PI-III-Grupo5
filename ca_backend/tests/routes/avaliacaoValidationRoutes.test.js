@@ -9,6 +9,9 @@ jest.mock('../../src/models/AvaliacaoModel', () => ({
     buscarPorProfissional: jest.fn(),
     calcularMedia: jest.fn(),
     criar: jest.fn(),
+    criarParaCliente: jest.fn(),
+    buscarAvaliacaoClientePorServico: jest.fn(),
+    buscarDoClientePrivado: jest.fn(),
 }));
 
 jest.mock('../../src/models/ServicoModel', () => ({
@@ -82,5 +85,26 @@ describe('validacao das rotas de avaliacao', () => {
             erro: 'page deve ser maior ou igual a 1.',
         });
         expect(AvaliacaoModel.buscarPorProfissional).not.toHaveBeenCalled();
+    });
+
+    test('valida a nota antes de permitir avaliacao privada do cliente', async () => {
+        validarAccessTokenAtivo.mockResolvedValueOnce({
+            usuario: { id: 9, perfil_tipo: 'profissional' },
+            sessaoId: '8',
+        });
+        const resposta = await fetch(`${baseUrl}/api/avaliacoes/cliente`, {
+            method: 'POST',
+            headers: {
+                Authorization: 'Bearer token-valido',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ servico_id: 44, nota_estrelas: 2.5 }),
+        });
+
+        expect(resposta.status).toBe(400);
+        await expect(resposta.json()).resolves.toEqual({
+            erro: 'A nota deve ser um numero inteiro entre 1 e 5.',
+        });
+        expect(AvaliacaoModel.criarParaCliente).not.toHaveBeenCalled();
     });
 });

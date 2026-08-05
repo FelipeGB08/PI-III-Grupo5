@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../../core/config/amauc_constants.dart';
 import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/validation/form_validators.dart';
+import '../../../data/services/reverse_geocoding_service.dart';
 import '../../../domain/entities/user.dart';
 import 'auth_text_field.dart';
 import 'captcha_placeholder.dart';
@@ -205,10 +206,57 @@ class _RegisterWizardState extends State<RegisterWizard> {
         ),
       );
       widget.onLocationChanged(position.latitude, position.longitude);
+      final endereco = await ReverseGeocodingService().buscar(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
       if (!mounted) return;
       setState(() => _locationCaptured = true);
+      if (endereco == null || endereco.endereco.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Localização capturada. Não foi possível preencher o endereço; complete-o manualmente.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      final cidade = _cidadeAmaUac(endereco.cidade);
+      final enderecoFoiPreenchido =
+          widget.enderecoController.text.trim().isNotEmpty;
+      final cidadeDivergente = cidade != null &&
+          widget.cidadesSelecionadas.isNotEmpty &&
+          (widget.cidadesSelecionadas.length != 1 ||
+              !widget.cidadesSelecionadas.contains(cidade));
+      if (enderecoFoiPreenchido || cidadeDivergente) {
+        final substituir = await _confirmarSubstituicao(endereco, cidade);
+        if (!mounted) return;
+        if (!substituir) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text(
+                    'Localização capturada sem alterar os dados preenchidos.')),
+          );
+          return;
+        }
+      }
+
+      setState(() {
+        widget.enderecoController.text = endereco.descricaoCompleta;
+        if (cidade != null) {
+          widget.cidadesSelecionadas
+            ..clear()
+            ..add(cidade);
+          _chipsError = null;
+        }
+      });
+      widget.onCidadesChanged();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Localização capturada com sucesso.')),
+        SnackBar(
+            content: Text(
+                'Endereço preenchido${cidade == null ? '' : ' e cidade atualizada'} pelo GPS.')),
       );
     } catch (_) {
       if (!mounted) return;
@@ -220,6 +268,51 @@ class _RegisterWizardState extends State<RegisterWizard> {
     } finally {
       if (mounted) setState(() => _capturingLocation = false);
     }
+  }
+
+  String? _cidadeAmaUac(String? cidadeDetectada) {
+    if (cidadeDetectada == null) return null;
+    final normalizada = _normalizarCidade(cidadeDetectada);
+    for (final cidade in AmaucConstants.cidades) {
+      if (_normalizarCidade(cidade) == normalizada) return cidade;
+    }
+    return null;
+  }
+
+  String _normalizarCidade(String cidade) => cidade
+      .toLowerCase()
+      .replaceAll(RegExp('[áàãâä]'), 'a')
+      .replaceAll(RegExp('[éêë]'), 'e')
+      .replaceAll(RegExp('[íï]'), 'i')
+      .replaceAll(RegExp('[óôõö]'), 'o')
+      .replaceAll(RegExp('[úü]'), 'u')
+      .replaceAll('ç', 'c');
+
+  Future<bool> _confirmarSubstituicao(
+    ReverseGeocodedAddress endereco,
+    String? cidade,
+  ) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Atualizar dados pelo GPS?'),
+            content: Text(
+              'O endereço${cidade == null ? '' : ' e a cidade'} já foram preenchidos. '
+              'Deseja substituir pelos dados encontrados: ${endereco.descricaoCompleta}?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Manter dados atuais'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Atualizar'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   @override

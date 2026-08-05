@@ -95,6 +95,76 @@ void main() {
     expect(find.byType(AvaliacaoBottomSheet), findsNothing);
   });
 
+  testWidgets('prestador avalia cliente de forma privada apos conclusao',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final user = User(
+      id: 9,
+      nome: 'Carlos Eletricista',
+      email: 'carlos@teste.com',
+      tipo: UserTipo.profissional,
+    );
+    const chamado = Chamado(
+      id: 43,
+      descricao: 'Servico concluido',
+      status: ChamadoStatus.concluido,
+      profissionalId: 9,
+      cidadaoId: 1,
+      cidadaoNome: 'Ana Cliente',
+    );
+    final avaliacaoRepository = FakeAvaliacaoRepository();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          authStateProvider.overrideWith(
+            (ref) => AuthNotifier(
+              FakeAuthRepository(user),
+              initialState: AuthState(user: user),
+            ),
+          ),
+          chamadoRepositoryProvider
+              .overrideWithValue(FakeChamadoRepository([chamado])),
+          avaliacaoRepositoryProvider.overrideWithValue(avaliacaoRepository),
+        ],
+        child: const MaterialApp(
+          home: AgendamentoDetalhesScreen(chamado: chamado),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final evaluateButton = find.text('Avaliar Cliente');
+    await tester.scrollUntilVisible(evaluateButton, 300);
+    await tester.tap(evaluateButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Avalie o cliente'), findsOneWidget);
+    final sheet = find.byType(AvaliacaoBottomSheet);
+    final stars = find.descendant(
+      of: sheet,
+      matching: find.byIcon(Icons.star_rounded),
+    );
+    await tester.tap(stars.at(2));
+    final commentField = find.descendant(
+      of: sheet,
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(commentField, 'Cliente pontual');
+    final submitButton = find.descendant(
+      of: sheet,
+      matching: find.byType(ElevatedButton),
+    );
+    await tester.tap(submitButton);
+    await tester.pumpAndSettle();
+
+    expect(avaliacaoRepository.solicitacaoId, chamado.id);
+    expect(avaliacaoRepository.nota, 3);
+    expect(avaliacaoRepository.comentario, 'Cliente pontual');
+  });
+
   testWidgets('evidencias protegidas usam loader autenticado e exibem falha',
       (tester) async {
     SharedPreferences.setMockInitialValues({});

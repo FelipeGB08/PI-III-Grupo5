@@ -14,6 +14,7 @@ class ChamadoCard extends StatelessWidget {
     this.onRecusar,
     this.onConcluir,
     this.onAvaliar,
+    this.onAvaliarCliente,
     this.onDetalhes,
     this.onCancelar,
     this.onRemarcar,
@@ -31,6 +32,7 @@ class ChamadoCard extends StatelessWidget {
   final VoidCallback? onRecusar;
   final VoidCallback? onConcluir;
   final VoidCallback? onAvaliar;
+  final VoidCallback? onAvaliarCliente;
   final VoidCallback? onDetalhes;
   final VoidCallback? onCancelar;
   final VoidCallback? onRemarcar;
@@ -350,6 +352,20 @@ class ChamadoCard extends StatelessWidget {
           color: AppColors.primary,
           icon: Icons.star_rounded,
           onTap: onAvaliar,
+        ),
+      ];
+    }
+
+    if (isPrestador &&
+        chamado.status == ChamadoStatus.concluido &&
+        onAvaliarCliente != null) {
+      return [
+        const SizedBox(height: 14),
+        _ActionButton(
+          label: 'Avaliar cliente',
+          color: AppColors.primary,
+          icon: Icons.person_outline_rounded,
+          onTap: onAvaliarCliente,
         ),
       ];
     }

@@ -8,6 +8,12 @@ abstract class AvaliacaoRepository {
     String? comentario,
   });
 
+  Future<void> criarParaCliente({
+    required int solicitacaoId,
+    required int nota,
+    String? comentario,
+  });
+
   Future<AvaliacoesResumo> listarDoProfissional(
     int profissionalId, {
     int page = 1,

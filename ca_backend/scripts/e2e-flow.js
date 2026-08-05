@@ -980,6 +980,37 @@ async function executarFluxoE2E() {
     }),
   });
 
+  console.log('[E2E] Prestador avalia cliente de forma privada...');
+  await request('/avaliacoes/cliente', {
+    method: 'POST',
+    token: profissionalToken,
+    body: JSON.stringify({
+      servico_id: solicitacao.id,
+      nota_estrelas: 5,
+      comentario: 'Cliente cumpriu o combinado.',
+    }),
+  });
+
+  await request('/avaliacoes/cliente', {
+    method: 'POST',
+    token: profissionalToken,
+    expectedStatus: 400,
+    body: JSON.stringify({
+      servico_id: solicitacao.id,
+      nota_estrelas: 4,
+    }),
+  });
+
+  await request('/avaliacoes/cliente', {
+    method: 'POST',
+    token: cidadaoToken,
+    expectedStatus: 403,
+    body: JSON.stringify({
+      servico_id: solicitacao.id,
+      nota_estrelas: 5,
+    }),
+  });
+
   await esperarNotificacao({
     token: profissionalToken,
     tipo: 'avaliacao_recebida',

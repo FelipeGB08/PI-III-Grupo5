@@ -1,6 +1,7 @@
 const PerfilModel = require('../models/PerfilModel');
 const CategoriaModel = require('../models/CategoriaModel');
 const { cidadePermitida } = require('../config/amaucCidades');
+const { possuiCidadeInvalida } = require('../utils/userRegistrationHelpers');
 const {
     parsePagination,
     setPaginationHeaders,
@@ -100,6 +101,21 @@ const PerfilController = {
                 return res.status(403).json({ erro: 'Cidade informada nao pertence a regiao AMAUC.' });
             }
 
+            const cidadePrincipal = cidadePermitida(cidade);
+            if (possuiCidadeInvalida(req.body.cidades_atendidas)) {
+                return res.status(400).json({
+                    erro: 'Todas as cidades atendidas devem pertencer a regiao AMAUC.',
+                });
+            }
+            regional.cidades_atendidas = regional.cidades_atendidas?.length
+                ? regional.cidades_atendidas
+                : (cidadePrincipal ? [cidadePrincipal] : []);
+            if (regional.cidades_atendidas.length === 0) {
+                return res.status(400).json({
+                    erro: 'Selecione ao menos uma cidade atendida da regiao AMAUC.',
+                });
+            }
+
             const perfilExistente = await PerfilModel.buscarPorUsuarioId(usuarioId);
             if (perfilExistente) {
                 return res.status(400).json({ erro: 'Este usuario ja possui um perfil profissional cadastrado.' });
@@ -172,6 +188,17 @@ const PerfilController = {
             }
 
             const regional = montarDadosRegionais(req.body);
+            if (req.body.cidades_atendidas !== undefined && possuiCidadeInvalida(req.body.cidades_atendidas)) {
+                return res.status(400).json({
+                    erro: 'Todas as cidades atendidas devem pertencer a regiao AMAUC.',
+                });
+            }
+            if (req.body.cidades_atendidas !== undefined &&
+                regional.cidades_atendidas.length === 0) {
+                return res.status(400).json({
+                    erro: 'Selecione ao menos uma cidade atendida da regiao AMAUC.',
+                });
+            }
             const perfilAtualizado = await PerfilModel.atualizarPerfil(usuarioId, {
                 biografia: req.body.biografia ?? req.body.bio,
                 anos_experiencia: anosExperiencia,

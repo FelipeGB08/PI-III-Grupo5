@@ -106,6 +106,7 @@ class ApiConfig {
   static const String financeiro = '$apiPrefix/solicitacoes/financeiro';
   static const String conversas = '$apiPrefix/solicitacoes/conversas';
   static const String avaliacoes = '$apiPrefix/avaliacoes';
+  static const String avaliacoesClientes = '$avaliacoes/cliente';
   static const String categorias = '$apiPrefix/categorias';
   static const String adminCategorias = '$apiPrefix/admin/categorias';
   static const String adminRelatorios = '$apiPrefix/admin/relatorios';

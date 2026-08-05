@@ -991,6 +991,22 @@ class ApiService {
     );
   }
 
+  /// Registra uma avaliação privada do cliente pelo profissional responsável.
+  Future<void> criarAvaliacaoCliente({
+    required int solicitacaoId,
+    required int nota,
+    String? comentario,
+  }) async {
+    await _dio.post(
+      ApiConfig.avaliacoesClientes,
+      data: {
+        'servico_id': solicitacaoId,
+        'nota_estrelas': nota,
+        if (comentario?.trim().isNotEmpty == true) 'comentario': comentario,
+      },
+    );
+  }
+
   /// Busca resumo das avaliações de um prestador.
   Future<AvaliacoesResumoModel> listarAvaliacoesProfissional(
     int id, {

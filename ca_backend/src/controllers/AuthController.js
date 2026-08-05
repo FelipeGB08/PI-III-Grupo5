@@ -19,6 +19,7 @@ const {
     PERFIS_AUTOCADASTRO,
     normalizarListaCidades,
     normalizarPerfilTipo,
+    possuiCidadeInvalida,
 } = require('../utils/userRegistrationHelpers');
 
 const AuthController = {
@@ -85,7 +86,23 @@ const AuthController = {
             const salt = await bcrypt.genSalt(10);
             const senhaHash = await bcrypt.hash(senha, salt);
 
-            const cidadesAtendidas = normalizarListaCidades(cidades_atendidas || cidades);
+            const cidadesRecebidas = cidades_atendidas || cidades;
+            const cidadesAtendidas = normalizarListaCidades(cidadesRecebidas);
+            if (perfilInformado === 'profissional' && cidadesRecebidas !== undefined) {
+                const quantidadeInformada = Array.isArray(cidadesRecebidas)
+                    ? cidadesRecebidas.length
+                    : String(cidadesRecebidas).split(',').filter((item) => item.trim()).length;
+                if (quantidadeInformada === 0 || cidadesAtendidas.length === 0) {
+                    return res.status(400).json({
+                        erro: 'Selecione ao menos uma cidade atendida da regiao AMAUC.',
+                    });
+                }
+                if (possuiCidadeInvalida(cidadesRecebidas)) {
+                    return res.status(400).json({
+                        erro: 'Todas as cidades atendidas devem pertencer a regiao AMAUC.',
+                    });
+                }
+            }
             const novoUsuario = perfilInformado === 'profissional'
                 ? await UserModel.criarUsuarioProfissionalCompleto({
                     nome: nomeNormalizado,

@@ -67,6 +67,60 @@ const AvaliacaoModel = {
         const resultado = await pool.query(query, [profissionalId]);
         return resultado.rows[0].media;
     },
+
+    criarParaCliente: async (servicoId, notaEstrelas, comentario) => {
+        const resultado = await pool.query(
+            `
+            INSERT INTO avaliacoes_clientes (servico_id, nota_estrelas, comentario)
+            VALUES ($1, $2, $3)
+            RETURNING *;
+            `,
+            [servicoId, notaEstrelas, comentario || null]
+        );
+        return resultado.rows[0];
+    },
+
+    buscarAvaliacaoClientePorServico: async (servicoId) => {
+        const resultado = await pool.query(
+            'SELECT * FROM avaliacoes_clientes WHERE servico_id = $1',
+            [servicoId]
+        );
+        return resultado.rows[0];
+    },
+
+    buscarDoClientePrivado: async (
+        clienteId,
+        { page = 1, pageSize = 20 } = {}
+    ) => {
+        const paginacao = normalizarPaginacao({ page, pageSize });
+        const totalResult = await pool.query(
+            `
+            SELECT COUNT(*)::int AS total
+            FROM avaliacoes_clientes ac
+            INNER JOIN servicos_solicitados s ON s.id = ac.servico_id
+            WHERE s.cidadao_id = $1;
+            `,
+            [clienteId]
+        );
+        const resultado = await pool.query(
+            `
+            SELECT ac.id, ac.servico_id, ac.nota_estrelas, ac.comentario, ac.criado_em,
+                   s.prof_id, s.cidadao_id
+            FROM avaliacoes_clientes ac
+            INNER JOIN servicos_solicitados s ON s.id = ac.servico_id
+            WHERE s.cidadao_id = $1
+            ORDER BY ac.criado_em DESC
+            LIMIT $2 OFFSET $3;
+            `,
+            [clienteId, paginacao.limit, paginacao.offset]
+        );
+        const metadados = criarMetadadosPaginacao({
+            total: totalResult.rows[0]?.total,
+            page: paginacao.page,
+            pageSize: paginacao.pageSize,
+        });
+        return { items: resultado.rows, ...metadados };
+    },
 };
 
 module.exports = AvaliacaoModel;

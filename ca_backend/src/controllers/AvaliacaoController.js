@@ -112,6 +112,79 @@ const AvaliacaoController = {
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
         }
     },
+
+    criarAvaliacaoCliente: async (req, res) => {
+        try {
+            const profissionalId = req.usuarioLogado.id;
+            const servicoId = Number(req.body.servico_id || req.body.solicitacao_id);
+            const notaEstrelas = Number(req.body.nota_estrelas || req.body.nota);
+
+            if (!servicoId || !notaEstrelas) {
+                return res.status(400).json({ erro: 'servico_id e nota_estrelas sao obrigatorios.' });
+            }
+
+            await confirmarConclusoesExpiradas({ servicoId });
+            const servico = await ServicoModel.buscarPorId(servicoId);
+            if (!servico) {
+                return res.status(404).json({ erro: 'Servico nao encontrado no sistema.' });
+            }
+
+            if (servico.prof_id !== profissionalId) {
+                return res.status(403).json({
+                    erro: 'Apenas o profissional responsavel pode avaliar este cliente.',
+                });
+            }
+
+            if (servico.status !== 'concluido') {
+                return res.status(403).json({
+                    erro: 'A avaliacao do cliente so e liberada para servicos concluidos.',
+                });
+            }
+
+            const avaliacaoExistente = await AvaliacaoModel
+                .buscarAvaliacaoClientePorServico(servicoId);
+            if (avaliacaoExistente) {
+                return res.status(400).json({
+                    erro: 'Este cliente ja foi avaliado neste servico.',
+                });
+            }
+
+            const avaliacao = await AvaliacaoModel.criarParaCliente(
+                servicoId,
+                notaEstrelas,
+                req.body.comentario
+            );
+
+            return res.status(201).json({
+                mensagem: 'Avaliacao privada do cliente registrada.',
+                avaliacao,
+            });
+        } catch (erro) {
+            console.error('Erro ao avaliar cliente:', erro);
+            return res.status(500).json({ erro: 'Erro interno no servidor.' });
+        }
+    },
+
+    listarDoClientePrivado: async (req, res) => {
+        try {
+            const clienteId = Number(req.params.id);
+            const query = req.validated?.query || req.query || {};
+            const resultado = await AvaliacaoModel.buscarDoClientePrivado(
+                clienteId,
+                { page: query.page, pageSize: query.pageSize }
+            );
+            const { items, ...paginacao } = resultado;
+
+            return res.status(200).json({
+                avaliacoes: items,
+                ...paginacao,
+                paginacao,
+            });
+        } catch (erro) {
+            console.error('Erro ao listar avaliacoes privadas do cliente:', erro);
+            return res.status(500).json({ erro: 'Erro interno no servidor.' });
+        }
+    },
 };
 
 module.exports = AvaliacaoController;
