@@ -64,6 +64,34 @@ describe('ProfissionalModel - localizacao publica aproximada', () => {
         }));
     });
 
+    test('encontra profissional pela cidade secundaria de atendimento', async () => {
+        pool.query.mockResolvedValueOnce({
+            rows: [{
+                id: 9,
+                nome: 'Profissional regional',
+                cidade_amauc: 'Concórdia',
+                cidades_atendidas: ['Concórdia', 'Itá'],
+            }],
+        });
+
+        const resultado = await ProfissionalModel.buscarPorFiltros(
+            'Itá',
+            null,
+            null,
+            { limit: 20, offset: 0 }
+        );
+
+        const [sql, valores] = pool.query.mock.calls[0];
+        expect(sql).toContain('u.cidade_amauc = $1 OR $1 = ANY(pp.cidades_atendidas)');
+        expect(valores).toEqual(['Itá']);
+        expect(resultado.rows).toEqual([
+            expect.objectContaining({
+                id: 9,
+                cidades_atendidas: ['Concórdia', 'Itá'],
+            }),
+        ]);
+    });
+
     test.each([
         [
             'faixa de preco',

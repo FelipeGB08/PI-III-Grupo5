@@ -25,7 +25,7 @@ Use este checklist antes de apresentar ou gerar APK.
 - [ ] Logout limpa a sessão local e revoga o refresh token no backend.
 - [ ] Refresh com o token usado no logout retorna 401.
 - [ ] Reset/magic link estão documentados quando SMTP não estiver configurado.
-- [ ] Login social testado com credenciais de produção nos 3 provedores.
+- [ ] Login social Google testado com credenciais de produção.
 
 ## 3. Localização e mapa
 

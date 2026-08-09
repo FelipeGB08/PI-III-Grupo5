@@ -165,7 +165,11 @@ Finalize com:
 - arquitetura;
 - validação E2E;
 - homologação em usuários reais;
-- próximos passos: e-mail real, login social oficial, push notification e deploy.
+- recursos já implementados: recuperação por e-mail, login social Google,
+  notificações push via Firebase/FCM e configuração versionada para deploy;
+- o que depende da etapa operacional: publicar a API e o app em produção,
+  informar as credenciais de produção (SMTP, Google e Firebase), assinar o
+  release com keystore externo e publicar na loja.
 
 ## Plano B para apresentação
 

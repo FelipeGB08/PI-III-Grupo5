@@ -149,26 +149,12 @@ O backend mantém validação criptográfica, exige audience permitido e e-mail
 verificado. Testes cobrem configuração por plataforma, audience incorreto,
 token inválido e e-mail não verificado. Nenhum client secret é enviado ao app.
 
-### 11. Login Apple multiplataforma — confirmado no escopo sem credenciais
+### 11 e 12. Login Apple e GitHub — removidos antes do fechamento
 
-O backend fornece configuração de plataforma com `state` e `nonce` de uso
-único, valida redirect URI definida no servidor e separa o bundle ID iOS do
-Services ID de Android/web. Callback e conclusão validam issuer, audience,
-state, nonce e contexto da plataforma.
-
-Testes cobrem callback, state manipulado, audience e issuer inválidos e token
-sem e-mail. Entitlements e estrutura de callback existem sem versionar
-credenciais.
-
-### 12. GitHub OAuth Authorization Code — confirmado no escopo sem credenciais
-
-O campo para colar token pessoal foi removido. O app inicia OAuth no backend e
-recebe apenas um ticket de uso único no callback. `state` é validado e a troca
-de `code` usa client ID/secret somente no servidor. O escopo solicitado é
-somente leitura de e-mail.
-
-Testes mockam as APIs do GitHub e cobrem cancelamento, state inválido, token
-inválido, ticket inválido/reutilizado e ausência de e-mail verificado.
+Apple e GitHub chegaram a ser avaliados na revisão histórica de 23 de julho,
+mas foram removidos do produto antes da entrega. O contrato atual aceita
+somente login social Google, conforme `docs/LOGIN_SOCIAL.md`, Swagger e os
+testes de configuração social.
 
 ### 13. Vulnerabilidades transitivas do Firebase Admin — confirmado
 
@@ -231,8 +217,8 @@ foram removidos. `flutter analyze` terminou sem avisos.
   públicos de profissional passaram a ter regressões automatizadas.
 - A fixture PNG do E2E foi corrigida para ser uma imagem estruturalmente
   válida sob a validação binária nova.
-- Configurações Apple, Google e GitHub foram alinhadas entre backend, Flutter,
-  Swagger e documentação.
+- A configuração de login social foi reduzida ao Google e alinhada entre
+  backend, Flutter, Swagger e documentação.
 - A dependência do callback OAuth no Flutter foi atualizada para uma versão
   compatível com o toolchain Android atual.
 - CI, README e exemplos de ambiente foram alinhados aos nomes de variáveis
@@ -249,7 +235,7 @@ As seguintes validações dependem de configuração externa e permanecem para o
 passo operacional do grupo:
 
 - gerar e guardar um keystore Android real;
-- cadastrar e preencher credenciais reais Google, Apple e GitHub;
+- cadastrar e preencher credenciais reais do Google;
 - configurar Firebase, SMTP, Sentry e variáveis no Render;
 - executar os fluxos sociais/push em dispositivos físicos;
 - gerar o APK/AAB assinado e publicar o backend.

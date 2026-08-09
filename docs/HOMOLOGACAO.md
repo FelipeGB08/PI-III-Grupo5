@@ -37,7 +37,8 @@ O E2E cobre o fluxo principal:
 - aceite;
 - remarcação;
 - conclusão com evidência;
-- avaliação;
+- confirmação da conclusão pelo cliente antes das avaliações;
+- avaliação pública do prestador e avaliação privada do cliente pelo profissional;
 - bloqueio de avaliação duplicada.
 
 ### Flutter em emulador
@@ -68,6 +69,8 @@ O smartphone e o computador precisam estar na mesma rede.
 - GPS solicita permissão e salva latitude/longitude.
 - Mapa abre sem erro e usa a localização do cliente.
 - Busca de profissionais renderiza sem travar a UI.
+- Busca por cidade encontra prestadores que atendem ao município, inclusive
+  quando ele não é a cidade principal do perfil.
 - Prestador configura agenda com serviço, preço, duração e horários.
 - Cliente agenda usando serviço da agenda do prestador.
 - Solicitação aparece para o profissional.
@@ -75,6 +78,8 @@ O smartphone e o computador precisam estar na mesma rede.
 - Prestador aceita, remarca e conclui chamado.
 - Prestador anexa foto de evidência ao concluir.
 - Cliente avalia serviço concluído.
+- Profissional avalia o cliente somente depois da confirmação de conclusão;
+  essa avaliação não aparece em perfis ou rotas públicas.
 - Cancelamento registra política e status de reembolso.
 - Currículo Vivo salva biografia, experiência, portfólio e certificações.
 - Admin visualiza relatórios e gerencia categorias.

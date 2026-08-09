@@ -498,8 +498,15 @@ Não coloque `JWT_SECRET`, `DATABASE_URL`, credenciais SMTP, Firebase ou OAuth e
 - `docs/ROTEIRO_APRESENTACAO.md`: roteiro minutado para gravar a demonstração completa do sistema.
 - `docs/GUIA_DO_PROFESSOR_AVALIADOR.md`: instruções para iniciar banco, API e frontend em ambiente local ou publicado.
 
-## Pendências que dependem de credenciais externas
+## Configurações externas para operação real
+
+Os fluxos de recuperação por e-mail, login social Google e notificações push
+já estão implementados e cobertos no repositório. Para usá-los fora do ambiente
+local, ainda é preciso fornecer as credenciais e a infraestrutura abaixo; elas
+não são versionadas por segurança.
 
 - Credenciais SMTP reais e domínio remetente verificado para entrega de magic link/reset.
 - Validar periodicamente o login Google em dispositivos físicos após alterações nos certificados de assinatura.
-- Push notification real com chave Firebase/FCM.
+- Credenciais Firebase/FCM para entrega de push em dispositivos reais.
+- Deploy da API em produção, assinatura do release com keystore externo e
+  publicação do aplicativo na Play Store.
