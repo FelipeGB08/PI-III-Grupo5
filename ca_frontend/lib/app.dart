@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,29 +19,47 @@ class ConectaAmaucApp extends ConsumerStatefulWidget {
   ConsumerState<ConectaAmaucApp> createState() => _ConectaAmaucAppState();
 }
 
-class _ConectaAmaucAppState extends ConsumerState<ConectaAmaucApp> {
+class _ConectaAmaucAppState extends ConsumerState<ConectaAmaucApp>
+    with WidgetsBindingObserver {
   int? _ultimoUsuarioRegistrado;
   String? _ultimoTokenRegistrado;
   bool _registrandoToken = false;
+  bool _atualizandoDados = false;
+  bool _abrindoNotificacao = false;
+  Map<String, dynamic>? _notificacaoPendente;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initFirebase();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    FirebaseMessagingService.instance.onNotificationReceived = null;
+    FirebaseMessagingService.instance.onNotificationTap = null;
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_atualizarDadosEmTempoReal());
+    }
   }
 
   Future<void> _initFirebase() async {
     FirebaseMessagingService.instance.onNotificationTap = (data) {
       final tipo = FirebaseMessagingService.eventType(data);
       debugPrint('[FCM] Notificacao tocada: $tipo');
-      final context = appNavigatorKey.currentContext;
-      if (context == null) return;
-      NotificationNavigation.openFromPayload(
-        context,
-        ref,
-        data,
-        tipo: tipo,
-      );
+      _notificacaoPendente = Map<String, dynamic>.from(data);
+      unawaited(_abrirNotificacaoPendente());
+    };
+
+    FirebaseMessagingService.instance.onNotificationReceived = (_) {
+      unawaited(_atualizarDadosEmTempoReal());
     };
 
     FirebaseMessagingService.instance.onTokenRefresh = (token) {
@@ -48,6 +68,45 @@ class _ConectaAmaucAppState extends ConsumerState<ConectaAmaucApp> {
 
     await FirebaseMessagingService.instance.initialize();
     await _registrarTokenPush(FirebaseMessagingService.instance.currentToken);
+  }
+
+  Future<void> _abrirNotificacaoPendente() async {
+    if (!mounted || _abrindoNotificacao) return;
+    final data = _notificacaoPendente;
+    final auth = ref.read(authStateProvider);
+    final context = appNavigatorKey.currentContext;
+    if (data == null || auth.user == null || context == null) return;
+
+    _abrindoNotificacao = true;
+    _notificacaoPendente = null;
+    try {
+      await NotificationNavigation.openFromPayload(
+        context,
+        ref,
+        data,
+        tipo: FirebaseMessagingService.eventType(data),
+      );
+    } finally {
+      _abrindoNotificacao = false;
+    }
+  }
+
+  Future<void> _atualizarDadosEmTempoReal() async {
+    if (!mounted || _atualizandoDados) return;
+    if (ref.read(authStateProvider).user == null) return;
+
+    _atualizandoDados = true;
+    try {
+      await Future.wait<void>([
+        ref.read(chamadosProvider.notifier).carregar(),
+        ref.read(conversasProvider.notifier).carregar(),
+        ref.read(notificacoesProvider.notifier).carregar(),
+      ]);
+    } catch (e) {
+      debugPrint('[FCM] Falha ao atualizar dados do aplicativo: $e');
+    } finally {
+      _atualizandoDados = false;
+    }
   }
 
   Future<void> _registrarTokenPush(String? token) async {
@@ -92,6 +151,7 @@ class _ConectaAmaucAppState extends ConsumerState<ConectaAmaucApp> {
     } else {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _registrarTokenPush(FirebaseMessagingService.instance.currentToken);
+        unawaited(_abrirNotificacaoPendente());
       });
     }
 

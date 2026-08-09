@@ -122,32 +122,19 @@ describe('schemas de autenticacao', () => {
         expect(primeiraMensagem(invalido)).toBe('Refresh token invalido.');
     });
 
-    test('exige platform, state e nonce somente no login Apple', () => {
+    test('aceita somente o login Google', () => {
         expect(socialLoginSchema.safeParse({
             provider: 'google',
             token: 'google-id-token',
             cidade_amauc: 'Concordia',
         }).success).toBe(true);
 
-        const appleIncompleto = socialLoginSchema.safeParse({
+        const apple = socialLoginSchema.safeParse({
             provider: 'apple',
             token: 'apple-identity-token',
         });
-        expect(appleIncompleto.success).toBe(false);
-
-        expect(socialLoginSchema.safeParse({
-            provider: 'APPLE',
-            token: 'apple-identity-token',
-            platform: 'IOS',
-            state: 'contexto.assinado',
-            nonce: 'nonce-seguro',
-        })).toEqual(expect.objectContaining({
-            success: true,
-            data: expect.objectContaining({
-                provider: 'apple',
-                platform: 'ios',
-            }),
-        }));
+        expect(apple.success).toBe(false);
+        expect(primeiraMensagem(apple)).toBe('provider deve ser google.');
     });
 });
 

@@ -24,7 +24,7 @@ class _StubAdapter implements HttpClientAdapter {
 }
 
 void main() {
-  test('login Apple envia platform, state e nonce ao backend', () async {
+  test('login Google envia somente token e cidade ao backend', () async {
     Map<String, dynamic>? body;
     final dio = Dio(BaseOptions(baseUrl: 'https://api.example.test'))
       ..httpClientAdapter = _StubAdapter((options) async {
@@ -48,21 +48,15 @@ void main() {
       });
 
     await ApiService(dio).socialLogin(
-      provider: 'apple',
-      token: 'identity-token',
+      provider: 'google',
+      token: 'google-id-token',
       cidadeAmauc: 'Concordia',
-      platform: 'ios',
-      state: 'estado-opaco-123456',
-      nonce: 'nonce-opaco-1234567',
     );
 
     expect(body, {
-      'provider': 'apple',
-      'token': 'identity-token',
+      'provider': 'google',
+      'token': 'google-id-token',
       'cidade_amauc': 'Concordia',
-      'platform': 'ios',
-      'state': 'estado-opaco-123456',
-      'nonce': 'nonce-opaco-1234567',
     });
   });
 

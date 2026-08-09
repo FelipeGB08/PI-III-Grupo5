@@ -5,20 +5,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
-import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 
-import '../../../core/auth/apple_sign_in_flow.dart';
-import '../../../core/auth/github_oauth.dart';
 import '../../../core/config/amauc_constants.dart';
-import '../../../core/config/api_config.dart';
 import '../../../core/config/app_env.dart';
 import '../../../core/auth/google_sign_in_config.dart';
 import '../../../core/auth/google_sign_in_web_button.dart';
-import '../../../core/network/api_error_formatter.dart';
 import '../../../core/theme/adaptive_colors.dart';
 import '../../../core/validation/form_validators.dart';
-import '../../../data/datasources/remote/api_service.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import '../../providers/providers.dart';
@@ -50,7 +43,6 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
   String? _googleInitializationError;
   Future<void>? _googleInitialization;
   StreamSubscription<GoogleSignInAuthenticationEvent>? _googleAuthSubscription;
-  bool _githubAuthenticationInProgress = false;
 
   final _regNome = TextEditingController();
   final _regEmail = TextEditingController();
@@ -252,132 +244,47 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
     }
   }
 
-  Future<void> _socialLogin(String provider) async {
-    final providerKey = provider.toLowerCase();
-
-    if (providerKey == 'github') {
-      await _loginComGithub();
-      return;
-    }
-
+  Future<void> _loginComGoogle() async {
     try {
-      if (providerKey == 'google') {
-        await _initializeGoogleSignIn();
-        if (!mounted) return;
-        // Na Web, a autenticação é iniciada exclusivamente pelo botão oficial
-        // do Google e continuada por _handleGoogleAuthenticationEvent.
-        if (kIsWeb) return;
-      }
+      await _initializeGoogleSignIn();
+      if (!mounted) return;
+      // Na Web, a autenticação é iniciada exclusivamente pelo botão oficial
+      // do Google e continuada por _handleGoogleAuthenticationEvent.
+      if (kIsWeb) return;
 
       final cidade = await showModalBottomSheet<String>(
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (_) => _SocialCitySheet(provider: provider),
+        builder: (_) => const _SocialCitySheet(provider: 'Google'),
       );
       if (cidade == null) return;
 
-      if (providerKey == 'google') {
-        final token = await _obterGoogleIdToken();
-        await _finishSocialLogin(provider, providerKey, token, cidade);
-      } else {
-        final apple = await _obterAppleCredential();
-        await _finishSocialLogin(
-          provider,
-          providerKey,
-          apple.token,
-          cidade,
-          platform: apple.platform,
-          state: apple.state,
-          nonce: apple.nonce,
-        );
-      }
+      final token = await _obterGoogleIdToken();
+      await _finishGoogleLogin(token, cidade);
     } catch (e) {
       if (mounted) {
-        _showError(_formatSocialError(provider, e));
+        _showError(_formatSocialError('Google', e));
       }
     }
   }
 
-  String _githubPlatform() {
-    if (kIsWeb) return 'web';
-    return switch (defaultTargetPlatform) {
-      TargetPlatform.android => 'android',
-      TargetPlatform.iOS => 'ios',
-      _ => throw StateError(
-          'Login GitHub disponivel apenas em Android, iOS e Web.'),
-    };
-  }
-
-  Future<void> _loginComGithub() async {
-    final cidade = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const _SocialCitySheet(provider: 'GitHub'),
-    );
-    if (cidade == null || !mounted) return;
-
-    setState(() => _githubAuthenticationInProgress = true);
-    try {
-      final state = criarGithubOAuthState();
-      final callbackUrl = await FlutterWebAuth2.authenticate(
-        url: ApiConfig.githubOAuthAuthorizeUri(
-          platform: _githubPlatform(),
-          cidadeAmauc: cidade,
-          state: state,
-        ).toString(),
-        callbackUrlScheme: githubOAuthCallbackScheme,
-      );
-      final callback = GithubOAuthCallback.parse(
-        callbackUrl: callbackUrl,
-        expectedState: state,
-        allowWebCallback: kIsWeb,
-        expectedWebOrigin: kIsWeb ? Uri.base.origin : null,
-      );
-      final ok = await ref.read(authStateProvider.notifier).concluirGithubOAuth(
-            ticket: callback.ticket,
-            state: callback.state,
-          );
-      if (ok && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Login com GitHub realizado com sucesso!')),
-        );
-      } else if (mounted) {
-        _showError(ref.read(authStateProvider).error);
-      }
-    } catch (erro) {
-      if (mounted) _showError(_formatSocialError('GitHub', erro));
-    } finally {
-      if (mounted) setState(() => _githubAuthenticationInProgress = false);
-    }
-  }
-
-  Future<void> _finishSocialLogin(
-    String providerLabel,
-    String providerKey,
+  Future<void> _finishGoogleLogin(
     String token,
-    String cidade, {
-    String? platform,
-    String? state,
-    String? nonce,
-  }) async {
+    String cidade,
+  ) async {
     if (!mounted) return;
 
     final ok = await ref.read(authStateProvider.notifier).socialLogin(
-          provider: providerKey,
+          provider: 'google',
           token: token,
           cidadeAmauc: cidade,
-          platform: platform,
-          state: state,
-          nonce: nonce,
         );
 
     if (ok && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Login com $providerLabel realizado com sucesso!'),
+        const SnackBar(
+          content: Text('Login com Google realizado com sucesso!'),
         ),
       );
     } else if (mounted) {
@@ -449,7 +356,7 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
         builder: (_) => const _SocialCitySheet(provider: 'Google'),
       );
       if (cidade != null) {
-        await _finishSocialLogin('Google', 'google', token, cidade);
+        await _finishGoogleLogin(token, cidade);
       }
     } catch (error) {
       if (mounted) _showError(_formatSocialError('Google', error));
@@ -512,92 +419,6 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
     return token;
   }
 
-  String _applePlatform() {
-    if (kIsWeb) return 'web';
-    return switch (defaultTargetPlatform) {
-      TargetPlatform.android => 'android',
-      TargetPlatform.iOS => 'ios',
-      _ => throw StateError(
-          'Login Apple disponivel apenas em Android, iOS e Web.'),
-    };
-  }
-
-  Future<
-      ({
-        String token,
-        String platform,
-        String state,
-        String nonce,
-      })> _obterAppleCredential() async {
-    final disponivel = await SignInWithApple.isAvailable();
-    if (!disponivel) {
-      throw StateError(
-          'Login com Apple nao esta disponivel neste dispositivo.');
-    }
-
-    final platform = _applePlatform();
-    final config = await ref
-        .read(apiServiceProvider)
-        .obterConfiguracaoApple(platform: platform);
-    final webOptions = platform == 'ios'
-        ? null
-        : _appleWebOptions(config: config, platform: platform);
-
-    final credential = await SignInWithApple.getAppleIDCredential(
-      scopes: const [
-        AppleIDAuthorizationScopes.email,
-        AppleIDAuthorizationScopes.fullName,
-      ],
-      nonce: config.nonce,
-      state: config.state,
-      webAuthenticationOptions: webOptions,
-    );
-    validateAppleCredentialState(
-      expectedState: config.state,
-      returnedState: credential.state,
-    );
-
-    final token = credential.identityToken;
-    if (token == null || token.isEmpty) {
-      throw StateError('Apple nao retornou identity token.');
-    }
-    return (
-      token: token,
-      platform: platform,
-      state: config.state,
-      nonce: config.nonce,
-    );
-  }
-
-  WebAuthenticationOptions _appleWebOptions({
-    required AppleSignInConfiguration config,
-    required String platform,
-  }) {
-    try {
-      final redirectUri = Uri.tryParse(config.redirectUri ?? '');
-
-      if (redirectUri == null ||
-          redirectUri.scheme != 'https' ||
-          redirectUri.hasFragment) {
-        throw StateError(
-            'O servidor retornou uma redirect URI Apple invalida.');
-      }
-
-      if (kIsWeb && redirectUri.origin != Uri.base.origin) {
-        throw StateError(
-          'A redirect URI Apple da Web deve usar o mesmo dominio do aplicativo.',
-        );
-      }
-
-      return WebAuthenticationOptions(
-        clientId: config.clientId,
-        redirectUri: redirectUri,
-      );
-    } catch (erro) {
-      throw StateError(formatApiError(erro));
-    }
-  }
-
   String _formatSocialError(String provider, Object error) {
     if (error is GoogleSignInException) {
       if (error.code == GoogleSignInExceptionCode.canceled) {
@@ -613,7 +434,7 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
   Widget build(BuildContext context) {
     final auth = ref.watch(authStateProvider);
     final theme = Theme.of(context);
-    final loading = auth.isLoading || _githubAuthenticationInProgress;
+    final loading = auth.isLoading;
 
     return Scaffold(
       backgroundColor: context.appBackground,
@@ -859,11 +680,9 @@ class _WelcomeAuthScreenState extends ConsumerState<WelcomeAuthScreen>
             const SizedBox(height: 24),
             SocialLoginButtons(
               enabled: !loading,
-              onGoogleTap: kIsWeb ? null : () => _socialLogin('Google'),
+              onGoogleTap: kIsWeb ? null : _loginComGoogle,
               googleButton:
                   kIsWeb ? _buildGoogleWebButton(loading: loading) : null,
-              onAppleTap: () => _socialLogin('Apple'),
-              onGitHubTap: () => _socialLogin('GitHub'),
             ),
           ],
         ),

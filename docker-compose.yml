@@ -54,6 +54,7 @@ services:
       DB_PASSWORD: postgres
       DB_NAME: conecta_amauc
       DATABASE_URL: ""
+      GOOGLE_CLIENT_ID: 843985578315-rg8h0ebmkjmbirc1nomrnjnma6if4sfe.apps.googleusercontent.com
     command:
       - sh
       - -c

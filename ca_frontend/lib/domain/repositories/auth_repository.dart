@@ -60,13 +60,6 @@ abstract class AuthRepository {
     required String provider,
     required String token,
     required String cidadeAmauc,
-    String? platform,
-    String? state,
-    String? nonce,
-  });
-  Future<AuthResult> concluirGithubOAuth({
-    required String ticket,
-    required String state,
   });
   Future<AuthResult> refreshSession();
   Future<AuthResult> register(RegisterParams params);

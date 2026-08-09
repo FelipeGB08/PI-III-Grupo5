@@ -4,11 +4,14 @@ import 'package:ca_frontend/presentation/screens/cliente/cliente_dashboard_scree
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../helpers/fakes.dart';
 
 void main() {
   testWidgets('abre filtros avancados e aplica faixa de preco', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
     final repository = FakePrestadorRepository(const [
       Prestador(
         id: 9,
@@ -21,6 +24,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
           prestadorRepositoryProvider.overrideWithValue(repository),
         ],
         child: const MaterialApp(

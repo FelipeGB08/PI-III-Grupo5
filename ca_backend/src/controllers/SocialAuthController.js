@@ -8,10 +8,6 @@ const {
     criarRespostaLogin,
     montarRespostaUsuario,
 } = require('../services/authResponseService');
-const {
-    validarContextoApple,
-    validarNonceTokenApple,
-} = require('./AppleAuthController');
 
 function criarErroHttp(status, mensagem) {
     const erro = new Error(mensagem);
@@ -80,7 +76,7 @@ async function verificarJwtSocial({ token, jwksUrl, issuer, audience }) {
     }
 }
 
-async function verificarTokenSocial(provider, token, contexto = {}) {
+async function verificarTokenSocial(provider, token) {
     if (!token) {
         throw criarErroHttp(400, 'Token do provedor social é obrigatório.');
     }
@@ -106,31 +102,7 @@ async function verificarTokenSocial(provider, token, contexto = {}) {
         };
     }
 
-    if (provider === 'apple') {
-        const contextoApple = validarContextoApple({
-            platform: contexto.platform,
-            state: contexto.state,
-            nonce: contexto.nonce,
-        });
-        const claims = await verificarJwtSocial({
-            token,
-            jwksUrl: 'https://appleid.apple.com/auth/keys',
-            issuer: 'https://appleid.apple.com',
-            audience: contextoApple.audience,
-        });
-        validarNonceTokenApple(claims.nonce, contextoApple.nonce);
-        if (!claims.email) {
-            throw criarErroHttp(401, 'Token Apple válido, mas sem e-mail.');
-        }
-        return {
-            providerId: claims.sub,
-            email: claims.email,
-            nome: claims.name || 'Usuário Apple',
-            fotoUrl: null,
-        };
-    }
-
-    throw criarErroHttp(400, 'provider deve ser google ou apple.');
+    throw criarErroHttp(400, 'provider deve ser google.');
 }
 
 async function obterOuCriarUsuarioSocial({ perfilSocial, provider, cidade }) {
@@ -181,17 +153,13 @@ const SocialAuthController = {
                 access_token,
                 cidade_amauc,
                 cidade,
-                platform,
-                state,
-                nonce,
             } = req.body;
 
             const providerNormalizado = String(provider || '').toLowerCase();
             const tokenSocial = token || id_token || access_token;
             const perfilSocial = await verificarTokenSocial(
                 providerNormalizado,
-                tokenSocial,
-                { platform, state, nonce }
+                tokenSocial
             );
             const usuario = await obterOuCriarUsuarioSocial({
                 perfilSocial,

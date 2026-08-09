@@ -3,16 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('anuncia e aciona os provedores de login social', (tester) async {
-    var githubTocado = false;
+  testWidgets('anuncia e aciona somente o login Google', (tester) async {
+    var googleTocado = false;
 
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: SocialLoginButtons(
-            onGoogleTap: () {},
-            onAppleTap: () {},
-            onGitHubTap: () => githubTocado = true,
+            onGoogleTap: () => googleTocado = true,
           ),
         ),
       ),
@@ -20,11 +18,11 @@ void main() {
     final semantics = tester.ensureSemantics();
 
     expect(find.bySemanticsLabel('Continuar com Google'), findsOneWidget);
-    expect(find.bySemanticsLabel('Continuar com Apple'), findsOneWidget);
-    expect(find.bySemanticsLabel('Continuar com GitHub'), findsOneWidget);
+    expect(find.textContaining('Apple'), findsNothing);
+    expect(find.textContaining('GitHub'), findsNothing);
 
-    await tester.tap(find.bySemanticsLabel('Continuar com GitHub'));
-    expect(githubTocado, isTrue);
+    await tester.tap(find.bySemanticsLabel('Continuar com Google'));
+    expect(googleTocado, isTrue);
     semantics.dispose();
   });
 }

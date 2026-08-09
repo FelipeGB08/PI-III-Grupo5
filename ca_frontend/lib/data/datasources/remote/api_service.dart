@@ -19,48 +19,6 @@ import '../../models/notificacao_model.dart';
 import '../../models/prestador_model.dart';
 import '../../models/user_model.dart';
 
-class AppleSignInConfiguration {
-  const AppleSignInConfiguration({
-    required this.clientId,
-    required this.state,
-    required this.nonce,
-    this.redirectUri,
-  });
-
-  final String clientId;
-  final String state;
-  final String nonce;
-  final String? redirectUri;
-
-  factory AppleSignInConfiguration.fromJson(
-    Map<String, dynamic> json, {
-    required String platform,
-  }) {
-    final clientId = json['client_id']?.toString().trim() ?? '';
-    final state = json['state']?.toString().trim() ?? '';
-    final nonce = json['nonce']?.toString().trim() ?? '';
-    final redirectUri = json['redirect_uri']?.toString().trim() ?? '';
-    final precisaRedirect = platform == 'android' || platform == 'web';
-    if (clientId.isEmpty ||
-        !_isShortOpaqueValue(state) ||
-        !_isShortOpaqueValue(nonce) ||
-        (precisaRedirect && redirectUri.isEmpty)) {
-      throw StateError('Configuracao Apple incompleta recebida do servidor.');
-    }
-    return AppleSignInConfiguration(
-      clientId: clientId,
-      state: state,
-      nonce: nonce,
-      redirectUri: redirectUri.isEmpty ? null : redirectUri,
-    );
-  }
-
-  static bool _isShortOpaqueValue(String value) =>
-      value.length >= 16 &&
-      value.length <= 128 &&
-      RegExp(r'^[A-Za-z0-9._~-]+$').hasMatch(value);
-}
-
 /// [ApiService]
 /// Responsável pela comunicação direta com o backend.
 /// Todas as requisições utilizam o cliente Dio configurado.
@@ -110,9 +68,6 @@ class ApiService {
     required String provider,
     required String token,
     required String cidadeAmauc,
-    String? platform,
-    String? state,
-    String? nonce,
   }) async {
     final response = await _dio.post(
       ApiConfig.authSocialLogin,
@@ -120,40 +75,9 @@ class ApiService {
         'provider': provider,
         'token': token,
         'cidade_amauc': cidadeAmauc,
-        if (platform != null) 'platform': platform,
-        if (state != null) 'state': state,
-        if (nonce != null) 'nonce': nonce,
       },
     );
     return AuthResponseModel.fromJson(response.data as Map<String, dynamic>);
-  }
-
-  Future<AuthResponseModel> concluirGithubOAuth({
-    required String ticket,
-    required String state,
-  }) async {
-    final response = await _dio.post(
-      ApiConfig.authGithubComplete,
-      data: {'ticket': ticket, 'state': state},
-    );
-    return AuthResponseModel.fromJson(response.data as Map<String, dynamic>);
-  }
-
-  /// Busca a configuracao de Sign in with Apple definida pelo backend.
-  ///
-  /// Android e Web nunca recebem redirect URI escolhido pelo cliente: o
-  /// servidor devolve somente a URL previamente registrada para a plataforma.
-  Future<AppleSignInConfiguration> obterConfiguracaoApple({
-    required String platform,
-  }) async {
-    final response = await _dio.get(
-      ApiConfig.authAppleConfig,
-      queryParameters: {'platform': platform},
-    );
-    return AppleSignInConfiguration.fromJson(
-      response.data as Map<String, dynamic>,
-      platform: platform,
-    );
   }
 
   Future<AuthResponseModel> refreshSession({

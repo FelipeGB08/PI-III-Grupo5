@@ -53,10 +53,10 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAlxDUaiqblQombymDi4vyewP4ilS1UY6U',
-    appId: '1:347239352136:android:e36669ed0a30aff360157d',
-    messagingSenderId: '347239352136',
-    projectId: 'conecta-amauc',
-    storageBucket: 'conecta-amauc.firebasestorage.app',
+    apiKey: 'AIzaSyCwbY0fuY6PsrJcC_IfqhkB-eD57a4Pa1Q',
+    appId: '1:843985578315:android:ba4f1d7530e944c136e0ce',
+    messagingSenderId: '843985578315',
+    projectId: 'conecta-amauc-grupo-5',
+    storageBucket: 'conecta-amauc-grupo-5.firebasestorage.app',
   );
 }

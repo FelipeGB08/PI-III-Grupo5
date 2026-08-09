@@ -133,52 +133,17 @@ const swaggerSpec = swaggerJsdoc({
                 SocialLoginRequest: {
                     type: 'object',
                     required: ['provider'],
-                    description: 'No fluxo Apple, platform, state e nonce emitidos por GET /auth/apple/config também são obrigatórios.',
                     properties: {
-                        provider: { type: 'string', enum: ['google', 'apple'] },
-                        token: { type: 'string', example: 'token-do-provedor' },
+                        provider: { type: 'string', enum: ['google'] },
+                        token: { type: 'string', example: 'google-id-token' },
                         id_token: { type: 'string', description: 'Alias compatível de token.' },
                         access_token: { type: 'string', description: 'Alias legado compatível de token.' },
                         cidade_amauc: { type: 'string', example: 'Concórdia' },
-                        platform: {
-                            type: 'string',
-                            enum: ['ios', 'android', 'web'],
-                            description: 'Obrigatório para Apple e determina o audience aceito.',
-                        },
-                        state: {
-                            type: 'string',
-                            description: 'Contexto curto assinado pelo backend, obrigatório para Apple.',
-                        },
-                        nonce: {
-                            type: 'string',
-                            description: 'Nonce emitido pelo backend e presente no identity token Apple.',
-                        },
                     },
-                    allOf: [
-                        {
-                            anyOf: [
-                                { required: ['token'] },
-                                { required: ['id_token'] },
-                                { required: ['access_token'] },
-                            ],
-                        },
-                        {
-                            oneOf: [
-                                {
-                                    title: 'Google',
-                                    properties: {
-                                        provider: { type: 'string', enum: ['google'] },
-                                    },
-                                },
-                                {
-                                    title: 'Apple',
-                                    required: ['platform', 'state', 'nonce'],
-                                    properties: {
-                                        provider: { type: 'string', enum: ['apple'] },
-                                    },
-                                },
-                            ],
-                        },
+                    anyOf: [
+                        { required: ['token'] },
+                        { required: ['id_token'] },
+                        { required: ['access_token'] },
                     ],
                 },
                 RefreshTokenRequest: {

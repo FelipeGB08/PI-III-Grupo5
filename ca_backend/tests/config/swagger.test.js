@@ -118,41 +118,10 @@ describe('Swagger da API versionada', () => {
         expect(swaggerSpec.paths[caminho][metodo].responses).toHaveProperty('400');
     });
 
-    test.each([
-        ['get', '/auth/apple/config', ['200', '400', '500', '503']],
-        ['post', '/auth/apple/callback', ['303', '400', '500']],
-        ['get', '/auth/github/authorize', ['302', '400', '403', '429', '500', '503']],
-        ['get', '/auth/github/callback', ['303', '400', '401', '500', '503']],
-        ['post', '/auth/github/complete', ['200', '400', '401', '429', '500']],
-    ])('documenta respostas obrigatorias em %s %s', (metodo, caminho, statusEsperados) => {
-        expect(Object.keys(swaggerSpec.paths[caminho][metodo].responses))
-            .toEqual(expect.arrayContaining(statusEsperados));
-    });
-
-    test('documenta o contrato de contexto por plataforma do login Apple', () => {
+    test('documenta somente Google no contrato de login social', () => {
         const socialLogin = swaggerSpec.components.schemas.SocialLoginRequest;
-        const respostaConfig = swaggerSpec.paths['/auth/apple/config']
-            .get.responses['200'].content['application/json'].schema;
-
-        expect(socialLogin.properties).toEqual(expect.objectContaining({
-            platform: expect.objectContaining({ enum: ['ios', 'android', 'web'] }),
-            state: expect.any(Object),
-            nonce: expect.any(Object),
-        }));
-        const varianteApple = socialLogin.allOf
-            .flatMap((regra) => regra.oneOf || [])
-            .find((regra) => regra.title === 'Apple');
-        expect(varianteApple.required).toEqual(expect.arrayContaining([
-            'platform',
-            'state',
-            'nonce',
-        ]));
-        expect(respostaConfig.required).toEqual(expect.arrayContaining([
-            'client_id',
-            'platform',
-            'state',
-            'nonce',
-            'expires_in',
-        ]));
+        expect(socialLogin.properties.provider.enum).toEqual(['google']);
+        expect(swaggerSpec.paths).not.toHaveProperty('/auth/apple/config');
+        expect(swaggerSpec.paths).not.toHaveProperty('/auth/github/authorize');
     });
 });

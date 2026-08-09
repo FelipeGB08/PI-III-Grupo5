@@ -30,6 +30,7 @@ class FirebaseMessagingService {
   bool _initialized = false;
   String? _currentToken;
   NotificationTapCallback? onNotificationTap;
+  NotificationTapCallback? onNotificationReceived;
   ValueChanged<String>? onTokenRefresh;
 
   String? get currentToken => _currentToken;
@@ -61,6 +62,11 @@ class FirebaseMessagingService {
 
     FirebaseMessaging.onMessage.listen(_onForegroundMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpened);
+
+    final initialMessage = await _messaging?.getInitialMessage();
+    if (initialMessage != null) {
+      _onMessageOpened(initialMessage);
+    }
   }
 
   bool _isPlaceholderConfig(FirebaseOptions options) {
@@ -131,6 +137,7 @@ class FirebaseMessagingService {
   }
 
   void _onForegroundMessage(RemoteMessage message) {
+    onNotificationReceived?.call(message.data);
     final notification = message.notification;
     if (notification == null) return;
 

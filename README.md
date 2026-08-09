@@ -93,14 +93,6 @@ Variáveis mínimas em desenvolvimento local:
 Variáveis opcionais para recursos de produção:
 
 - `GOOGLE_CLIENT_ID`
-- `APPLE_IOS_CLIENT_ID`
-- `APPLE_SERVICES_ID`
-- `APPLE_ANDROID_REDIRECT_URI`
-- `APPLE_WEB_REDIRECT_URI`
-- `GITHUB_CLIENT_ID`
-- `GITHUB_CLIENT_SECRET`
-- `GITHUB_REDIRECT_URI`
-- `GITHUB_WEB_REDIRECT_URI`
 - `SMTP_HOST`
 - `SMTP_PORT`
 - `SMTP_USER`
@@ -414,7 +406,7 @@ O backend e um PostgreSQL gerenciado podem ser provisionados no Render pelo Blue
 3. Antes de confirmar, informe os valores solicitados pelo Blueprint:
    - `FRONTEND_URL`: URL pública do Flutter Web ou URL usada nos links de recuperação de senha, sem barra final.
    - `ALLOWED_ORIGINS`: origens Web autorizadas pelo CORS, com protocolo e separadas por vírgula, por exemplo `https://app.exemplo.com,https://admin.exemplo.com`.
-   - `GOOGLE_CLIENT_ID`: Web Client ID usado como audience dos tokens Google, se esse login for habilitado. Os demais campos OAuth opcionais podem ficar vazios até a configuração do respectivo provedor.
+   - `GOOGLE_CLIENT_ID`: Web Client ID usado como audience dos tokens do login Google.
 4. Confirme a criação de `conecta-amauc-db` e `conecta-amauc-api`. O `DATABASE_URL` é ligado automaticamente ao banco e o `JWT_SECRET` é gerado pelo Render; nenhum desses valores deve ser copiado para o repositório.
 5. No plano gratuito, o Render executa `npm run db:migrate` no início do serviço e `npm run db:seed` somente após o primeiro deploy. Para um ambiente de produção com dados reais, remova `initialDeployHook: npm run db:seed` do `render.yaml` antes de criar o Blueprint. Em um serviço pago, a migration pode ser movida para `preDeployCommand`.
 6. Quando o serviço ficar disponível, copie sua URL pública e valide:
@@ -450,7 +442,7 @@ Se o Blueprint não estiver disponível, faça o mesmo provisionamento pelo Dash
    | `ALLOWED_ORIGINS` | Origens Web permitidas, separadas por vírgula |
    | `ENABLE_API_DOCS` | `false` |
 
-4. Configure Google, Apple, GitHub, SMTP e Firebase somente se esses recursos forem usados. Os nomes esperados estão em `ca_backend/.env.example`; credenciais devem existir apenas no painel do Render.
+4. Configure Google, SMTP e Firebase somente se esses recursos forem usados. Os nomes esperados estão em `ca_backend/.env.example`; credenciais privadas devem existir apenas no painel do Render.
 5. Faça o primeiro deploy. A migration será executada pelo Pre-Deploy Command. Para uma demonstração com as contas fictícias, abra o Shell do serviço e execute uma única vez:
 
    ```bash
@@ -500,13 +492,14 @@ Não coloque `JWT_SECRET`, `DATABASE_URL`, credenciais SMTP, Firebase ou OAuth e
 ## Documentos finais
 
 - `docs/HOMOLOGACAO.md`: teste em dispositivos físicos e amostragem com usuários reais.
-- `docs/LOGIN_SOCIAL.md`: configuração de produção e limitações atuais de Google, Apple e GitHub.
+- `docs/LOGIN_SOCIAL.md`: configuração do login Google.
 - `docs/PUSH_NOTIFICATIONS.md`: eventos FCM, configuração e teste ponta a ponta em dispositivo físico.
 - `docs/REGRESSAO_FINAL.md`: checklist antes de cada apresentação.
-- `docs/ROTEIRO_APRESENTACAO.md`: ordem recomendada para demonstrar o sistema.
+- `docs/ROTEIRO_APRESENTACAO.md`: roteiro minutado para gravar a demonstração completa do sistema.
+- `docs/GUIA_DO_PROFESSOR_AVALIADOR.md`: instruções para iniciar banco, API e frontend em ambiente local ou publicado.
 
 ## Pendências que dependem de credenciais externas
 
 - Credenciais SMTP reais e domínio remetente verificado para entrega de magic link/reset.
-- Login social real com configuração oficial Google/Apple/GitHub.
+- Validar periodicamente o login Google em dispositivos físicos após alterações nos certificados de assinatura.
 - Push notification real com chave Firebase/FCM.

@@ -39,40 +39,12 @@ class AuthRepositoryImpl implements AuthRepository {
     required String provider,
     required String token,
     required String cidadeAmauc,
-    String? platform,
-    String? state,
-    String? nonce,
   }) async {
     try {
       final response = await _api.socialLogin(
         provider: provider,
         token: token,
         cidadeAmauc: cidadeAmauc,
-        platform: platform,
-        state: state,
-        nonce: nonce,
-      );
-      final result = AuthResult(
-        token: response.token,
-        user: response.user,
-        refreshToken: response.refreshToken,
-      );
-      await saveSession(result);
-      return result;
-    } on DioException catch (e) {
-      throw DioClient.unwrapError(e);
-    }
-  }
-
-  @override
-  Future<AuthResult> concluirGithubOAuth({
-    required String ticket,
-    required String state,
-  }) async {
-    try {
-      final response = await _api.concluirGithubOAuth(
-        ticket: ticket,
-        state: state,
       );
       final result = AuthResult(
         token: response.token,

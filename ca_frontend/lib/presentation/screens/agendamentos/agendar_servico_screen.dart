@@ -120,8 +120,8 @@ class _AgendarServicoScreenState extends ConsumerState<AgendarServicoScreen> {
             enderecoAtendimento: endereco,
             atendimentoLatitude: _atendimentoLatitude,
             atendimentoLongitude: _atendimentoLongitude,
-             fotoUrl: fotoUrl,
-             categoria: _categoriaSelecionada,
+            fotoUrl: fotoUrl,
+            categoria: _categoriaSelecionada,
           );
       await ref.read(chamadosProvider.notifier).carregar();
       if (!mounted) return;

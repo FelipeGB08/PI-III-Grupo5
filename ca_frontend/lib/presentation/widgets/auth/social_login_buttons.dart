@@ -2,48 +2,27 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/adaptive_colors.dart';
 
-/// Botões polidos para login social (Google, Apple, GitHub).
+/// Botão de login com Google.
 class SocialLoginButtons extends StatelessWidget {
   const SocialLoginButtons({
     super.key,
     this.onGoogleTap,
-    this.onAppleTap,
-    this.onGitHubTap,
     this.googleButton,
     this.enabled = true,
   });
 
   final VoidCallback? onGoogleTap;
-  final VoidCallback? onAppleTap;
-  final VoidCallback? onGitHubTap;
   final Widget? googleButton;
   final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        googleButton ??
-            _SocialButton(
-              icon: Icons.g_mobiledata_rounded,
-              label: 'Continuar com Google',
-              onTap: enabled ? onGoogleTap : null,
-            ),
-        const SizedBox(height: 12),
+    return googleButton ??
         _SocialButton(
-          icon: Icons.apple,
-          label: 'Continuar com Apple',
-          onTap: enabled ? onAppleTap : null,
-        ),
-        const SizedBox(height: 12),
-        _SocialButton(
-          icon: Icons.code,
-          label: 'Continuar com GitHub',
-          onTap: enabled ? onGitHubTap : null,
-        ),
-      ],
-    );
+          icon: Icons.g_mobiledata_rounded,
+          label: 'Continuar com Google',
+          onTap: enabled ? onGoogleTap : null,
+        );
   }
 }
 

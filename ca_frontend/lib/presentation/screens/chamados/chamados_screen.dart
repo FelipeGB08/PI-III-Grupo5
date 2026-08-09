@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/network/api_error_formatter.dart';
 import '../../../domain/entities/chamado.dart';
 import '../../../domain/entities/user.dart';
 import '../../providers/providers.dart';
@@ -141,10 +142,21 @@ class _ChamadosList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (chamados.isEmpty && !hasMore) {
-      return Center(
-        child: Text(
-          'Nenhum chamado aqui',
-          style: Theme.of(context).textTheme.bodyMedium,
+      return RefreshIndicator(
+        onRefresh: () => ref.read(chamadosProvider.notifier).carregar(),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.sizeOf(context).height * 0.45,
+              child: Center(
+                child: Text(
+                  'Nenhum chamado aqui',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -318,11 +330,18 @@ class _ChamadosList extends ConsumerWidget {
       hora.minute,
     );
 
-    await ref.read(chamadosProvider.notifier).solicitarRemarcacao(
-          chamado.id,
-          novaDataHora: novaDataHora,
-          motivo: 'Proposta enviada pelo prestador.',
-        );
+    try {
+      await ref.read(chamadosProvider.notifier).solicitarRemarcacao(
+            chamado.id,
+            novaDataHora: novaDataHora,
+            motivo: 'Proposta enviada pelo prestador.',
+          );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(formatApiError(e))),
+      );
+    }
   }
 
   Future<void> _cancelarSolicitacao(

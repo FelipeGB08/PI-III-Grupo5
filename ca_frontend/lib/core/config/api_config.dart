@@ -71,9 +71,6 @@ class ApiConfig {
   static const String authRegister = '$apiPrefix/auth/register';
   static const String authLogin = '$apiPrefix/auth/login';
   static const String authSocialLogin = '$apiPrefix/auth/social-login';
-  static const String authAppleConfig = '$apiPrefix/auth/apple/config';
-  static const String authGithubAuthorize = '$apiPrefix/auth/github/authorize';
-  static const String authGithubComplete = '$apiPrefix/auth/github/complete';
   static const String authRefresh = '$apiPrefix/auth/refresh';
   static const String authLogout = '$apiPrefix/auth/logout';
   static const String authMagicLink = '$apiPrefix/auth/magic-link';
@@ -148,20 +145,6 @@ class ApiConfig {
   static String denunciaAdmin(int denunciaId) => '$adminDenuncias/$denunciaId';
   static String statusUsuarioAdmin(int usuarioId) =>
       '$adminUsuarios/$usuarioId/status';
-
-  static Uri githubOAuthAuthorizeUri({
-    required String platform,
-    required String cidadeAmauc,
-    required String state,
-  }) {
-    return Uri.parse('$baseUrl$authGithubAuthorize').replace(
-      queryParameters: {
-        'platform': platform,
-        'cidade_amauc': cidadeAmauc,
-        'state': state,
-      },
-    );
-  }
 
   static Duration get connectTimeout => const Duration(seconds: 15);
   static Duration get receiveTimeout => const Duration(seconds: 20);

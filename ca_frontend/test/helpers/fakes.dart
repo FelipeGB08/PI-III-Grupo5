@@ -33,16 +33,6 @@ class FakeAuthRepository implements AuthRepository {
     required String provider,
     required String token,
     required String cidadeAmauc,
-    String? platform,
-    String? state,
-    String? nonce,
-  }) async =>
-      _result;
-
-  @override
-  Future<AuthResult> concluirGithubOAuth({
-    required String ticket,
-    required String state,
   }) async =>
       _result;
 
@@ -171,6 +161,8 @@ class FakeChamadoRepository implements ChamadoRepository {
   Chamado? createdChamado;
   ChamadoStatus? lastStatus;
   bool? lastListWasForPrestador;
+  int listCallCount = 0;
+  Object? remarcacaoError;
 
   @override
   Future<Chamado> criar({
@@ -211,6 +203,7 @@ class FakeChamadoRepository implements ChamadoRepository {
     int page = 1,
     int pageSize = 20,
   }) async {
+    listCallCount++;
     lastListWasForPrestador = isPrestador;
     final start = (page - 1) * pageSize;
     final items = start >= chamados.length
@@ -280,6 +273,8 @@ class FakeChamadoRepository implements ChamadoRepository {
     required DateTime novaDataHora,
     String? motivo,
   }) async {
+    final error = remarcacaoError;
+    if (error != null) throw error;
     return atualizarStatus(
       chamadoId: chamadoId,
       status: ChamadoStatus.remarcacaoSolicitada,

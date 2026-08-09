@@ -4,21 +4,6 @@ const CONFIGURACOES_SOCIAIS = [
         variaveis: ['GOOGLE_CLIENT_ID'],
         impacto: 'O backend nao conseguira validar o audience dos ID tokens Google.',
     },
-    {
-        provedor: 'APPLE',
-        variaveis: ['APPLE_IOS_CLIENT_ID', 'APPLE_SERVICES_ID'],
-        impacto: 'O backend nao conseguira validar os audiences de iOS e Android/Web dos identity tokens Apple.',
-    },
-    {
-        provedor: 'GITHUB',
-        variaveis: [
-            'GITHUB_CLIENT_ID',
-            'GITHUB_CLIENT_SECRET',
-            'GITHUB_REDIRECT_URI',
-            'GITHUB_WEB_REDIRECT_URI',
-        ],
-        impacto: 'O OAuth Authorization Code do GitHub nao podera ser concluido.',
-    },
 ];
 
 function valorDeProducao(valor) {

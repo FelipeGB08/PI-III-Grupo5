@@ -992,45 +992,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String provider,
     required String token,
     required String cidadeAmauc,
-    String? platform,
-    String? state,
-    String? nonce,
   }) async {
-    this.state = this.state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(isLoading: true, error: null);
     try {
       final result = await _repo.socialLogin(
         provider: provider,
         token: token,
         cidadeAmauc: cidadeAmauc,
-        platform: platform,
-        state: state,
-        nonce: nonce,
       );
-      this.state = AuthState(user: result.user);
+      state = AuthState(user: result.user);
       return true;
     } catch (e) {
-      this.state = this.state.copyWith(
-            isLoading: false,
-            error: formatApiError(e),
-          );
-      return false;
-    }
-  }
-
-  Future<bool> concluirGithubOAuth({
-    required String ticket,
-    required String state,
-  }) async {
-    this.state = this.state.copyWith(isLoading: true, error: null);
-    try {
-      final result = await _repo.concluirGithubOAuth(
-        ticket: ticket,
-        state: state,
-      );
-      this.state = AuthState(user: result.user);
-      return true;
-    } catch (e) {
-      this.state = this.state.copyWith(
+      state = state.copyWith(
             isLoading: false,
             error: formatApiError(e),
           );
@@ -1278,7 +1251,16 @@ class PrestadoresState {
 }
 
 class PrestadoresNotifier extends StateNotifier<PrestadoresState> {
-  PrestadoresNotifier(this._repo) : super(const PrestadoresState());
+  PrestadoresNotifier(
+    this._repo, {
+    String? cidadeInicial,
+  }) : super(
+          PrestadoresState(
+            cidadeSelecionada: cidadeInicial?.trim().isNotEmpty == true
+                ? cidadeInicial!.trim()
+                : 'Concórdia',
+          ),
+        );
 
   final PrestadorRepository _repo;
 
@@ -1361,7 +1343,13 @@ class PrestadoresNotifier extends StateNotifier<PrestadoresState> {
 
 final prestadoresProvider =
     StateNotifierProvider<PrestadoresNotifier, PrestadoresState>((ref) {
-  return PrestadoresNotifier(ref.watch(prestadorRepositoryProvider));
+  final cidadeUsuario = ref.watch(
+    authStateProvider.select((state) => state.user?.cidadeAmauc),
+  );
+  return PrestadoresNotifier(
+    ref.watch(prestadorRepositoryProvider),
+    cidadeInicial: cidadeUsuario,
+  );
 });
 
 // ─── Chamados ───────────────────────────────────────────────────────────────
@@ -1461,6 +1449,7 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
     required DateTime novaDataHora,
     String? motivo,
   }) async {
+    final estadoAnterior = state;
     state = ChamadosState(
       isLoading: true,
       chamados: state.chamados,
@@ -1469,13 +1458,18 @@ class ChamadosNotifier extends StateNotifier<ChamadosState> {
       hasMore: state.hasMore,
     );
 
-    await _repo.solicitarRemarcacao(
-      chamadoId: chamadoId,
-      novaDataHora: novaDataHora,
-      motivo: motivo,
-    );
+    try {
+      await _repo.solicitarRemarcacao(
+        chamadoId: chamadoId,
+        novaDataHora: novaDataHora,
+        motivo: motivo,
+      );
 
-    await carregar();
+      await carregar();
+    } catch (_) {
+      state = estadoAnterior;
+      rethrow;
+    }
   }
 
   Future<void> aceitarRemarcacao(int chamadoId) async {

@@ -10,6 +10,49 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../helpers/fakes.dart';
 
 void main() {
+  testWidgets('permite atualizar a lista mesmo quando nao ha chamados',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final user = User(
+      id: 9,
+      nome: 'Carlos Prestador',
+      email: 'carlos@teste.com',
+      tipo: UserTipo.profissional,
+    );
+    final chamadoRepository = FakeChamadoRepository(const []);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          authStateProvider.overrideWith(
+            (ref) => AuthNotifier(
+              FakeAuthRepository(user),
+              initialState: AuthState(user: user),
+            ),
+          ),
+          chamadoRepositoryProvider.overrideWithValue(chamadoRepository),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(body: ChamadosScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nenhum chamado aqui'), findsOneWidget);
+    expect(find.byType(RefreshIndicator), findsOneWidget);
+    final chamadasAntes = chamadoRepository.listCallCount;
+
+    await tester.drag(find.text('Nenhum chamado aqui'), const Offset(0, 300));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(chamadoRepository.listCallCount, greaterThan(chamadasAntes));
+    expect(chamadoRepository.lastListWasForPrestador, isTrue);
+  });
+
   testWidgets('prestador aceita e abre detalhes para enviar evidencias',
       (tester) async {
     SharedPreferences.setMockInitialValues({});

@@ -112,22 +112,14 @@ const socialLoginSchema = z
             .trim()
             .transform((valor) => valor.toLowerCase())
             .refine(
-                (valor) => valor === 'google' || valor === 'apple',
-                'provider deve ser google ou apple.'
+                (valor) => valor === 'google',
+                'provider deve ser google.'
             ),
         token: z.string().trim().max(8192).optional(),
         id_token: z.string().trim().max(8192).optional(),
         access_token: z.string().trim().max(8192).optional(),
         cidade_amauc: z.string().trim().max(120).optional(),
         cidade: z.string().trim().max(120).optional(),
-        platform: z
-            .string()
-            .trim()
-            .transform((valor) => valor.toLowerCase())
-            .pipe(z.enum(['ios', 'android', 'web']))
-            .optional(),
-        state: z.string().trim().max(2048, 'state do login social e invalido.').optional(),
-        nonce: z.string().trim().max(256, 'nonce do login social e invalido.').optional(),
     })
     .strict()
     .superRefine((dados, ctx) => {
@@ -136,16 +128,6 @@ const socialLoginSchema = z
                 code: 'custom',
                 path: ['token'],
                 message: 'Token do provedor social e obrigatorio.',
-            });
-        }
-
-        if (dados.provider !== 'apple') return;
-        for (const campo of ['platform', 'state', 'nonce']) {
-            if (dados[campo]) continue;
-            ctx.addIssue({
-                code: 'custom',
-                path: [campo],
-                message: `${campo} e obrigatorio no login Apple.`,
             });
         }
     });

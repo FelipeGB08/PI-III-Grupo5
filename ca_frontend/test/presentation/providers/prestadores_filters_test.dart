@@ -5,6 +5,23 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../helpers/fakes.dart';
 
 void main() {
+  test('inicia a busca na cidade do usuario autenticado', () {
+    final repository = FakePrestadorRepository(const []);
+    final notifier = PrestadoresNotifier(
+      repository,
+      cidadeInicial: 'Seara',
+    );
+
+    expect(notifier.state.cidadeSelecionada, 'Seara');
+  });
+
+  test('usa Concordia quando a cidade do usuario esta ausente', () {
+    final repository = FakePrestadorRepository(const []);
+    final notifier = PrestadoresNotifier(repository, cidadeInicial: '  ');
+
+    expect(notifier.state.cidadeSelecionada, 'Concórdia');
+  });
+
   test('aplica e limpa filtros avancados ao buscar prestadores', () async {
     final repository = FakePrestadorRepository(const [
       Prestador(
