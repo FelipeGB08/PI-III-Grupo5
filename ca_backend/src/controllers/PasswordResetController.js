@@ -11,12 +11,13 @@ const {
     gerarTokenSeguro,
     hashToken,
 } = require('../services/passwordTokenStore');
+const { normalizarEmailIdentidade } = require('../utils/emailIdentity');
 
 const PasswordResetController = {
     solicitarMagicLink: async (req, res) => {
         try {
             const { email } = req.body;
-            const emailNormalizado = String(email || '').trim().toLowerCase();
+            const emailNormalizado = normalizarEmailIdentidade(email);
 
             if (!emailNormalizado) {
                 return res.status(400).json({ erro: 'Email e obrigatorio.' });
@@ -111,7 +112,7 @@ const PasswordResetController = {
     solicitarResetSenha: async (req, res) => {
         try {
             const { email } = req.body;
-            const emailNormalizado = String(email || '').trim().toLowerCase();
+            const emailNormalizado = normalizarEmailIdentidade(email);
 
             if (!emailNormalizado) {
                 return res.status(400).json({ erro: 'Email e obrigatorio.' });

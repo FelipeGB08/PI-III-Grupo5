@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const AgendaModel = require('./AgendaModel');
 const { coordenadasCidade } = require('../config/amaucCidades');
 const { criarMetadadosPaginacao, normalizarPaginacao } = require('../utils/pagination');
+const { normalizarEmailIdentidade } = require('../utils/emailIdentity');
 
 function semAcento(valor) {
     return String(valor || '')
@@ -12,8 +13,8 @@ function semAcento(valor) {
 
 const UserModel = {
     buscarPorEmail: async (email) => {
-        const query = 'SELECT * FROM usuarios WHERE LOWER(email) = LOWER($1)';
-        const result = await pool.query(query, [email]);
+        const query = 'SELECT * FROM usuarios WHERE LOWER(TRIM(email)) = $1';
+        const result = await pool.query(query, [normalizarEmailIdentidade(email)]);
         return result.rows[0];
     },
 
@@ -152,6 +153,7 @@ const UserModel = {
         perfilTipo,
         localizacao = {}
     ) => {
+        const emailNormalizado = normalizarEmailIdentidade(email);
         const coords = coordenadasCidade(cidadeAmauc) || {};
         const latitude = localizacao.latitude ?? coords.lat ?? null;
         const longitude = localizacao.longitude ?? coords.lng ?? null;
@@ -174,7 +176,7 @@ const UserModel = {
 
         const result = await pool.query(query, [
             nome,
-            email,
+            emailNormalizado,
             senhaHash,
             telefone || null,
             cidadeAmauc,
@@ -205,12 +207,13 @@ const UserModel = {
         try {
             await client.query('BEGIN');
 
+            const emailNormalizado = normalizarEmailIdentidade(email);
             const coords = coordenadasCidade(cidadeAmauc) || {};
             const usuarioResult = await client.query(
                 `
                 INSERT INTO usuarios (
                     nome,
-                    email,
+                    emailNormalizado,
                     senha_hash,
                     telefone,
                     cidade_amauc,

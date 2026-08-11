@@ -36,6 +36,9 @@ CREATE TABLE usuarios (
     criado_em TIMESTAMP DEFAULT NOW()
 );
 
+CREATE UNIQUE INDEX uq_usuarios_email_case_insensitive
+    ON usuarios ((LOWER(TRIM(email))));
+
 CREATE INDEX idx_usuarios_ativos_perfil
     ON usuarios (perfil_tipo)
     WHERE ativo = TRUE;
