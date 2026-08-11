@@ -12,6 +12,7 @@ const {
     validarContextoApple,
     validarNonceTokenApple,
 } = require('./AppleAuthController');
+const { normalizarEmailIdentidade } = require('../utils/emailIdentity');
 
 function criarErroHttp(status, mensagem) {
     const erro = new Error(mensagem);
@@ -134,7 +135,7 @@ async function verificarTokenSocial(provider, token, contexto = {}) {
 }
 
 async function obterOuCriarUsuarioSocial({ perfilSocial, provider, cidade }) {
-    const emailNormalizado = String(perfilSocial.email || '').trim().toLowerCase();
+    const emailNormalizado = normalizarEmailIdentidade(perfilSocial.email);
     let usuario = await UserModel.buscarPorEmail(emailNormalizado);
 
     if (usuario?.ativo === false) {
@@ -158,14 +159,22 @@ async function obterOuCriarUsuarioSocial({ perfilSocial, provider, cidade }) {
             10
         );
 
-        usuario = await UserModel.criarUsuario(
-            nomeSocial.length >= 2 ? nomeSocial : 'Usuário AMAUC',
-            emailNormalizado,
-            senhaSocialHash,
-            null,
-            cidadeValidada,
-            'cidadao'
-        );
+        try {
+            usuario = await UserModel.criarUsuario(
+                nomeSocial.length >= 2 ? nomeSocial : 'Usuário AMAUC',
+                emailNormalizado,
+                senhaSocialHash,
+                null,
+                cidadeValidada,
+                'cidadao'
+            );
+        } catch (erro) {
+            // Duas tentativas sociais simultâneas podem passar na consulta
+            // inicial. A restrição única decide a corrida e recuperamos a conta.
+            if (erro.code !== '23505') throw erro;
+            usuario = await UserModel.buscarPorEmail(emailNormalizado);
+            if (!usuario) throw erro;
+        }
     }
 
     return usuario;

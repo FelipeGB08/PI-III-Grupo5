@@ -21,6 +21,7 @@ const {
     normalizarPerfilTipo,
     possuiCidadeInvalida,
 } = require('../utils/userRegistrationHelpers');
+const { normalizarEmailIdentidade } = require('../utils/emailIdentity');
 
 const AuthController = {
     registrarUsuario: async (req, res) => {
@@ -55,7 +56,7 @@ const AuthController = {
                 ? Number(longitude)
                 : undefined;
             const perfilInformado = normalizarPerfilTipo(perfil_tipo || tipo_usuario);
-            const emailNormalizado = String(email || '').trim().toLowerCase();
+            const emailNormalizado = normalizarEmailIdentidade(email);
             const nomeNormalizado = String(nome || '').trim();
             const biografiaProfissional = String(biografia || bio || '').trim();
             const categoriaProfissional = Array.isArray(categorias)
@@ -154,6 +155,9 @@ const AuthController = {
             if (erro.message === 'Categoria profissional invalida.') {
                 return res.status(400).json({ erro: erro.message });
             }
+            if (erro.code === '23505') {
+                return res.status(400).json({ erro: 'Este email já está em uso.' });
+            }
             return res.status(500).json({ erro: 'Erro interno no servidor.' });
         }
     },
@@ -161,7 +165,7 @@ const AuthController = {
     loginUsuario: async (req, res) => {
         try {
             const { email, senha } = req.body;
-            const emailNormalizado = String(email || '').trim().toLowerCase();
+            const emailNormalizado = normalizarEmailIdentidade(email);
 
             const usuario = await UserModel.buscarPorEmail(emailNormalizado);
             if (!usuario || usuario.ativo === false) {

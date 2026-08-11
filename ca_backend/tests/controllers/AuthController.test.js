@@ -176,6 +176,30 @@ describe('AuthController.registrarUsuario', () => {
         expect(res.status).toHaveBeenCalledWith(201);
     });
 
+    test('bloqueia variações equivalentes de um endereço Gmail já cadastrado', async () => {
+        UserModel.buscarPorEmail.mockResolvedValue({ id: 10 });
+        const res = criarRespostaMock();
+
+        await AuthController.registrarUsuario({
+            body: {
+                nome: 'Cidadão Teste',
+                email: 'Cidadao.Teste+novo@googlemail.com',
+                senha: 'SenhaSegura123',
+                cidade_amauc: 'Concordia',
+                perfil_tipo: 'cidadao',
+            },
+        }, res);
+
+        expect(UserModel.buscarPorEmail).toHaveBeenCalledWith(
+            'cidadaoteste@gmail.com'
+        );
+        expect(UserModel.criarUsuario).not.toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith({
+            erro: 'Este email já está em uso.',
+        });
+    });
+
     test('rejeita cidades atendidas fora da regiao AMAUC', async () => {
         const res = criarRespostaMock();
 
